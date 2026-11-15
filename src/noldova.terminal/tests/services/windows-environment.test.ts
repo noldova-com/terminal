@@ -43,6 +43,19 @@ const INVALID: string = "reg.exe did not export the machine's and the person's v
 const CLEANUP: string = "The Windows environment's temporary files were not removed: ";
 const MACHINE_UNREAD: string = "The key HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment could not be read. ";
 const USER_UNREAD: string = "The key HKCU\\Environment could not be read. ";
+const WRITE_FAILURE: string = "ERROR: Unable to write to the file. There may be a disk or file system error.";
+
+function retried(key: string, text: string = WRITE_FAILURE): string {
+  return `reg.exe could not export the key ${key}, which it finds, so it exports it once more in 250 ms: ${text}`;
+}
+
+function unwritten(text: string = WRITE_FAILURE): CommandExitedException {
+  return new CommandExitedException("reg.exe", new ProcessExit(1, null), `${text}\r\n`);
+}
+
+function exportsOf(runner: ExportRunner): readonly string[] {
+  return runner.runs.filter(t => t[1][0] === "export").map(t => t[1][2] ?? "");
+}
 
 function plain(variables: Readonly<Record<string, string>>): Scope {
   return Object.fromEntries(Object.entries(variables).map(([name, value]) => [name, [value, false] as const]));
@@ -71,6 +84,9 @@ function exported(key: string, scope: Scope): Uint8Array {
 class ExportRunner implements ICommandRunner {
   public readonly runs: (readonly [string, readonly string[], number])[] = [];
   public readonly answers: Map<string, Scope | Error> = new Map<string, Scope | Error>();
+  public readonly failures: Map<string, Error[]> = new Map<string, Error[]>();
+  public readonly present: Set<string> = new Set<string>([MACHINE_KEY, USER_KEY]);
+  public queryFailure: Error | null = null;
   public held: PromiseWithResolvers<void> | null = null;
   public readonly entered: PromiseWithResolvers<void> = Promise.withResolvers<void>();
   private readonly reader: FakeFileSystemReader;
@@ -85,13 +101,26 @@ class ExportRunner implements ICommandRunner {
       this.entered.resolve();
       await this.held.promise;
     }
-    const [, key = "", target = ""] = args;
+    const [verb, key = "", target = ""] = args;
+    if (verb === "query")
+      return this.query(key);
+    const failure: Error | undefined = this.failures.get(key)?.shift();
+    if (failure !== undefined)
+      throw failure;
     const answer: Scope | Error | undefined = this.answers.get(key);
     if (answer instanceof Error)
       throw answer;
     if (answer !== undefined)
       this.reader.bytes.set(target, exported(key, answer));
     return "The operation completed successfully.\r\n";
+  }
+
+  private query(key: string): string {
+    if (this.queryFailure !== null)
+      throw this.queryFailure;
+    if (!this.present.has(key))
+      throw new CommandExitedException("reg.exe", new ProcessExit(1, null), "ERROR: The system was unable to find the specified registry key or value.\r\n");
+    return `${key}\r\n`;
   }
 }
 
@@ -308,8 +337,9 @@ describe("WindowsEnvironment", () => {
     assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [`${UNREAD}${MACHINE_UNREAD}reg.exe could not start. refused`]);
   });
 
-  it("takes a key reg.exe refuses to export, as a person's missing Environment key, as holding no variables, and logs nothing", async () => {
+  it("takes a key reg.exe refuses to export and then doesn't find, as a person's missing Environment key, as holding no variables, and logs nothing", async () => {
     const fixture: EnvironmentFixture = new EnvironmentFixture();
+    fixture.runner.present.delete(USER_KEY);
     fixture.answer(plain({ MACHINE: "yes" }), new CommandExitedException("reg.exe", new ProcessExit(1, null)));
 
     const read: Readonly<Record<string, string | undefined>> = await fixture.source.readAsync();
@@ -318,14 +348,96 @@ describe("WindowsEnvironment", () => {
     assert.equal(read["Path"], INHERITED["Path"]);
     assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), []);
     assert.equal(fixture.writer.removedFiles.length, 2);
+    assert.deepEqual(fixture.runner.runs.slice(1).map(t => t[1]), [["export", USER_KEY, path.win32.join(FOLDER, "user-1.reg"), "/y"], ["query", USER_KEY]]);
   });
 
   it("starts the shell with the inherited environment, and logs the key and what reg.exe said, when reg.exe refuses the machine's key, which every Windows has", async () => {
     const fixture: EnvironmentFixture = new EnvironmentFixture();
+    fixture.runner.present.delete(MACHINE_KEY);
     fixture.answer(new CommandExitedException("reg.exe", new ProcessExit(1, null), "ERROR: Access is denied.\r\n"), plain({ USER: "yes" }));
 
     assert.equal(await fixture.source.readAsync(), INHERITED);
     assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [`${UNREAD}${MACHINE_UNREAD}reg.exe exited with 1: ERROR: Access is denied.`]);
+    assert.deepEqual(fixture.runner.runs.map(t => t[1]), [["export", MACHINE_KEY, path.win32.join(FOLDER, "machine-1.reg"), "/y"], ["query", MACHINE_KEY]]);
+  });
+
+  it("exports the person's key only once the machine's export ended, so two reg.exe never write at once", async () => {
+    const fixture: EnvironmentFixture = new EnvironmentFixture();
+    fixture.runner.held = Promise.withResolvers<void>();
+    fixture.answer({}, plain({ USER: "yes" }));
+    const reading: Promise<Readonly<Record<string, string | undefined>>> = fixture.source.readAsync();
+    await fixture.runner.entered.promise;
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    const whileMachine: readonly string[] = fixture.runner.runs.map(t => t[1][1] ?? "");
+    fixture.runner.held.resolve();
+
+    assert.equal((await reading)["USER"], "yes");
+    assert.deepEqual([whileMachine, fixture.runner.runs.map(t => t[1][1])], [[MACHINE_KEY], [MACHINE_KEY, USER_KEY]]);
+  });
+
+  it.each([["machine's", WRITE_FAILURE, MACHINE_KEY, "machine-1"], ["person's", WRITE_FAILURE, USER_KEY, "user-1"],
+    ["person's", "FEHLER: In die Datei kann nicht geschrieben werden.", USER_KEY, "user-1"]])(
+    "exports the %s key once more, 250 ms later into a file of a new name, when reg.exe failed its export with \"%s\" but finds the key, logs that, and removes both files",
+    async (_name, text, key, file) => {
+      const fixture: EnvironmentFixture = new EnvironmentFixture();
+      fixture.runner.failures.set(key, [unwritten(text)]);
+      fixture.answer(plain({ MACHINE: "yes" }), plain({ USER: "yes" }));
+      const started: number = performance.now();
+
+      const read: Readonly<Record<string, string | undefined>> = await fixture.source.readAsync();
+      const waited: number = performance.now() - started;
+
+      assert.deepEqual([read["MACHINE"], read["USER"]], ["yes", "yes"]);
+      assert.ok(waited >= 240, `${waited}`);
+      const files: readonly string[] = exportsOf(fixture.runner);
+      assert.deepEqual(files.filter(t => path.win32.basename(t).startsWith(file)), [path.win32.join(FOLDER, `${file}.reg`), path.win32.join(FOLDER, `${file}-2.reg`)]);
+      assert.deepEqual(fixture.runner.runs.filter(t => t[1][0] === "query").map(t => t[1]), [["query", key]]);
+      assert.deepEqual([...fixture.writer.removedFiles].sort(), [...files].sort());
+      assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [retried(key, text)]);
+    });
+
+  it.each([["machine's", MACHINE_KEY, MACHINE_UNREAD], ["person's", USER_KEY, USER_UNREAD]])(
+    "starts the shell with the inherited environment, and logs what reg.exe said, when it can't export the %s key the second time either", async (_name, key, unread) => {
+      const fixture: EnvironmentFixture = new EnvironmentFixture();
+      fixture.runner.failures.set(key, [unwritten(), unwritten()]);
+      fixture.answer(plain({ MACHINE: "yes" }), plain({ USER: "yes" }));
+
+      assert.equal(await fixture.source.readAsync(), INHERITED);
+      assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [retried(key), `${UNREAD}${unread}reg.exe exited with 1: ${WRITE_FAILURE}`]);
+      assert.equal(fixture.runner.runs.filter(t => t[1][0] === "export" && t[1][1] === key).length, 2);
+    });
+
+  it("starts the shell with the inherited environment, logs what the export said, and exports no more, when reg.exe can't tell whether the person's key is there", async () => {
+    const fixture: EnvironmentFixture = new EnvironmentFixture();
+    fixture.runner.failures.set(USER_KEY, [unwritten()]);
+    fixture.runner.queryFailure = new CommandTimedOutException("reg.exe", 5_000);
+    fixture.answer(plain({ MACHINE: "yes" }), plain({ USER: "yes" }));
+
+    assert.equal(await fixture.source.readAsync(), INHERITED);
+    assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [`${UNREAD}${USER_UNREAD}reg.exe exited with 1: ${WRITE_FAILURE}`]);
+    assert.deepEqual(exportsOf(fixture.runner), [path.win32.join(FOLDER, "machine-1.reg"), path.win32.join(FOLDER, "user-1.reg")]);
+  });
+
+  it("exports nothing more once it ended while it waited to export again, and removes its folder", async () => {
+    const fixture: EnvironmentFixture = new EnvironmentFixture();
+    fixture.runner.held = Promise.withResolvers<void>();
+    fixture.runner.failures.set(MACHINE_KEY, [unwritten()]);
+    fixture.answer({}, {});
+    const reading: Promise<Readonly<Record<string, string | undefined>>> = fixture.source.readAsync();
+    await fixture.runner.entered.promise;
+    fixture.runner.held.resolve();
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    const logged: readonly unknown[] = fixture.log.callsOf("write").map(t => t[0]);
+    fixture.source.end();
+    const ended: Readonly<Record<string, string | undefined>> = await reading;
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    assert.equal(ended, INHERITED);
+    assert.deepEqual(logged, [retried(MACHINE_KEY)]);
+    assert.deepEqual([exportsOf(fixture.runner), fixture.writer.removed, fixture.writer.removedFiles],
+      [[path.win32.join(FOLDER, "machine-1.reg")], [FOLDER, FOLDER], [path.win32.join(FOLDER, "machine-1.reg")]]);
   });
 
   it("makes a SystemRoot that is set but empty count as not set, so it never runs a reg.exe relative to its folder", async () => {
@@ -422,6 +534,7 @@ describe("WindowsEnvironment", () => {
 
       assert.equal(ended, INHERITED);
       assert.deepEqual([removedAtEnd, fixture.writer.removed, fixture.log.callsOf("write").map(t => t[0])], [atEnd, settled, logged]);
+      assert.deepEqual(fixture.runner.runs.slice(2).map(t => t[1][1]), [MACHINE_KEY]);
     });
 
   it("reads on and logs when an export, a refused folder or its folder at the end can't be removed, and logs a folder that couldn't be made", async () => {
