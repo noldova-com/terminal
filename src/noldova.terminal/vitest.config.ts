@@ -13,6 +13,7 @@ export default defineProject({
     include: [
       "tests/**/*.test.ts"
     ],
+    globalSetup: ["tests/fixtures/dotnet-shared-memory.setup.ts"],
     testTimeout: 70_000,
     hookTimeout: 70_000
   }
