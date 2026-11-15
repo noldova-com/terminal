@@ -502,6 +502,10 @@ export class Resources {
   public static readonly zdotdirVariable: string = "ZDOTDIR";
   public static readonly userZdotdirVariable: string = "NOLDOVA_TERMINAL_ZDOTDIR";
   public static readonly integrationFolderPrefix: string = "noldova-terminal-";
+  public static readonly runtimeFolderVariable: string = "XDG_RUNTIME_DIR";
+  public static readonly dotnetFolder: string = ".dotnet";
+  public static readonly dotnetSharedMemoryFolder: string = "shm";
+  public static readonly dotnetSharedMemoryFolderMode: number = 0o700;
   public static readonly bashScriptFile: string = "noldova.bash";
   public static readonly nonceFilePrefix: string = "nonce-";
   public static readonly nonceFileNameBytes: number = 16;
@@ -828,6 +832,10 @@ exit 0
     return `Shells start without the module's shell integration, whose folder could not be made private or whose scripts could not be written: ${message}`;
   }
 
+  public static formatDotnetSharedMemoryFolderFailed(folder: string, message: string): string {
+    return `PowerShell starts without ${folder} made first, so several pwsh that start at once can fail to start their line editor: ${message}`;
+  }
+
   public static formatNonceFileFailed(message: string): string {
     return `A shell starts without the module's shell integration, whose nonce file could not be written: ${message}`;
   }
@@ -1004,6 +1012,7 @@ exit 0
 
   public static readonly fileSystemWriterPrivateFileMode: number = 0o600;
   public static readonly fileSystemWriterCreateOnlyFlag: string = "wx";
+  public static readonly fileSystemWriterExistingPathCode: string = "EEXIST";
 
   public static readonly lineProcessErrorEvent: "error" = "error";
   public static readonly lineProcessTrailingCarriageReturn: RegExp = /\r$/u;

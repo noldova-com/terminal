@@ -138,7 +138,7 @@ class HostFixture {
     this.host = new TerminalHost(
       this.spawner,
       this.fileSystem,
-      new ShellIntegration(this.writer, "/tmp", this.log, null, this.settings),
+      new ShellIntegration(this.writer, "/tmp", this.log, null, this.settings, platform),
       historyFolder ?? new TerminalHistoryFolder(this.historyWriter, this.fileSystem, this.signaller, "/tmp", 400, this.log),
       new ShellLocator(platform, "x64", environment, null, this.fileSystem, this.runner, this.log),
       platform,

@@ -7,7 +7,7 @@
  */
 
 import assert from "node:assert/strict";
-import { readFile, stat } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
@@ -40,5 +40,43 @@ describe("FileSystemWriter", () => {
 
     await assert.rejects(stat(folder), { code: "ENOENT" });
     await writer.removeFolderAsync(folder);
+  });
+
+  it("makes a missing folder in a folder that exists with the mode it's given, and leaves a folder that exists and its contents as they are", async () => {
+    const writer: FileSystemWriter = new FileSystemWriter();
+    const root: string = await mkdtemp(join(tmpdir(), "terminal-missing-folder-"));
+    const made: string = join(root, "made");
+    const kept: string = join(root, "kept");
+    try {
+      await mkdir(kept);
+      await writeFile(join(kept, "session1"), "held");
+      if (process.platform !== "win32")
+        await chmod(kept, 0o755);
+
+      await writer.createMissingFolderAsync(made, 0o700);
+      await writer.createMissingFolderAsync(kept, 0o700);
+
+      assert.equal((await stat(made)).isDirectory(), true);
+      assert.deepEqual(await readdir(kept), ["session1"]);
+      assert.equal(await readFile(join(kept, "session1"), "utf8"), "held");
+      if (process.platform !== "win32")
+        assert.deepEqual([(await stat(made)).mode & 0o777, (await stat(kept)).mode & 0o777], [0o700, 0o755]);
+    }
+    finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to make a folder whose parent is missing, as a runtime folder that isn't there, and makes neither", async () => {
+    const writer: FileSystemWriter = new FileSystemWriter();
+    const root: string = await mkdtemp(join(tmpdir(), "terminal-missing-folder-"));
+    try {
+      await assert.rejects(writer.createMissingFolderAsync(join(root, "run", ".dotnet"), 0o700), { code: "ENOENT" });
+
+      assert.deepEqual(await readdir(root), []);
+    }
+    finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

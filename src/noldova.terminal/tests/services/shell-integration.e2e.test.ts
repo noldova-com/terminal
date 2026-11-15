@@ -1055,7 +1055,7 @@ describe("a shell's nonce file", () => {
     const parent: string = await mkdtemp(join(tmpdir(), "noldova-terminal-parent-"));
     const context: FakeRuntimePartContext = new FakeRuntimePartContext();
     const integration: ShellIntegration = new ShellIntegration(new FileSystemWriter(), parent, new FakeModuleLog(),
-      FolderAccess.create(process.platform, new CommandRunner(context), process.env), new FakeModuleSettings());
+      FolderAccess.create(process.platform, new CommandRunner(context), process.env), new FakeModuleSettings(), process.platform);
     try {
       PrivateFolder.passOnRead(parent);
       const launch: ShellLaunch = await integration.prepareAsync(new Shell("bash", "Bash", TerminalShellKind.Bash, "/bin/bash", [], false), TEST_NONCE, {});

@@ -243,6 +243,14 @@ The runtime takes that name from `@noldova/desktop.protocol`, never a copy of it
     `LANG` is then set to UTF-8 in that language and region, such as `fr_FR.UTF-8`, when macOS has that locale in `/usr/share/locale`, and `LC_CTYPE` to `UTF-8` otherwise, as for a language without a region.
     When `defaults` fails, answers no locale, or takes longer, the runtime's own locale stands in, which is `en-US` when no locale variable is set; a locale that is set stays as it is.
     The runtime stops `defaults` only when it gives up while `defaults` has neither answered nor ended, at the time limit or the part's end: by the time its line is read it has already ended, and stopping its process group before Node reaps it makes macOS answer EPERM, which Noldova Desktop logs as a failure.
+- On Linux, before the first PowerShell of each runtime folder starts, the runtime makes `$XDG_RUNTIME_DIR/.dotnet/shm`, with `.dotnet` before it, each with mode 0700 when it is missing; a folder that exists keeps its mode and what it holds, and nothing else there changes.
+  Each folder is made only inside one that exists, so a runtime folder that is missing stays missing, and a relative `XDG_RUNTIME_DIR` is skipped.
+  .NET 10 makes that folder with its first named mutex, through a temporary folder that it renames into place, and the rename replaces a folder another process has just made.
+  PSReadLine takes a named mutex for its history file as each pwsh starts, so when several pwsh start at once with no folder yet, one of them can fail to start its line editor, with `System.IO.IOException` naming `PSReadLineHistoryFile_…` at its prompt.
+  The runtime folder, `/run/user/<uid>`, is empty after each boot, so a person who gets several pwsh terminals back at once after a reboot, or an app that opens several together, can hit it.
+  This is .NET's bug, dotnet/runtime#136236.
+  When the folder can't be made, PowerShell starts anyway and the module's log says why, once for that folder.
+  The step goes once the PowerShell 7 releases people run are built on a .NET 10 with its fix, dotnet/runtime#136541, or on .NET 11, which doesn't have the bug.
 - On Windows the shell list offers PowerShell 7, Windows PowerShell, Command Prompt and Git Bash, the first one found by default, then each WSL distribution but Docker Desktop's, the default distribution first, then each Visual Studio installation's Developer Command Prompt and Developer PowerShell.
   - PowerShell 7 is looked for in `%ProgramFiles%\PowerShell\7`, then in the `PATH` folders, then in `%LOCALAPPDATA%\Microsoft\WindowsApps`, where a Store install keeps its app execution alias.
   - Git Bash is looked for in the `Git` folder of `%ProgramFiles%` and `%ProgramFiles(x86)%`, in `%LOCALAPPDATA%\Programs\Git`, where a per-user install goes, and beside each `PATH` folder named `cmd` that holds `git.exe`.

@@ -12,11 +12,13 @@ export class FakeFileSystemWriter implements IFileSystemWriter {
   public readonly files: Map<string, string> = new Map<string, string>();
   public readonly removed: string[] = [];
   public readonly removedFiles: string[] = [];
+  public readonly missingFolders: [string, number][] = [];
   public folders: number = 0;
   public failure: Error | string | null = null;
   public removalFailure: Error | string | null = null;
   public fileRemovalFailure: Error | string | null = null;
   public writeFailure: Error | string | null = null;
+  public missingFolderFailure: Error | string | null = null;
   public writeFailurePath: string = "";
 
   public nonceFor(environment: Readonly<Record<string, string>> | undefined): string {
@@ -29,6 +31,11 @@ export class FakeFileSystemWriter implements IFileSystemWriter {
       return Promise.reject(this.failure);
     this.folders++;
     return Promise.resolve(`${prefix}${this.folders}`);
+  }
+
+  public createMissingFolderAsync(path: string, mode: number): Promise<void> {
+    this.missingFolders.push([path, mode]);
+    return this.missingFolderFailure === null ? Promise.resolve() : Promise.reject(this.missingFolderFailure);
   }
 
   public async writeTextAsync(path: string, text: string): Promise<void> {
