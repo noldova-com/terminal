@@ -28,14 +28,18 @@ export class ShellIntegration {
   private readonly log: IModuleLog;
   private readonly access: IFolderAccess | null;
   private readonly settings: IModuleSettings;
+  private readonly platform: string;
+  private readonly sharedMemoryFolders: Map<string, Promise<void>> = new Map<string, Promise<void>>();
   private folder: Promise<string> | null = null;
 
-  public constructor(writer: IFileSystemWriter, temporaryFolder: string, log: IModuleLog, access: IFolderAccess | null, settings: IModuleSettings) {
+  public constructor(writer: IFileSystemWriter, temporaryFolder: string, log: IModuleLog, access: IFolderAccess | null, settings: IModuleSettings,
+    platform: string) {
     this.writer = writer;
     this.temporaryFolder = temporaryFolder;
     this.log = log;
     this.access = access;
     this.settings = settings;
+    this.platform = platform;
   }
 
   public async prepareAsync(shell: Shell, nonce: string, environment: Readonly<Record<string, string | undefined>>,
@@ -45,6 +49,8 @@ export class ShellIntegration {
       return ShellIntegration.toCommandPromptLaunch(shell, note);
     if (family === ShellFamily.Other)
       return new ShellLaunch(shell.file, shell.args, {}, null);
+    if (family === ShellFamily.PowerShell)
+      await this.makeSharedMemoryFolderAsync(environment);
     const folder: string | null = await this.writeScriptsOrNullAsync();
     const nonceFile: string | null = folder === null ? null : await this.writeNonceOrNullAsync(folder, nonce);
     if (folder === null || nonceFile === null)
@@ -125,6 +131,27 @@ export class ShellIntegration {
     }
     catch (error: unknown) {
       this.log.write(Resources.formatSuggestionsUnwatched(FailureText.read(error)));
+    }
+  }
+
+  private makeSharedMemoryFolderAsync(environment: Readonly<Record<string, string | undefined>>): Promise<void> {
+    const runtimeFolder: string | undefined = environment[Resources.runtimeFolderVariable];
+    if (this.platform !== Resources.linuxPlatform || runtimeFolder === undefined || !path.posix.isAbsolute(runtimeFolder))
+      return Promise.resolve();
+    const dotnetFolder: string = path.posix.join(runtimeFolder, Resources.dotnetFolder);
+    const folder: string = path.posix.join(dotnetFolder, Resources.dotnetSharedMemoryFolder);
+    const made: Promise<void> = this.sharedMemoryFolders.get(folder) ?? this.createSharedMemoryFolderAsync(dotnetFolder, folder);
+    this.sharedMemoryFolders.set(folder, made);
+    return made;
+  }
+
+  private async createSharedMemoryFolderAsync(dotnetFolder: string, folder: string): Promise<void> {
+    try {
+      await this.writer.createMissingFolderAsync(dotnetFolder, Resources.dotnetSharedMemoryFolderMode);
+      await this.writer.createMissingFolderAsync(folder, Resources.dotnetSharedMemoryFolderMode);
+    }
+    catch (error: unknown) {
+      this.log.write(Resources.formatDotnetSharedMemoryFolderFailed(folder, FailureText.read(error)));
     }
   }
 

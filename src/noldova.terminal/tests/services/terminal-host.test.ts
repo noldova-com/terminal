@@ -138,7 +138,7 @@ class HostFixture {
     this.host = new TerminalHost(
       this.spawner,
       this.fileSystem,
-      new ShellIntegration(this.writer, "/tmp", this.log, null, this.settings),
+      new ShellIntegration(this.writer, "/tmp", this.log, null, this.settings, platform),
       historyFolder ?? new TerminalHistoryFolder(this.historyWriter, this.fileSystem, this.signaller, "/tmp", 400, this.log),
       new ShellLocator(platform, "x64", environment, null, this.fileSystem, this.runner, this.log),
       platform,
@@ -2497,6 +2497,22 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
+    it("types a launch's command into a shell whose integration loaded but never ended its first prompt 60 seconds after its loaded mark, and tells the windows it ended without a code", async () => {
+      vi.useFakeTimers();
+      const fixture: HostFixture = await HostFixture.createAsync();
+      const sessionId: string = (await launchAsync(fixture, { ...launch, command: "npm test" })).sessionId ?? "";
+      const nonce: string = fixture.writer.nonceFor(fixture.spawner.environments[fixture.spawner.spawned.indexOf(fixture.process)]);
+      fixture.process.emitData(`\u001b]6973;L;${nonce}\u0007\u001b]6973;P;${nonce};Cwd=/work\u0007\u001b]6973;A;${nonce}\u0007PS /work> `);
+
+      await vi.advanceTimersByTimeAsync(59_999);
+      const beforeLimit: readonly string[] = [...fixture.process.writes];
+      await vi.advanceTimersByTimeAsync(1);
+
+      assert.deepEqual([beforeLimit, fixture.process.writes, fixture.launchCommandEnded.published], [[], ["npm test\r"], [{ sessionId, exitCode: null }]]);
+      vi.useRealTimers();
+      await fixture.endAllAsync();
+    });
+
     it("types into a shell with the integration that shows no text at all once 60 seconds pass, and not before", async () => {
       vi.useFakeTimers();
       const fixture: HostFixture = await HostFixture.createAsync();
@@ -2865,7 +2881,7 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    it("types into a new terminal whose integration said it loaded at its first prompt, however long the person's profile takes", async () => {
+    it("types into a new terminal whose integration said it loaded at its first prompt, while the person's profile takes up to 60 seconds", async () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       try {
         const fixture: HostFixture = await HostFixture.createAsync();
@@ -2874,7 +2890,7 @@ describe("TerminalHost", () => {
         const nonce: string = fixture.writer.nonceFor(fixture.spawner.environments[fixture.spawner.spawned.indexOf(process)]);
         process.emitData(`\u001b]6973;L;${nonce}\u0007`);
 
-        await vi.advanceTimersByTimeAsync(60_000);
+        await vi.advanceTimersByTimeAsync(59_999);
         const writtenBeforePrompt: readonly string[] = [...process.writes];
         vi.useRealTimers();
         showPrompt(fixture, process);
@@ -4031,6 +4047,31 @@ describe("TerminalHost", () => {
           assert.deepEqual(process.writes, []);
           await fixture.endAllAsync();
         });
+
+      it("types a run into a new shell whose integration loaded but never ended its first prompt 60 seconds after its loaded mark, not before, and answers it as ended at once", async () => {
+        vi.useFakeTimers();
+        try {
+          const fixture: HostFixture = await HostFixture.createAsync();
+          const { result, process } = await startNewAsync(fixture);
+          const nonce: string = nonceOf(fixture, process);
+          process.emitData(`\u001b]6973;L;${nonce}\u0007\u001b]6973;P;${nonce};Cwd=/work\u0007\u001b]6973;A;${nonce}\u0007PS /work> `);
+
+          await vi.advanceTimersByTimeAsync(59_999);
+          const beforeLimit: readonly string[] = [...process.writes];
+          await vi.advanceTimersByTimeAsync(1);
+          const atLimit: readonly string[] = [...process.writes];
+          await vi.advanceTimersByTimeAsync(1);
+          const { sessionId, runId, outcome, endedRuns } = await result;
+
+          assert.deepEqual([beforeLimit, atLimit, process.writes, outcome], [[], [], ["npm test\r"], "Typed"]);
+          assert.deepEqual([endedRuns.map(t => t.toJson()), fixture.runEnded.published], [[{ sessionId, runId, endedBy: "NoIntegration", exitCode: null }], []]);
+          vi.useRealTimers();
+          await fixture.endAllAsync();
+        }
+        finally {
+          vi.useRealTimers();
+        }
+      });
 
       it("answers a run into a new shell without the integration as ended at once, since its end can't be told", async () => {
         const fixture: HostFixture = await HostFixture.createAsync("win32", "10.0.26100", { SystemRoot: "C:\\Windows" });

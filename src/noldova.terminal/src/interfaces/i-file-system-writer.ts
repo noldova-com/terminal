@@ -9,6 +9,8 @@
 export interface IFileSystemWriter {
   createPrivateFolderAsync(prefix: string): Promise<string>;
 
+  createMissingFolderAsync(path: string, mode: number): Promise<void>;
+
   writeTextAsync(path: string, text: string): Promise<void>;
 
   appendTextAsync(path: string, text: string): Promise<void>;
