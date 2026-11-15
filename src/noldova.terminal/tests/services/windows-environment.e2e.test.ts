@@ -53,8 +53,10 @@ describe("WindowsEnvironment on Windows", () => {
       const folders: readonly string[] = await readdir(parent);
       const exports: readonly string[] = (await Promise.all(folders.map(t => readdir(path.join(parent, t))))).flat();
 
-      console.log(`reg.exe exported first in ${Math.round(firstRead - started)} ms, then in ${Math.round(secondRead - firstRead)} ms.`);
-      assert.deepEqual(log.callsOf("write"), []);
+      const writes: readonly string[] = log.callsOf("write").map(t => String(t[0]));
+      const retries: readonly string[] = writes.filter(t => t.startsWith("reg.exe could not write its export of the key "));
+      console.log(`reg.exe exported first in ${Math.round(firstRead - started)} ms, then in ${Math.round(secondRead - firstRead)} ms.${retries.map(t => ` ${t}`).join("")}`);
+      assert.deepEqual(writes.filter(t => !retries.includes(t)), []);
       assert.deepEqual([folders.length, exports], [1, []]);
       for (const environment of [first, second]) {
         assert.equal(environment["ComSpec"]?.toLowerCase(), path.win32.join(systemRoot, "system32", "cmd.exe").toLowerCase());

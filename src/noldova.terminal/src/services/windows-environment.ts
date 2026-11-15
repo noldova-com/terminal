@@ -76,10 +76,12 @@ export class WindowsEnvironment implements IEnvironmentSource {
         return this.environment;
       const read: number = ++this.readCount;
       try {
-        const [machine, user]: [ReadonlyMap<string, RegistryValue>, ReadonlyMap<string, RegistryValue>] = await Promise.all([
-          this.readScopeAsync(reg, Resources.machineEnvironmentKey, path.win32.join(folder, `${Resources.windowsEnvironmentMachineFilePrefix}${read}${Resources.windowsEnvironmentExportExtension}`)),
-          this.readScopeAsync(reg, Resources.userEnvironmentKey, path.win32.join(folder, `${Resources.windowsEnvironmentUserFilePrefix}${read}${Resources.windowsEnvironmentExportExtension}`))
-        ]);
+        const machine: ReadonlyMap<string, RegistryValue> = await this.readScopeAsync(reg, Resources.machineEnvironmentKey, folder,
+          `${Resources.windowsEnvironmentMachineFilePrefix}${read}`);
+        if (this.ended)
+          return this.environment;
+        const user: ReadonlyMap<string, RegistryValue> = await this.readScopeAsync(reg, Resources.userEnvironmentKey, folder,
+          `${Resources.windowsEnvironmentUserFilePrefix}${read}`);
         return WindowsEnvironment.build(this.environment, machine, user);
       }
       finally {
@@ -126,13 +128,29 @@ export class WindowsEnvironment implements IEnvironmentSource {
     return folder;
   }
 
-  private async readScopeAsync(reg: string, key: string, file: string): Promise<ReadonlyMap<string, RegistryValue>> {
+  private async readScopeAsync(reg: string, key: string, folder: string, name: string): Promise<ReadonlyMap<string, RegistryValue>> {
+    let file: string = path.win32.join(folder, `${name}${Resources.windowsEnvironmentExportExtension}`);
+    const files: string[] = [file];
     try {
       try {
-        await this.tools.runner.runAsync(reg, [Resources.regExportArgument, key, file, Resources.regOverwriteArgument], Resources.environmentReadMilliseconds);
+        try {
+          await this.exportAsync(reg, key, file);
+        }
+        catch (error: unknown) {
+          if (!(error instanceof CommandExitedException) || !error.errorText.includes(Resources.regWriteFailureText))
+            throw error;
+          this.log.write(Resources.formatEnvironmentExportRetried(key, error.errorText));
+          await this.waitAsync(Resources.environmentExportRetryMilliseconds);
+          if (this.ended)
+            return new Map<string, RegistryValue>();
+          file = path.win32.join(folder, `${name}${Resources.windowsEnvironmentRetryFileSuffix}${Resources.windowsEnvironmentExportExtension}`);
+          files.push(file);
+          await this.exportAsync(reg, key, file);
+        }
       }
       catch (error: unknown) {
-        if (error instanceof CommandExitedException && error.exitCode !== null && key === Resources.userEnvironmentKey)
+        if (error instanceof CommandExitedException && error.exitCode !== null && key === Resources.userEnvironmentKey
+          && !error.errorText.includes(Resources.regWriteFailureText))
           return new Map<string, RegistryValue>();
         throw new EnvironmentKeyUnreadableException(key, error);
       }
@@ -142,8 +160,21 @@ export class WindowsEnvironment implements IEnvironmentSource {
       return RegistryExport.parse(new TextDecoder(Resources.registryExportUtf16Label).decode(bytes));
     }
     finally {
-      await this.tools.writer.removeFileAsync(file).catch((error: unknown) => this.logCleanupFailure(error));
+      for (const written of files)
+        await this.tools.writer.removeFileAsync(written).catch((error: unknown) => this.logCleanupFailure(error));
     }
+  }
+
+  private async exportAsync(reg: string, key: string, file: string): Promise<void> {
+    await this.tools.runner.runAsync(reg, [Resources.regExportArgument, key, file, Resources.regOverwriteArgument], Resources.environmentReadMilliseconds);
+  }
+
+  private async waitAsync(milliseconds: number): Promise<void> {
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([new Promise<void>(resolve => {
+      timer = setTimeout(resolve, milliseconds);
+    }), this.ending.promise]);
+    clearTimeout(timer);
   }
 
   private logCleanupFailure(error: unknown): void {
