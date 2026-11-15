@@ -95,7 +95,7 @@ describe("AgentTerminal", () => {
     assert.deepEqual([terminal.isRunning, terminal.hasShellIntegration, fixture.process.ends], [true, false, 0]);
   });
 
-  it("stops waiting for the first prompt after 10 seconds, and not before", async () => {
+  it("stops waiting for the first prompt of a shell that shows its own prompt but never marks after 10 seconds, and not before", async () => {
     const fixture: AgentTerminalFixture = new AgentTerminalFixture();
     const terminal: AgentTerminal = await fixture.openAsync(null);
     vi.useFakeTimers();
@@ -104,6 +104,7 @@ describe("AgentTerminal", () => {
       const waiting: Promise<void> = terminal.waitForIntegrationAsync(SIGNAL).then(() => {
         isDone = true;
       });
+      fixture.process.emitData("$ ");
 
       await vi.advanceTimersByTimeAsync(9_999);
       const before: boolean = isDone;
@@ -111,6 +112,35 @@ describe("AgentTerminal", () => {
       await waiting;
 
       assert.deepEqual([before, terminal.isRunning, terminal.hasShellIntegration], [false, true, false]);
+    }
+    finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("waits for a shell that shows no text yet, as Windows PowerShell on a busy computer, until its first text or 60 seconds", async () => {
+    const fixture: AgentTerminalFixture = new AgentTerminalFixture();
+    const slow: AgentTerminal = await fixture.openAsync(null);
+    const silent: AgentTerminal = await new AgentTerminalFixture().openAsync(null);
+    vi.useFakeTimers();
+    try {
+      const done: Set<AgentTerminal> = new Set<AgentTerminal>();
+      const waiting: Promise<void>[] = [slow, silent].map(t => t.waitForIntegrationAsync(SIGNAL).then(() => {
+        done.add(t);
+      }));
+      fixture.process.emitData("\u001b[?9001h\u001b]0;powershell.exe\u001b\\");
+
+      await vi.advanceTimersByTimeAsync(20_000);
+      const whileStarting: number = done.size;
+      fixture.showPrompt();
+      await vi.advanceTimersByTimeAsync(0);
+      const afterPrompt: boolean[] = [done.has(slow), done.has(silent)];
+      await vi.advanceTimersByTimeAsync(39_999);
+      const beforeLimit: boolean = done.has(silent);
+      await vi.advanceTimersByTimeAsync(1);
+      await Promise.all(waiting);
+
+      assert.deepEqual([whileStarting, afterPrompt, beforeLimit, slow.hasShellIntegration, silent.isRunning], [0, [true, false], false, true, true]);
     }
     finally {
       vi.useRealTimers();

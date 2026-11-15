@@ -2450,6 +2450,56 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
+    it("waits past 10 seconds for a shell with the integration that has shown no text yet, as Windows PowerShell on a busy computer, " +
+      "and types the launch's command at its first prompt, so its end comes with its code", async () => {
+      vi.useFakeTimers();
+      const fixture: HostFixture = await HostFixture.createAsync();
+      const sessionId: string = (await launchAsync(fixture, { ...launch, command: "npm test" })).sessionId ?? "";
+      const nonce: string = fixture.writer.nonceFor(fixture.spawner.environments[fixture.spawner.spawned.indexOf(fixture.process)]);
+      fixture.process.emitData("\u001b[?9001h\u001b[?1004h\u001b]0;powershell.exe\u001b\\");
+
+      await vi.advanceTimersByTimeAsync(20_000);
+      const whileStarting: readonly string[] = [...fixture.process.writes];
+      fixture.process.emitData(`\u001b]6973;L;${nonce}\u0007`);
+      await vi.advanceTimersByTimeAsync(5_000);
+      const afterLoaded: readonly string[] = [...fixture.process.writes];
+      showPrompt(fixture, fixture.process);
+      await vi.advanceTimersByTimeAsync(0);
+      fixture.process.emitData(`\r\n\u001b]6973;C;${nonce}\u0007\u001b]6973;D;${nonce};3\u0007`);
+
+      assert.deepEqual([whileStarting, afterLoaded, fixture.process.writes], [[], [], ["npm test\r"]]);
+      assert.deepEqual(fixture.launchCommandEnded.published, [{ sessionId, exitCode: 3 }]);
+      await fixture.endAllAsync();
+    });
+
+    it("types into a shell with the integration that shows no text at all after 60 seconds and its output's half-second rest, and not before", async () => {
+      vi.useFakeTimers();
+      const fixture: HostFixture = await HostFixture.createAsync();
+      await launchAsync(fixture, { ...launch, command: "npm test" });
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      const atLimit: readonly string[] = [...fixture.process.writes];
+      await vi.advanceTimersByTimeAsync(500);
+
+      assert.deepEqual([atLimit, fixture.process.writes], [[], ["npm test\r"]]);
+      await fixture.endAllAsync();
+    });
+
+    it("types into a slow shell with the integration that shows its own prompt late and never marks once that output rests for half a second", async () => {
+      vi.useFakeTimers();
+      const fixture: HostFixture = await HostFixture.createAsync();
+      await launchAsync(fixture, { ...launch, command: "npm test" });
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      fixture.process.emitData("custom> ");
+      await vi.advanceTimersByTimeAsync(400);
+      const whileDrawing: readonly string[] = [...fixture.process.writes];
+      await vi.advanceTimersByTimeAsync(100);
+
+      assert.deepEqual([whileDrawing, fixture.process.writes], [[], ["npm test\r"]]);
+      await fixture.endAllAsync();
+    });
+
     it("tells the windows a launch's command ended without a code when its next prompt starts on a new line without its end mark, not at a prompt redrawn in place, and not of a later command's end", async () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       const sessionId: string = (await launchAsync(fixture, { ...launch, command: "(exit 3)" })).sessionId ?? "";

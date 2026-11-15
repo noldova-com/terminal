@@ -433,17 +433,19 @@ export class TerminalHost {
     const keyCount: number = terminal.keyCount;
     if (waitsForFit)
       await session.changes.waitUntilAsync(() => session.hasExited || terminal.isSized || terminal.deferredShell?.hasStarted !== false, null, signal);
-    const deadline: number = Date.now() + Resources.integrationWaitMilliseconds;
+    const startedAt: number = Date.now();
     const isReady = (): boolean => session.hasIntegration ? session.commands.promptEndOffset !== null : session.receivedLength > 0;
-    await session.changes.waitUntilAsync(() => session.hasExited || isReady() || session.commands.isLoaded, Resources.integrationWaitMilliseconds, signal);
-    if (session.hasIntegration && session.commands.isLoaded)
-      await session.changes.waitUntilAsync(() => session.hasExited || isReady(), null, signal);
-    while (!session.hasIntegration && !session.hasExited && Date.now() < deadline) {
+    const isStarted = (): boolean => session.hasExited || isReady() || session.commands.isLoaded;
+    const isLate: boolean = await session.waitForStartAsync(isStarted, signal);
+    const deadline: number = (isLate ? Date.now() : startedAt) + Resources.integrationWaitMilliseconds;
+    while ((!session.hasIntegration || isLate && !isStarted()) && !session.hasExited && Date.now() < deadline) {
       const length: number = session.receivedLength;
       await session.changes.waitUntilAsync(() => session.hasExited || session.receivedLength !== length, Resources.promptSettleMilliseconds, signal);
       if (session.receivedLength === length)
         break;
     }
+    if (session.hasIntegration && session.commands.isLoaded)
+      await session.changes.waitUntilAsync(() => session.hasExited || isReady(), null, signal);
     const isEnded = (): boolean => signal.aborted || session.hasExited || this.sessions.get(session.sessionId) !== terminal;
     const isBracketed: boolean = isPaste && !isEnded() && await session.isBracketedPasteAsync();
     const outcome: TerminalRunOutcome = isEnded() ? TerminalRunOutcome.Ended
