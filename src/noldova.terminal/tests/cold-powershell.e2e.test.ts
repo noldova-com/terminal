@@ -6,53 +6,36 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { spawnSync } from "node:child_process";
-import { uptime } from "node:os";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { join } from "node:path";
 
-import * as nodePty from "node-pty";
 import { describe, it } from "vitest";
 
 const IS_WINDOWS: boolean = process.platform === "win32";
 const POWERSHELL: string = join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-const STARTS: number = 10;
 const CAP_MS: number = 180_000;
+const SPLIT: string = "$s = [Diagnostics.Stopwatch]::StartNew(); $null = Get-Acl -LiteralPath $env:TEMP; \"inside=$($s.ElapsedMilliseconds)\"";
 
-function promptAsync(file: string): Promise<readonly number[]> {
-  return new Promise<readonly number[]>(resolve => {
-    const started: number = performance.now();
-    const terminal: nodePty.IPty = nodePty.spawn(file, ["-NoLogo"], { cols: 120, rows: 30, cwd: process.cwd(), env: process.env });
-    let output: string = "";
-    let first: number = -1;
-    terminal.onData(data => {
-      if (first < 0)
-        first = performance.now() - started;
-      output += data;
-      if (/PS [^\r\n]*> $/u.test(output)) {
-        const prompted: number = performance.now() - started;
-        terminal.kill();
-        resolve([Math.round(first), Math.round(prompted)]);
-      }
-    });
-  });
+function time(label: string, command: string, environment: NodeJS.ProcessEnv): void {
+  const started: number = performance.now();
+  const result: SpawnSyncReturns<string> = spawnSync(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8", timeout: CAP_MS, env: environment });
+  const total: number = Math.round(performance.now() - started);
+  console.log(`PROBE ${label}: total=${total}ms status=${result.status} out=${result.stdout.trim().replaceAll(/\s+/gu, " ").slice(0, 400)}`);
 }
 
-describe("probe: Windows PowerShell's cold start", () => {
-  it("times powershell.exe's starts from the job's start", { timeout: 30 * 60_000 }, async context => {
+describe("probe: Windows PowerShell's slow Get-Acl", () => {
+  it("splits Get-Acl's time between the process and the cmdlet, by execution policy", { timeout: 30 * 60_000 }, context => {
     context.skip(!IS_WINDOWS, "Windows only.");
-    for (let index: number = 0; index < STARTS; index++) {
-      const bootSeconds: number = Math.round(uptime());
-      const started: number = performance.now();
-      const exitRun = spawnSync(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", "exit 7"], { timeout: CAP_MS });
-      const exitMs: number = Math.round(performance.now() - started);
-      const aclStarted: number = performance.now();
-      spawnSync(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", "$null = Get-Acl -LiteralPath $env:TEMP"], { timeout: CAP_MS });
-      const aclMs: number = Math.round(performance.now() - aclStarted);
-      const [firstOutputMs, promptMs] = await promptAsync(POWERSHELL);
-      const pwshStarted: number = performance.now();
-      spawnSync("pwsh.exe", ["-NoProfile", "-NonInteractive", "-Command", "exit 7"], { timeout: CAP_MS });
-      const pwshMs: number = Math.round(performance.now() - pwshStarted);
-      console.log(`PROBE start=${index} boot=${bootSeconds}s exit=${exitMs}ms status=${exitRun.status} acl=${aclMs}ms firstOutput=${firstOutputMs}ms prompt=${promptMs}ms pwsh=${pwshMs}ms`);
+    const plain: NodeJS.ProcessEnv = { ...process.env };
+    delete plain["PSExecutionPolicyPreference"];
+    time("policies", "Get-ExecutionPolicy -List | ForEach-Object { \"$($_.Scope)=$($_.ExecutionPolicy)\" }", plain);
+    for (let index: number = 0; index < 3; index++) {
+      time(`default ${index}`, SPLIT, plain);
+      time(`remote-signed ${index}`, SPLIT, { ...plain, PSExecutionPolicyPreference: "RemoteSigned" });
+      time(`bypass ${index}`, SPLIT, { ...plain, PSExecutionPolicyPreference: "Bypass" });
+      time(`exit ${index}`, "exit 0", plain);
+      time(`module only ${index}`, "$s = [Diagnostics.Stopwatch]::StartNew(); Import-Module Microsoft.PowerShell.Security; \"inside=$($s.ElapsedMilliseconds)\"", plain);
+      time(`utility ${index}`, "$s = [Diagnostics.Stopwatch]::StartNew(); $null = Get-Date | Out-String; \"inside=$($s.ElapsedMilliseconds)\"", plain);
     }
   });
 });
