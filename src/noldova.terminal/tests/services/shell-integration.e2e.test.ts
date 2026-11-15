@@ -671,11 +671,23 @@ describe("shell integration with real shells", () => {
         await fixture.waitForQuietAsync(sessionId);
         const screen = async (paneId: string): Promise<string> =>
           TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId })).snapshot;
-        const beforeAttach: string = fixture.kinds(sessionId);
+        const attaches: string[] = [];
+        for (let attach = 0; attach < 20; attach++) {
+          const atStart: number = fixture.kinds(sessionId).length;
+          await screen("p1");
+          await fixture.waitForQuietAsync(sessionId);
+          attaches.push(fixture.kinds(sessionId).slice(atStart) || "-");
+        }
+        const resizes: string[] = [];
+        for (const rows of [29, 30, 29, 30]) {
+          const atStart: number = fixture.kinds(sessionId).length;
+          await fixture.callAsync("terminal.resize", { sessionId, size: { cols: 400, rows } });
+          await fixture.waitForQuietAsync(sessionId);
+          resizes.push(fixture.kinds(sessionId).slice(atStart) || "-");
+        }
+        console.log(`[probe-6z] ${shellId} marks per attach ${attaches.join(" ")}; per resize ${resizes.join(" ")}`);
         const before: string = await screen("p1");
-        const atAttach: string = fixture.kinds(sessionId);
         await fixture.waitForQuietAsync(sessionId);
-        console.log(`[probe-6z] ${shellId} marks during the attach ${JSON.stringify(atAttach.slice(beforeAttach.length))}, after it settled ${JSON.stringify(fixture.kinds(sessionId).slice(beforeAttach.length))}`);
         const marked: string = fixture.kinds(sessionId);
 
         const askedAt: number = performance.now();
