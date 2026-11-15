@@ -69,6 +69,22 @@ describe("BoundedReads", () => {
     assert.deepEqual(reads.listPendingReads(), []);
   });
 
+  it("answers a real path that ends before its time, and none for one still running when its time ends", async () => {
+    const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    reader.realPaths.set("C:\\PROGRA~1", "C:\\Program Files");
+    reader.realPaths.set("C:\\SLOW~1", "C:\\Slow Drive");
+    reader.stalled.set("C:\\SLOW~1", stall.promise);
+    const reads: BoundedReads = new BoundedReads(new SharedReads(reader), 100);
+
+    const quick: string | null = await reads.readRealPathOrNullAsync("C:\\PROGRA~1");
+    const slow: Promise<string | null> = reads.readRealPathOrNullAsync("C:\\SLOW~1");
+    await vi.advanceTimersByTimeAsync(100);
+
+    assert.deepEqual([quick, await slow, reads.wasCutShort], ["C:\\Program Files", null, true]);
+    stall.resolve();
+    await Promise.all(reads.listPendingReads());
+  });
+
   it("answers a read started after its time ended at once with the late answer, without reading", async () => {
     const reads: BoundedReads = new BoundedReads(new SharedReads(reader), 100);
     await vi.advanceTimersByTimeAsync(100);

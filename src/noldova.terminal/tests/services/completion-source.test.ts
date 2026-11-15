@@ -563,6 +563,39 @@ describe("CompletionSource", () => {
         [{ PSModulePath: "C:\\Users\\runneradmin\\Modules;C:\\Program Files\\PowerShell\\Modules;C:\\GONE~1\\Modules;" }]);
     });
 
+    it("on Windows, gives the lookup a PSModulePath folder as written when reading its real path fails with a system error, as on a RAM disk", async () => {
+      const fixture: SourceFixture = new SourceFixture("win32", "C:\\Users\\a");
+      fixture.runner.answers.set(PWSH, "0\r\n");
+      fixture.fileSystem.realPathFailures.set("R:\\MODULE~1", Object.assign(new Error("EISDIR: illegal operation on a directory"), { code: "EISDIR" }));
+      fixture.fileSystem.realPaths.set("C:\\Users\\RUNNER~1\\Modules", "C:\\Users\\runneradmin\\Modules");
+
+      const missing: readonly string[] = await fixture.powerShellMissingAsync(["gti"], new Set(), { PSModulePath: "R:\\MODULE~1;C:\\Users\\RUNNER~1\\Modules" });
+
+      assert.deepEqual([missing, fixture.runner.environments], [["gti"], [{ PSModulePath: "R:\\MODULE~1;C:\\Users\\runneradmin\\Modules" }]]);
+    });
+
+    it("on Windows, gives the lookup a PSModulePath folder as written when its real path doesn't come by the read's deadline", async () => {
+      vi.useFakeTimers();
+      try {
+        const fixture: SourceFixture = new SourceFixture("win32", "C:\\Users\\a");
+        fixture.runner.answers.set(PWSH, "");
+        const stalled: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+        fixture.fileSystem.realPaths.set("N:\\SHARE~1\\Modules", "N:\\Shared Modules\\Modules");
+        fixture.fileSystem.stalled.set("N:\\SHARE~1\\Modules", stalled.promise);
+
+        const missing: Promise<readonly string[]> = fixture.powerShellMissingAsync(["gti"], new Set(), { PSModulePath: "N:\\SHARE~1\\Modules" });
+        await vi.advanceTimersByTimeAsync(999);
+        const ranEarly: boolean = fixture.runner.runs.length > 0;
+        await vi.advanceTimersByTimeAsync(1);
+
+        assert.deepEqual([ranEarly, await missing, fixture.runner.environments], [false, [], [{ PSModulePath: "N:\\SHARE~1\\Modules" }]]);
+        stalled.resolve();
+      }
+      finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("leaves a PSModulePath folder with a ~ in its name as it is off Windows", async () => {
       const fixture: SourceFixture = new SourceFixture();
       fixture.runner.answers.set(PWSH, "");

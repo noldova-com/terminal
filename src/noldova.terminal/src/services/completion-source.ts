@@ -26,7 +26,6 @@ import { SharedReads } from "./shared-reads.ts";
 import { ShellWords } from "./shell-words.ts";
 
 export class CompletionSource {
-  private readonly fileSystem: IFileSystemReader;
   private readonly runner: ICommandRunner;
   private readonly isWindows: boolean;
   private readonly paths: path.PlatformPath;
@@ -38,7 +37,6 @@ export class CompletionSource {
   private readonly looked: WeakMap<CommandTracker, PowerShellLookup> = new WeakMap<CommandTracker, PowerShellLookup>();
 
   public constructor(fileSystem: IFileSystemReader, runner: ICommandRunner, platform: string, homeFolder: string) {
-    this.fileSystem = fileSystem;
     this.runner = runner;
     this.isWindows = platform === Resources.windowsPlatform;
     this.paths = this.isWindows ? path.win32 : path.posix;
@@ -296,9 +294,15 @@ export class CompletionSource {
     const modulePath: string | undefined = variables[Resources.modulePathVariable];
     if (!this.isWindows || modulePath === undefined || !modulePath.includes(Resources.shortNameMark))
       return variables;
-    const entries: readonly string[] = await Promise.all(modulePath.split(Resources.windowsPathListSeparator)
-      .map(async t => t.includes(Resources.shortNameMark) ? await this.fileSystem.readRealPathOrNullAsync(t) ?? t : t));
-    return { ...variables, [Resources.modulePathVariable]: entries.join(Resources.windowsPathListSeparator) };
+    const reads: BoundedReads = new BoundedReads(this.shared, Resources.completionReadMilliseconds);
+    try {
+      const entries: readonly string[] = await Promise.all(modulePath.split(Resources.windowsPathListSeparator)
+        .map(async t => t.includes(Resources.shortNameMark) ? await reads.readRealPathOrNullAsync(t) ?? t : t));
+      return { ...variables, [Resources.modulePathVariable]: entries.join(Resources.windowsPathListSeparator) };
+    }
+    finally {
+      reads.end();
+    }
   }
 
   private readVariable(environment: Readonly<Record<string, string>>, name: string): string | undefined {
