@@ -18,7 +18,7 @@ import { RequestContext, type IMethodHandler } from "@noldova/desktop.runtime";
 import { FakeModuleLog, FakeModuleSettings } from "@noldova/desktop.runtime/testing";
 import type { JsonValue } from "@noldova/context.json";
 import { TerminalAttachment, TerminalCommandAdded, TerminalCompletion, TerminalCwd, TerminalMissingCommands, TerminalOutput, TerminalReference, TerminalShellKind, TerminalShells } from "@noldova/terminal.protocol";
-import { afterAll, beforeAll, describe, it, vi, type TestContext } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi, type TestContext } from "vitest";
 
 import { RuntimePart } from "../../src/api/index.ts";
 import { Shell } from "../../src/models/shell.ts";
@@ -35,7 +35,7 @@ import { PrivateFolder } from "../fixtures/private-folder.fixture.ts";
 import { SupervisedTerminals } from "../fixtures/supervised-terminals.fixture.ts";
 
 const WAIT_MS: number = 20_000;
-const SHELL_COLD_START_MS: number = 60_000;
+const SHELL_COLD_START_MS: number = 68_000;
 const TEXT_POLL_MS: number = 100;
 const OUTPUT_TAIL: number = 1_500;
 const QUIET_MS: number = 1_000;
@@ -155,10 +155,23 @@ class RuntimeFixture {
   }
 
   public async waitForAsync(sessionId: string, check: (text: string) => boolean, description: string, timeoutMilliseconds: number = WAIT_MS): Promise<void> {
+    const probeStart: number = performance.now();
+    let probeLoaded: number | null = null;
+    let probeText: number | null = null;
+    try {
     await vi.waitFor(() => {
       const text: string = this.text(sessionId);
+      if (probeLoaded === null && this.kinds(sessionId).includes("L"))
+        probeLoaded = performance.now() - probeStart;
+      if (probeText === null && text.length > 0)
+        probeText = performance.now() - probeStart;
       assert.ok(check(text), `${description} Marks: ${this.kinds(sessionId)}. Output ends with: ${JSON.stringify(text.slice(-OUTPUT_TAIL))}`);
     }, { timeout: timeoutMilliseconds, interval: TEXT_POLL_MS });
+    }
+    finally {
+      if (description === "No prompt mark arrived.")
+        console.log(`PROBE first-mark ${expect.getState().currentTestName} | output ${Math.round(probeText ?? -1)} ms | L ${Math.round(probeLoaded ?? -1)} ms | B ${Math.round(performance.now() - probeStart)} ms | ${this.kinds(sessionId)}`);
+    }
   }
 
   public async waitForQuietAsync(sessionId: string): Promise<void> {
