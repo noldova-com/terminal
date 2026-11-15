@@ -1289,6 +1289,7 @@ if [ -n "\${__noldova_nonce_read-}" ] && [ -z "\${__noldova_nonce-}" ]; then
     builtin trap '__noldova_preexec' DEBUG
     builtin printf -v __noldova_end_open '\\033]6973;D;%s;' "$__noldova_nonce"
     builtin printf -v __noldova_end_close '\\007'
+    builtin export -n __noldova_end_open __noldova_end_close __noldova_untrapped
     __noldova_untrapped_end='\\[\${__noldova_untrapped[\\# > __noldova_number]-}\${__noldova_nonce:0:$((__noldova_number = \\#, 0))}\\]'
   fi
   # Bash 5.1 runs every element of an array PROMPT_COMMAND, so the hooks go first and last, or the DEBUG trap takes a later element for a command.
