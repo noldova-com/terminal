@@ -141,11 +141,23 @@ class DeclarationCheck {
     this.readPins(packageManifest, Resources.dependenciesField, Resources.packageManifest);
     this.readPins(windowManifest, Resources.dependenciesField, Resources.windowPackageManifest);
     const windowPins: JsonObject = this.readPins(windowManifest, Resources.devDependenciesField, Resources.windowPackageManifest);
+    this.checkPartPins(packageManifest, Resources.packageManifest);
+    this.checkPartPins(windowManifest, Resources.windowPackageManifest);
     for (const [name, pin] of [...builtAgainst, windowPins].flatMap(t => Object.entries(t)))
       if (VersionRange.isCore(name) && desktopCore !== null && typeof pin === "string" && !desktopCore.includes(pin))
         this.problems.push(Resources.formatCoreBuildOutsideRange(name, pin, desktopCore.toString()));
     for (const name of Object.keys(this.readPins(rootManifest, Resources.dependenciesField, Resources.rootManifest)))
       this.problems.push(Resources.formatRootDependencyPinned(name));
+  }
+
+  private checkPartPins(manifest: JsonObject, description: string): void {
+    for (const field of Resources.partPinFields) {
+      const pins: unknown = manifest[field];
+      if (DeclarationCheck.isObject(pins))
+        for (const name of Object.keys(pins))
+          if (name.startsWith(Resources.noldovaScope) && !name.startsWith(Resources.ownPackagePrefix))
+            this.problems.push(Resources.formatPartNoldovaPinned(description, name, field));
+    }
   }
 
   private checkPeers(packageManifest: JsonObject, desktopCore: VersionRange | null): void {

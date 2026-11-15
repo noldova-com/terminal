@@ -65,6 +65,7 @@ export class Resources {
   public static readonly angularPrefix: string = "@angular/";
   public static readonly desktopPrefix: string = "@noldova/desktop.";
   public static readonly contextPrefix: string = "@noldova/context.";
+  public static readonly noldovaScope: string = "@noldova/";
   public static readonly rangedPrefixes: readonly string[] = [Resources.desktopPrefix, Resources.contextPrefix];
   public static readonly peerPrefixes: readonly string[] = [Resources.angularPrefix, ...Resources.rangedPrefixes];
   public static readonly uiKitNames: readonly string[] = ["@noldova/ui.components.angular"];
@@ -101,6 +102,7 @@ export class Resources {
   ];
   public static readonly textFields: readonly string[] = [Resources.displayNameField, Resources.descriptionField];
   public static readonly dependencyFields: readonly string[] = [Resources.dependenciesField, Resources.devDependenciesField, Resources.optionalDependenciesField, Resources.peersField];
+  public static readonly partPinFields: readonly string[] = [Resources.dependenciesField, Resources.devDependenciesField, Resources.optionalDependenciesField];
   public static readonly pinFields: readonly string[] = [Resources.dependenciesField, Resources.peersField, Resources.optionalDependenciesField];
   public static readonly partFolders: ReadonlyMap<string, string> = new Map<string, string>([
     ["runtime", `${Resources.moduleFolder}/${Resources.sourceFolder}`],
@@ -518,6 +520,10 @@ export class Resources {
 
   public static formatManifestOwnPinInvalid(description: string, name: string, field: string): string {
     return `${description} must name ${name} at ${Resources.ownPin} in ${field}, which packing sets to the module's version.`;
+  }
+
+  public static formatPartNoldovaPinned(description: string, name: string, field: string): string {
+    return `${description} pins ${name} in ${field}; the root manifest pins every @noldova package the parts build and test against, once, so moving one to its newest version leaves no older copy under a part's folder.`;
   }
 
   public static formatManifestPinInvalid(description: string, name: string, field: string): string {
