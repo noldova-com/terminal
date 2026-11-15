@@ -82,6 +82,22 @@ jobs:
           fi
           echo "compaudit finds no insecure folder."
 
+      - name: List the job's shells in /etc/shells on Linux
+        if: runner.os == 'Linux'
+        timeout-minutes: 2
+        env:
+          SHELLS: ${{ matrix.shells }}
+        run: |
+          echo "/etc/shells lists:"
+          cat /etc/shells
+          for shell in $SHELLS; do
+            file="$(command -v "$shell")" || continue
+            if ! grep -qxF "$file" /etc/shells; then
+              echo "/etc/shells doesn't list $file, so the terminal, which offers the shells it lists, wouldn't offer $shell; adding it."
+              printf '%s\n' "$file" | sudo tee -a /etc/shells > /dev/null
+            fi
+          done
+
       - name: List the shells
         env:
           SHELLS: ${{ matrix.shells }}
