@@ -278,20 +278,28 @@ describe("shell integration with real shells", () => {
     });
 
   for (const shellId of POSIX_SHELLS)
-    it(`marks the start and end of a ${shellId} command line that starts with a subshell`, async context => {
+    it(`[${shellId}] marks the end of a ${shellId} command line that starts with a subshell with its code, its start where the shell runs a hook for it, and no end for an empty line`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
       await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
       await fixture.waitForQuietAsync(sessionId);
-      if (shellId !== "zsh" && !await hasPs0Async(join(home, "bash-version"))) {
-        await fixture.callAsync("terminal.close", { sessionId });
-        context.skip(`${shellId} is older than bash 4.4, whose DEBUG trap misses a line that starts with a subshell.`);
-      }
+      const hasStart: boolean = shellId === "zsh" || await hasPs0Async(join(home, "bash-version"));
 
       await fixture.typeAsync(sessionId, "(exit 4)\r");
 
-      await fixture.waitForAsync(sessionId, () => /C.*D/u.test(fixture.kinds(sessionId)), "No command end mark arrived.", 2 * WAIT_MS);
-      assertMarks(fixture.marks(sessionId), "4");
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("D"), "No command end mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => /D.*B/u.test(fixture.kinds(sessionId)), "No prompt followed the command.", 2 * WAIT_MS);
+      const marks: readonly ShellMarkView[] = fixture.marks(sessionId);
+      const kinds: string = marks.map(t => t.kind).join("");
+      if (hasStart)
+        assertMarks(marks, "4");
+      else
+        assert.match(kinds, /^LP{0,6}AB[^C]*PDAB/u);
+      assert.equal(marks.find(t => t.kind === "D")?.value, "4");
+      const prompts: number = kinds.split("B").length;
+      await fixture.typeAsync(sessionId, "\r");
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).split("B").length > prompts, "No prompt followed the empty line.", 2 * WAIT_MS);
+      assert.equal(fixture.kinds(sessionId).split("D").length - 1, 1, `An empty line ended a command. Marks: ${fixture.kinds(sessionId)}.`);
       await fixture.callAsync("terminal.close", { sessionId });
     });
 

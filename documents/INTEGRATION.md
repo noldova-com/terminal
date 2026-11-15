@@ -217,7 +217,7 @@ const output = await owners.readRunOutputAsync(block.run);
   const run = await owners.startRunAsync(owner, block.text, chat.folder, kinds, null, sessionId => chat.showTerminal(sessionId));
   ```
 - `TerminalRun` holds the terminal's `sessionId`, the run's `runId`, and `ended`, which resolves once with a `TerminalRunEnd` when the run's commands have ended, and never rejects:
-  - `"Command"` when the shell's integration marked the end of the run's last command, with that command's `exitCode`, or `null` when the shell gave none, as bash doesn't for a subshell such as `(exit 3)`; a Ctrl+C, from `Interrupt` or from the person, ends a command like any other.
+  - `"Command"` when the shell's integration marked the end of the run's last command, with that command's `exitCode`, or `null` when the shell gave none, as a bash before 4.4 with `promptvars` off doesn't for a subshell such as `(exit 3)`; a Ctrl+C, from `Interrupt` or from the person, ends a command like any other.
   - `"NoIntegration"` when the shell has no integration to mark it, such as Command Prompt, fish or WSL; it has already resolved when `startRunAsync` resolves, so an app never shows such a run as running.
     The integration marks that it loaded before the person's startup files run, so a slow profile only delays the run. A new terminal's shell that sent no such mark within 10 seconds, as when its integration failed to load, counts as having none: the run is typed then and ends this way, and the shell's later marks don't change it, though its commands may still run.
   - `"TerminalEnded"` when the terminal's shell exited or restarted, the terminal closed, or the runtime started again first.
@@ -305,7 +305,7 @@ const end = await launched.ended;
   The shell runs it as the person's own command, so pass only a command the app means the person to run, such as a provider's official installer.
   A Restart doesn't type it again.
 - `commandEnded` resolves once with the launch's command's exit code when that command ends, while the terminal stays open, so the app can act on a sign-in or an install as soon as it finishes; commands the person types after it don't count.
-  It resolves `null` when the launch has no command, when the terminal ends first, when the shell has no integration (Command Prompt, fish, WSL) or never took the command, when the person typed into the terminal before the command went in, when a Restart comes first, or when the shell gave no code or marked no end for it, as bash doesn't for a subshell such as `(exit 3)`; it never rejects, and `ended` is unchanged.
+  It resolves `null` when the launch has no command, when the terminal ends first, when the shell has no integration (Command Prompt, fish, WSL) or never took the command, when the person typed into the terminal before the command went in, when a Restart comes first, or when the shell gave no code or marked no end for it, as a bash before 4.4 with `promptvars` off doesn't for a subshell such as `(exit 3)`; it never rejects, and `ended` is unchanged.
 
   ```ts
   const launched = await TerminalLauncher.openAsync(context, new TerminalLaunch(null, {}, null, "Sign in", "tool auth login"));
