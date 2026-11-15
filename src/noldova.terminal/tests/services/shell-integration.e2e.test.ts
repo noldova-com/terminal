@@ -70,13 +70,15 @@ const NONCE_SEARCH: string = "& (Get-Process -Id $PID).Path -NoProfile -NonInter
   "\"[searched-$($folder.Name)]\"; foreach ($file in Get-ChildItem -LiteralPath $folder.FullName -File -Filter 'nonce-*') { " +
   "\"[found-$([System.IO.File]::ReadAllText($file.FullName).Trim())]\" } } }\n";
 const PROFILE_RUN_VARIABLE: string = "NOLDOVA_TEST_PROFILE_RUN";
+const PROFILE_TIMES_FILE: string = "profile-times.log";
 const PROFILE_RUN: string = `${process.pid}-${randomUUID()}`;
 const PROFILE_GUARD: RegExp = new RegExp(`^if \\(\\$env:${PROFILE_RUN_VARIABLE} -ne '(\\d+)-[\\da-f-]{36}'\\) \\{ return \\}\\n`, "u");
 const POLICY_PROFILE: string = "$NoldovaProfileRuns = @('all')\n";
 const BOUND_PROFILE: string = "Set-PSReadLineKeyHandler -Key F12 -Function BeginningOfLine\n";
+const PROFILE_TIMES_VARIABLE: string = "NOLDOVA_TEST_PROFILE_TIMES";
 const PROFILES: readonly string[] = [
-  `${NONCE_SEARCH}$NoldovaProfileRuns = @('all')\nthrow 'The first profile failed.'\n`,
-  "$NoldovaProfileRuns += 'host'\nfunction Get-NoldovaProfileRuns { $NoldovaProfileRuns -join ',' }\n"
+  `${profileTime("first")}${NONCE_SEARCH}${profileTime("searched")}$NoldovaProfileRuns = @('all')\nthrow 'The first profile failed.'\n`,
+  `${profileTime("second")}$NoldovaProfileRuns += 'host'\nfunction Get-NoldovaProfileRuns { $NoldovaProfileRuns -join ',' }\n${profileTime("ended")}`
 ];
 
 class ShellMarkView {
@@ -190,6 +192,23 @@ describe("shell integration with real shells", () => {
   let home: string = "";
   let shellIds: readonly string[] = [];
 
+  async function openWithProfilesAsync(shellId: string): Promise<string> {
+    const times: string = join(folder, PROFILE_TIMES_FILE);
+    await writeFile(times, "", "utf8");
+    const opened: string = new Date().toISOString();
+    const sessionId: string = await fixture.openAsync(shellId, workFolder);
+    try {
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
+    }
+    catch (error: unknown) {
+      if (!(error instanceof Error))
+        throw error;
+      const written: string = (await readFile(times, "utf8").catch(() => "")).trim().replaceAll(/\r?\n/gu, ", ");
+      assert.fail(`${error.message} The terminal opened at ${opened}, and its profiles wrote: ${written === "" ? "nothing" : written}.`);
+    }
+    return sessionId;
+  }
+
   beforeAll(async () => {
     folder = await mkdtemp(join(tmpdir(), "noldova-terminal-integration-"));
     home = join(folder, "home");
@@ -202,6 +221,7 @@ describe("shell integration with real shells", () => {
     vi.stubEnv("HOME", home);
     vi.stubEnv("ZDOTDIR", undefined);
     vi.stubEnv(PROFILE_RUN_VARIABLE, PROFILE_RUN);
+    vi.stubEnv(PROFILE_TIMES_VARIABLE, join(folder, PROFILE_TIMES_FILE));
     vi.stubEnv("PSExecutionPolicyPreference", "RemoteSigned");
     vi.stubEnv("NO_COLOR", undefined);
     await fixture.part.activateAsync(fixture.context);
@@ -366,8 +386,7 @@ describe("shell integration with real shells", () => {
     it(`[${shellId}] runs ${shellId}'s profiles in order, at the global scope, after reading its nonce file`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       await withProfilesAsync(context, shellId, PROFILES, async () => {
-        const sessionId: string = await fixture.openAsync(shellId, workFolder);
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
+        const sessionId: string = await openWithProfilesAsync(shellId);
         await fixture.waitForQuietAsync(sessionId);
 
         await fixture.typeAsync(sessionId, "\"[runs-$(Get-NoldovaProfileRuns)]\"; gi nx\r");
@@ -797,8 +816,7 @@ describe("shell integration with real shells", () => {
           "@{ ModuleVersion = '1.0'; RootModule = 'NoldovaProbe.psm1'; FunctionsToExport = @('Get-NoldovaProbe', 'Invoke-NoldovaProbe') }\n", "utf8");
         await writeFile(join(modules, "NoldovaBare", "NoldovaBare.psm1"), `${marking}function Invoke-NoldovaBare { }\n`, "utf8");
         await withProfilesAsync(context, shellId, PROFILES, async () => {
-          const sessionId: string = await fixture.openAsync(shellId, workFolder);
-          await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
+          const sessionId: string = await openWithProfilesAsync(shellId);
           await fixture.waitForQuietAsync(sessionId);
           const marked: number = fixture.kinds(sessionId).length;
 
@@ -1154,6 +1172,10 @@ async function nonceFilesAsync(nonce: string): Promise<readonly string[]> {
         found.push(join(folder.name, name));
   }
   return found;
+}
+
+function profileTime(step: string): string {
+  return `if ($env:${PROFILE_TIMES_VARIABLE}) { Add-Content -LiteralPath $env:${PROFILE_TIMES_VARIABLE} -Value "${step} $([DateTime]::UtcNow.ToString('o'))" -ErrorAction SilentlyContinue }\n`;
 }
 
 function executableOf(shellId: string): string {
