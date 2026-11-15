@@ -151,7 +151,7 @@ export class AgentTerminal implements IAgentTerminal {
     const isReady = (): boolean => !this.session.hasIntegration || this.session.hasExited || this.session.commands.promptEndOffset !== null;
     await this.session.waitForStartAsync(() => isReady() || this.session.commands.isLoaded, signal);
     if (this.session.commands.isLoaded)
-      await this.session.changes.waitUntilAsync(isReady, null, signal);
+      await this.session.changes.waitUntilAsync(isReady, Resources.shellStartMilliseconds, signal);
   }
 
   private send(data: string): void {

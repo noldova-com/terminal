@@ -418,7 +418,7 @@ export class TerminalHost {
     if (params.command !== null)
       void this.typeCommandAsync(terminal, params.command).then(t => {
         terminal.launchCommandOffset = terminal.session.text.endOffset;
-        if (t !== TerminalRunOutcome.Typed || !terminal.session.commands.hasMarks || terminal.keyCount !== 0)
+        if (t !== TerminalRunOutcome.Typed || !terminal.session.commands.hasMarks || terminal.session.commands.promptEndOffset === null || terminal.keyCount !== 0)
           this.endLaunchCommand(terminal, null);
       }).catch((error: unknown) => this.log.write(Resources.formatLaunchCommandFailed(terminal.session.sessionId, FailureText.read(error))));
     return new TerminalLaunched(terminal.session.sessionId, null);
@@ -447,11 +447,11 @@ export class TerminalHost {
         break;
     }
     if (session.hasIntegration && session.commands.isLoaded)
-      await session.changes.waitUntilAsync(() => session.hasExited || isReady(), null, signal);
+      await session.changes.waitUntilAsync(() => session.hasExited || isReady(), Resources.shellStartMilliseconds, signal);
     const isEnded = (): boolean => signal.aborted || session.hasExited || this.sessions.get(session.sessionId) !== terminal;
     const isBracketed: boolean = isPaste && !isEnded() && await session.isBracketedPasteAsync();
     const outcome: TerminalRunOutcome = isEnded() ? TerminalRunOutcome.Ended
-      : isPaste && ((waitsForFit ? terminal.keyCount !== keyCount : terminal.inputCount !== inputCount) || session.commands.hasMarks && session.readPromptLine() !== "") ? TerminalRunOutcome.Input
+      : isPaste && ((waitsForFit ? terminal.keyCount !== keyCount : terminal.inputCount !== inputCount) || session.commands.promptEndOffset !== null && session.readPromptLine() !== "") ? TerminalRunOutcome.Input
       : isPaste && !isBracketed && typed.includes(Resources.tabKey) ? TerminalRunOutcome.Tab
       : TerminalRunOutcome.Typed;
     if (outcome === TerminalRunOutcome.Typed) {
@@ -583,7 +583,7 @@ export class TerminalHost {
     const previous: TerminalRunEnded | null = this.endRun(terminal, TerminalRunEndedBy.Command, terminal.waitingRun?.exitCode ?? null, client);
     if (previous !== null)
       ended.push(previous);
-    if (session.commands.hasMarks)
+    if (session.commands.hasMarks && session.commands.promptEndOffset !== null)
       terminal.waitingRun = new WaitingRun(runId, client.connection, client.window, terminal.typedEnds, session.text.endOffset,
         terminal.paste);
     else
