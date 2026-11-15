@@ -503,7 +503,8 @@ export class Resources {
   public static readonly userZdotdirVariable: string = "NOLDOVA_TERMINAL_ZDOTDIR";
   public static readonly integrationFolderPrefix: string = "noldova-terminal-";
   public static readonly runtimeFolderVariable: string = "XDG_RUNTIME_DIR";
-  public static readonly dotnetSharedMemoryFolder: readonly string[] = [".dotnet", "shm"];
+  public static readonly dotnetFolder: string = ".dotnet";
+  public static readonly dotnetSharedMemoryFolder: string = "shm";
   public static readonly dotnetSharedMemoryFolderMode: number = 0o700;
   public static readonly bashScriptFile: string = "noldova.bash";
   public static readonly nonceFilePrefix: string = "nonce-";
@@ -1011,6 +1012,7 @@ exit 0
 
   public static readonly fileSystemWriterPrivateFileMode: number = 0o600;
   public static readonly fileSystemWriterCreateOnlyFlag: string = "wx";
+  public static readonly fileSystemWriterExistingPathCode: string = "EEXIST";
 
   public static readonly lineProcessErrorEvent: "error" = "error";
   public static readonly lineProcessTrailingCarriageReturn: RegExp = /\r$/u;

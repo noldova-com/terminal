@@ -17,7 +17,13 @@ export class FileSystemWriter implements IFileSystemWriter {
   }
 
   public async createMissingFolderAsync(path: string, mode: number): Promise<void> {
-    await mkdir(path, { recursive: true, mode });
+    try {
+      await mkdir(path, { mode });
+    }
+    catch (error: unknown) {
+      if (!(error instanceof Error && "code" in error && error.code === Resources.fileSystemWriterExistingPathCode))
+        throw error;
+    }
   }
 
   public writeTextAsync(path: string, text: string): Promise<void> {

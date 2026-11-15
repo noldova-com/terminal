@@ -136,16 +136,18 @@ export class ShellIntegration {
 
   private makeSharedMemoryFolderAsync(environment: Readonly<Record<string, string | undefined>>): Promise<void> {
     const runtimeFolder: string | undefined = environment[Resources.runtimeFolderVariable];
-    if (this.platform !== Resources.linuxPlatform || runtimeFolder === undefined || runtimeFolder === "")
+    if (this.platform !== Resources.linuxPlatform || runtimeFolder === undefined || !path.posix.isAbsolute(runtimeFolder))
       return Promise.resolve();
-    const folder: string = path.posix.join(runtimeFolder, ...Resources.dotnetSharedMemoryFolder);
-    const made: Promise<void> = this.sharedMemoryFolders.get(folder) ?? this.createSharedMemoryFolderAsync(folder);
+    const dotnetFolder: string = path.posix.join(runtimeFolder, Resources.dotnetFolder);
+    const folder: string = path.posix.join(dotnetFolder, Resources.dotnetSharedMemoryFolder);
+    const made: Promise<void> = this.sharedMemoryFolders.get(folder) ?? this.createSharedMemoryFolderAsync(dotnetFolder, folder);
     this.sharedMemoryFolders.set(folder, made);
     return made;
   }
 
-  private async createSharedMemoryFolderAsync(folder: string): Promise<void> {
+  private async createSharedMemoryFolderAsync(dotnetFolder: string, folder: string): Promise<void> {
     try {
+      await this.writer.createMissingFolderAsync(dotnetFolder, Resources.dotnetSharedMemoryFolderMode);
       await this.writer.createMissingFolderAsync(folder, Resources.dotnetSharedMemoryFolderMode);
     }
     catch (error: unknown) {
