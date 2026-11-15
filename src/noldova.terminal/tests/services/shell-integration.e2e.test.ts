@@ -211,6 +211,40 @@ describe("shell integration with real shells", () => {
       SHELL_FILES.set(shell.id, shell.file);
   });
 
+  it("probe: times each PowerShell's start to its integration's marks, and the cmdlets that may load slowly", { timeout: 30 * 60_000 }, async context => {
+    context.skip(process.platform !== "win32", "Windows only.");
+    const suspects: readonly string[] = ["Import-Module Microsoft.PowerShell.Security", "Get-Acl -LiteralPath $env:TEMP", "Get-Command -Name PSConsoleHostReadLine -ErrorAction SilentlyContinue",
+      "Get-Command -Name Set-PSReadLineKeyHandler -ErrorAction SilentlyContinue", "Get-Command -Name noldova-none -ErrorAction SilentlyContinue", "Import-Module PSReadLine",
+      "Get-Module -ListAvailable", "Get-ChildItem -Path function:", "Get-History", "Test-Path -LiteralPath $env:TEMP", "Get-Item -LiteralPath $env:TEMP",
+      "Get-Process -Id $PID", "[System.Security.Principal.WindowsIdentity]::GetCurrent()"];
+    const powershell: string = SHELL_FILES.get("powershell") ?? "powershell.exe";
+    for (const suspect of suspects) {
+      const result: SpawnSyncReturns<string> = spawnSync(powershell, ["-NoProfile", "-NonInteractive", "-Command",
+        `$a = Measure-Command { $null = ${suspect} }; $b = Measure-Command { $null = ${suspect} }; "$([int]$a.TotalMilliseconds) $([int]$b.TotalMilliseconds)"`],
+      { encoding: "utf8", timeout: 180_000 });
+      console.log(`PROBE cmdlet first,second ms: ${result.stdout.trim()} status=${result.status} :: ${suspect}`);
+    }
+    console.log(`PROBE PSModulePath: ${process.env["PSModulePath"] ?? ""}`);
+    for (let index: number = 0; index < 4; index++)
+      for (const shellId of ["powershell", "pwsh"]) {
+        if (!shellIds.includes(shellId))
+          continue;
+        const started: number = Date.now();
+        const sessionId: string = await fixture.openAsync(shellId, workFolder);
+        const seen: Map<string, number> = new Map<string, number>();
+        await vi.waitFor(() => {
+          if (!seen.has("output") && fixture.text(sessionId).length > 0)
+            seen.set("output", Date.now() - started);
+          for (const kind of fixture.kinds(sessionId))
+            if (!seen.has(kind))
+              seen.set(kind, Date.now() - started);
+          assert.ok(seen.has("B"), "no prompt yet");
+        }, { timeout: 120_000, interval: 50 });
+        console.log(`PROBE open ${index} ${shellId}: ${[...seen].map(([kind, ms]) => `${kind}=${ms}`).join(" ")}`);
+        await fixture.callAsync("terminal.close", { sessionId });
+      }
+  });
+
   afterAll(async () => {
     await fixture.part.deactivateAsync();
     vi.unstubAllEnvs();
