@@ -88,7 +88,7 @@ export class RuntimePart implements IRuntimePart {
         context.log,
         events,
         new SavedTerminals(context.database, context.log),
-        new CompletionSource(reader, runner, process.platform, homedir()));
+        new CompletionSource(reader, runner, process.platform, homedir(), context.log));
       for (const name of TerminalNames.methods)
         context.registerMethod(name, { handleAsync: t => host.handleAsync(name, t.payload, RequestClient.fromContext(t)) });
       context.onClientClosed(t => host.closeConnectionAsync(t.connection, t.window));
