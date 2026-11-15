@@ -111,7 +111,22 @@ jobs:
           done
 
       - name: Install the packages
-        run: npm ci --ignore-scripts
+        run: |
+          log="$RUNNER_TEMP/npm-ci.log"
+          set +e
+          npm ci --ignore-scripts 2>&1 | tee "$log"
+          status="${PIPESTATUS[0]}"
+          set -e
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+          code="$(grep -E '^npm error code (ECONNRESET|ECONNREFUSED|ETIMEDOUT|ESOCKETTIMEDOUT|ERR_SOCKET_TIMEOUT|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|EPIPE)$' "$log" | head -n 1 | cut -d ' ' -f 4 || true)"
+          if [ -z "$code" ]; then
+            exit "$status"
+          fi
+          echo "::warning::npm ci failed with the network error $code, so it runs once more in 30 seconds."
+          sleep 30
+          npm ci --ignore-scripts
 
       - name: Run the shell tests
         run: >-
