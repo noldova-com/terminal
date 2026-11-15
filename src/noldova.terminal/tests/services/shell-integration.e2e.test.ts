@@ -916,10 +916,16 @@ describe("shell integration with real shells", () => {
         await fixture.waitForQuietAsync(sessionId);
 
         const line: string = `printf '[%s]\\n' /tmp/${probe.slice(0, -2)}`;
+        const askedAt: number = Date.now();
         const completion: TerminalCompletion = TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line, cursor: line.length }));
+        const answeredIn: number = Date.now() - askedAt;
+        const listedAt: number = Date.now();
+        const entries: readonly string[] = await readdir(startTemp);
+        const listedIn: number = Date.now() - listedAt;
 
         assert.deepEqual(fixture.marks(sessionId).filter(t => t.value?.startsWith(Resources.temporaryFolderProperty) === true), []);
-        assert.deepEqual(completion.items.map(t => t.label), [probe]);
+        assert.deepEqual(completion.items.map(t => t.label), [probe], `The completion answered in ${answeredIn} ms with ${JSON.stringify(completion.toJson())}. `
+          + `Listing ${startTemp} after it took ${listedIn} ms and found ${entries.length} entries, the probe ${entries.includes(probe) ? "among them" : "not among them"}.`);
         await fixture.callAsync("terminal.close", { sessionId });
       }
       finally {
