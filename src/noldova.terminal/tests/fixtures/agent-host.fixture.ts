@@ -57,7 +57,7 @@ export class AgentHostFixture {
         new FakeEventChannel(), new FakeEventChannel(), new FakeEventChannel(), new FakeEventChannel(), new FakeEventChannel(), new FakeEventChannel(),
         this.commandAdded),
       new SavedTerminals(new MemoryModuleDatabase(SavedTerminals.migrations), this.log),
-      new CompletionSource(this.fileSystem, new FakeCommandRunner(), "linux", "/home/a"));
+      new CompletionSource(this.fileSystem, new FakeCommandRunner(), "linux", "/home/a", this.log));
   }
 
   public get process(): FakePtyProcess {

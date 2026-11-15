@@ -8,6 +8,7 @@
 
 import path from "node:path";
 
+import type { IModuleLog } from "@noldova/desktop.runtime";
 import { Resources as ProtocolResources, TerminalCompletion, TerminalCompletionItem, TerminalCompletionKind, TerminalMissingCommands, TerminalShellKind } from "@noldova/terminal.protocol";
 
 import { CommandFailedException } from "../exceptions/command-failed.exception.ts";
@@ -21,6 +22,7 @@ import { ShellLine } from "../models/shell-line.ts";
 import { Resources } from "../resources.ts";
 import { BoundedReads } from "./bounded-reads.ts";
 import type { CommandTracker } from "./command-tracker.ts";
+import { FailureText } from "./failure-text.ts";
 import { PowerShellBinding } from "./powershell-binding.ts";
 import { SharedReads } from "./shared-reads.ts";
 import { ShellWords } from "./shell-words.ts";
@@ -35,9 +37,12 @@ export class CompletionSource {
   private readonly stuck: string[] = [];
   private readonly listed: WeakMap<CommandTracker, CommandListing> = new WeakMap<CommandTracker, CommandListing>();
   private readonly looked: WeakMap<CommandTracker, PowerShellLookup> = new WeakMap<CommandTracker, PowerShellLookup>();
+  private readonly unlooked: WeakSet<CommandTracker> = new WeakSet<CommandTracker>();
+  private readonly log: IModuleLog;
 
-  public constructor(fileSystem: IFileSystemReader, runner: ICommandRunner, platform: string, homeFolder: string) {
+  public constructor(fileSystem: IFileSystemReader, runner: ICommandRunner, platform: string, homeFolder: string, log: IModuleLog) {
     this.runner = runner;
+    this.log = log;
     this.isWindows = platform === Resources.windowsPlatform;
     this.paths = this.isWindows ? path.win32 : path.posix;
     this.homeFolder = homeFolder;
@@ -99,8 +104,12 @@ export class CompletionSource {
 
   public async findMissingPowerShellAsync(shell: CommandTracker, program: string, names: readonly string[], shellNames: ReadonlySet<string> | null,
     environment: Readonly<Record<string, string>>): Promise<TerminalMissingCommands> {
-    if (shellNames === null)
+    if (shellNames === null) {
+      if (!this.unlooked.has(shell))
+        this.log.write(Resources.powerShellLookupSkipped);
+      this.unlooked.add(shell);
       return new TerminalMissingCommands([]);
+    }
     const variables: Readonly<Record<string, string>> = await this.toLongModulePathsAsync(Object.fromEntries([Resources.pathVariable,
       Resources.pathExtensionsVariable, Resources.modulePathVariable].flatMap(t => {
       const value: string | undefined = this.readVariable(environment, this.isWindows ? t.toUpperCase() : t);
@@ -125,6 +134,7 @@ export class CompletionSource {
       catch (error: unknown) {
         if (!(error instanceof CommandFailedException))
           throw error;
+        this.log.write(Resources.formatPowerShellLookupFailed(unasked.length, FailureText.read(error)));
       }
     }
     return new TerminalMissingCommands(asked.filter(t => answers.get(t) === true));
