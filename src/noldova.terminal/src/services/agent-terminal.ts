@@ -95,7 +95,7 @@ export class AgentTerminal implements IAgentTerminal {
     const received: number | null = this.hosted.inputReceivedLength;
     if (received === null || !this.hosted.hasRecentInput)
       return false;
-    return !this.hasShellIntegration || this.session.receivedLength <= received;
+    return !this.hasShellIntegration || this.hosted.hasUnreadInput;
   }
 
   private get session(): TerminalSession {
