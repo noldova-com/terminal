@@ -926,6 +926,7 @@ describe("shell integration with real shells", () => {
   it("sends no /tmp of Git Bash's own when cygpath fails at its first prompt, and completes /tmp/ in the TEMP it started with",
     async context => {
       context.skip(!shellIds.includes("git-bash") || !shellIds.includes("cmd"), "Git Bash or Command Prompt is not installed.");
+      const logged: number = fixture.context.log.callsOf("write").length;
       const cmdId: string = await fixture.openAsync("cmd", workFolder);
       await fixture.typeAsync(cmdId, "echo [%TEMP%]\r");
       await fixture.waitForAsync(cmdId, t => START_TEMP.test(t), "Command Prompt did not print the TEMP a shell starts with.");
@@ -953,7 +954,7 @@ describe("shell integration with real shells", () => {
         assert.deepEqual(fixture.marks(sessionId).filter(t => t.value?.startsWith(Resources.temporaryFolderProperty) === true), []);
         assert.deepEqual(completion.items.map(t => t.label), [probe], `The completion answered in ${answeredIn} ms with ${JSON.stringify(completion.toJson())}. `
           + `Listing ${startTemp} after it took ${listedIn} ms and found ${entries.length} entries, the probe ${entries.includes(probe) ? "among them" : "not among them"}. `
-          + `The runtime logged ${JSON.stringify(fixture.context.log.callsOf("write"))}.`);
+          + `During this test the runtime logged ${JSON.stringify(fixture.context.log.callsOf("write").slice(logged))}.`);
         await fixture.callAsync("terminal.close", { sessionId });
       }
       finally {
