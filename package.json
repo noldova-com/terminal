@@ -15,6 +15,7 @@
     "build": "node scripts/build.ts",
     "peers:newest": "node scripts/move-peers.ts",
     "test": "node scripts/test.ts",
+    "probe:runtime": "bash probe/runtime-dir.sh",
     "test:timing": "node scripts/timing/timing-check.ts"
   },
   "devDependencies": {
