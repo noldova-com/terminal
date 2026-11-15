@@ -13,8 +13,10 @@ import { FakeModuleLog } from "@noldova/desktop.runtime/testing";
 import { TerminalCompletion, TerminalCompletionItem, TerminalCompletionKind, TerminalShellKind, type TerminalMissingCommands } from "@noldova/terminal.protocol";
 import { describe, it, type MockInstance, vi } from "vitest";
 
+import { MarkKind } from "../../src/enums/mark-kind.ts";
 import { CommandExitedException } from "../../src/exceptions/command-exited.exception.ts";
 import { CommandTimedOutException } from "../../src/exceptions/command-timed-out.exception.ts";
+import { ShellMark } from "../../src/models/shell-mark.ts";
 import { Resources } from "../../src/resources.ts";
 import { CommandTracker } from "../../src/services/command-tracker.ts";
 import { CompletionSource } from "../../src/services/completion-source.ts";
@@ -533,34 +535,46 @@ describe("CompletionSource", () => {
         ["$names = @('gti')", "$names = @('ls')", "$names = @('gti')", "$names = @('gti')", "$names = @('gti')"]);
     });
 
-    it("finds none missing once a lookup fails or runs past its time, logs why each time, and looks up again next time, but passes on a fault of its own", async () => {
+    it("finds none missing once a lookup fails or runs past its time, logs why once until a lookup of that shell succeeds, and looks up again next time, but passes on a fault of its own", async () => {
       const fixture: SourceFixture = new SourceFixture();
       fixture.runner.answers.set(PWSH, new CommandTimedOutException("pwsh", 10_000));
       const names: ReadonlySet<string> = new Set(["ll"]);
       const failed: readonly string[] = await fixture.powerShellMissingAsync(["gti", "gzp"], names);
       fixture.runner.answers.set(PWSH, new CommandExitedException("pwsh", new ProcessExit(1, null), "Get-Command : broken\r\n"));
-      const exited: readonly string[] = await fixture.powerShellMissingAsync(["gti"], names);
+      const again: readonly string[] = await fixture.powerShellMissingAsync(["gti"], names);
       fixture.runner.answers.set(PWSH, "0\n");
+      const succeeded: readonly string[] = await fixture.powerShellMissingAsync(["gti"], names);
+      fixture.runner.answers.set(PWSH, new CommandExitedException("pwsh", new ProcessExit(1, null), "Get-Command : broken\r\n"));
+      const after: readonly string[] = await fixture.powerShellMissingAsync(["gzp"], names);
 
-      assert.deepEqual([failed, exited, await fixture.powerShellMissingAsync(["gti"], names)], [[], [], ["gti"]]);
+      assert.deepEqual([failed, again, succeeded, after], [[], [], ["gti"], []]);
       assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [
-        "PowerShell's lookup of 2 names a command line runs gave up, so they count as found: pwsh did not end within 10 seconds.",
-        "PowerShell's lookup of 1 name a command line runs gave up, so they count as found: pwsh exited with 1: Get-Command : broken"
+        "PowerShell's lookup of 2 names a command line runs gave up, so they count as found, as later ones do until one succeeds: pwsh did not end within 10 seconds.",
+        "PowerShell's lookup of 1 name a command line runs gave up, so they count as found, as later ones do until one succeeds: pwsh exited with 1: Get-Command : broken"
       ]);
       fixture.runner.answers.set(PWSH, new TypeError("broken"));
       await assert.rejects(fixture.powerShellMissingAsync(["ls"], names), TypeError);
     });
 
-    it("finds none missing for a session whose PATH or PSModulePath was reset, running nothing, and logs that once for the session", async () => {
+    it("finds none missing for a shell without its names, running nothing, and logs which of a reset PATH or PSModulePath, a list too long to send or no list yet, once until that changes", async () => {
       const fixture: SourceFixture = new SourceFixture();
       fixture.runner.answers.set(PWSH, "0\n");
+      fixture.shellOf("path").isPathReset = true;
+      fixture.shellOf("modules").isModulePathReset = true;
+      fixture.shellOf("long").apply(new ShellMark(MarkKind.Property, "Names", 0));
 
-      const reset: readonly (readonly string[])[] = [await fixture.powerShellMissingAsync(["gti"], null), await fixture.powerShellMissingAsync(["gzp"], null),
-        await fixture.powerShellMissingAsync(["gti"], null, {}, fixture.shellOf("s2"))];
+      const skipped: readonly (readonly string[])[] = [await fixture.powerShellMissingAsync(["gti"], null), await fixture.powerShellMissingAsync(["gzp"], null),
+        await fixture.powerShellMissingAsync(["gti"], null, {}, fixture.shellOf("path")),
+        await fixture.powerShellMissingAsync(["gti"], null, {}, fixture.shellOf("modules")),
+        await fixture.powerShellMissingAsync(["gti"], null, {}, fixture.shellOf("long"))];
+      const looked: readonly string[] = await fixture.powerShellMissingAsync(["gti"], new Set(["ll"]));
+      const unreportedAgain: readonly string[] = await fixture.powerShellMissingAsync(["gti"], null);
 
-      assert.deepEqual([reset, fixture.lookups.length], [[[], [], []], 0]);
-      assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), Array.from({ length: 2 }, () =>
-        "PowerShell's lookup of the names a command line runs is skipped for a session whose PATH or PSModulePath was reset, so every name counts as found."));
+      assert.deepEqual([skipped, looked, unreportedAgain, fixture.lookups.length], [[[], [], [], [], []], ["gti"], [], 1]);
+      assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [
+        "the shell has sent no list of its names yet", "the session's PATH was reset", "the session's PSModulePath was reset",
+        "the shell's last list of its names was too long to send", "the shell has sent no list of its names yet"
+      ].map(t => `PowerShell's lookup of the names a command line runs is skipped, since ${t}, so every name counts as found.`));
     });
 
     it("on Windows, reads the variables whatever their case", async () => {

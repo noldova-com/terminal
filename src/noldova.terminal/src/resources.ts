@@ -301,7 +301,10 @@ export class Resources {
   ]);
   public static readonly optionsMilliseconds: number = 500;
   public static readonly powerShellLookupMilliseconds: number = 10_000;
-  public static readonly powerShellLookupSkipped: string = "PowerShell's lookup of the names a command line runs is skipped for a session whose PATH or PSModulePath was reset, so every name counts as found.";
+  public static readonly powerShellLookupPathReset: string = "the session's PATH was reset";
+  public static readonly powerShellLookupModulePathReset: string = "the session's PSModulePath was reset";
+  public static readonly powerShellLookupNamesTooLong: string = "the shell's last list of its names was too long to send";
+  public static readonly powerShellLookupNamesUnreported: string = "the shell has sent no list of its names yet";
   public static readonly powerShellLookupNamePattern: RegExp = /^[\p{L}\p{N}._+@%:,-]+$/u;
   public static readonly powerShellImplicitVerb: string = "Get-";
   public static readonly powerShellBuiltins: readonly string[] = [
@@ -513,7 +516,11 @@ export class Resources {
   public static readonly powerShellIntegrationArguments: readonly string[] = ["-NoProfile", ...Resources.powerShellArguments];
   public static readonly environmentReadArguments: readonly string[] = ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand"];
   public static formatPowerShellLookupFailed(count: number, message: string): string {
-    return `PowerShell's lookup of ${count} ${count === 1 ? "name" : "names"} a command line runs gave up, so they count as found: ${message}`;
+    return `PowerShell's lookup of ${count} ${count === 1 ? "name" : "names"} a command line runs gave up, so they count as found, as later ones do until one succeeds: ${message}`;
+  }
+
+  public static formatPowerShellLookupSkipped(reason: string): string {
+    return `PowerShell's lookup of the names a command line runs is skipped, since ${reason}, so every name counts as found.`;
   }
 
   public static formatPowerShellLookupScript(names: readonly string[]): string {

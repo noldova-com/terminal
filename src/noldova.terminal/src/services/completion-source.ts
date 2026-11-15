@@ -37,7 +37,8 @@ export class CompletionSource {
   private readonly stuck: string[] = [];
   private readonly listed: WeakMap<CommandTracker, CommandListing> = new WeakMap<CommandTracker, CommandListing>();
   private readonly looked: WeakMap<CommandTracker, PowerShellLookup> = new WeakMap<CommandTracker, PowerShellLookup>();
-  private readonly unlooked: WeakSet<CommandTracker> = new WeakSet<CommandTracker>();
+  private readonly skipped: WeakMap<CommandTracker, string> = new WeakMap<CommandTracker, string>();
+  private readonly failing: WeakSet<CommandTracker> = new WeakSet<CommandTracker>();
   private readonly log: IModuleLog;
 
   public constructor(fileSystem: IFileSystemReader, runner: ICommandRunner, platform: string, homeFolder: string, log: IModuleLog) {
@@ -105,11 +106,14 @@ export class CompletionSource {
   public async findMissingPowerShellAsync(shell: CommandTracker, program: string, names: readonly string[], shellNames: ReadonlySet<string> | null,
     environment: Readonly<Record<string, string>>): Promise<TerminalMissingCommands> {
     if (shellNames === null) {
-      if (!this.unlooked.has(shell))
-        this.log.write(Resources.powerShellLookupSkipped);
-      this.unlooked.add(shell);
+      const reason: string = shell.isPathReset ? Resources.powerShellLookupPathReset : shell.isModulePathReset ? Resources.powerShellLookupModulePathReset
+        : shell.isNamesReset ? Resources.powerShellLookupNamesTooLong : Resources.powerShellLookupNamesUnreported;
+      if (this.skipped.get(shell) !== reason)
+        this.log.write(Resources.formatPowerShellLookupSkipped(reason));
+      this.skipped.set(shell, reason);
       return new TerminalMissingCommands([]);
     }
+    this.skipped.delete(shell);
     const variables: Readonly<Record<string, string>> = await this.toLongModulePathsAsync(Object.fromEntries([Resources.pathVariable,
       Resources.pathExtensionsVariable, Resources.modulePathVariable].flatMap(t => {
       const value: string | undefined = this.readVariable(environment, this.isWindows ? t.toUpperCase() : t);
@@ -130,11 +134,14 @@ export class CompletionSource {
         const missing: ReadonlySet<string> = new Set(output.split(Resources.lineBreaks).map(t => t.trim()));
         for (const [index, name] of unasked.entries())
           answers.set(name, missing.has(String(index)));
+        this.failing.delete(shell);
       }
       catch (error: unknown) {
         if (!(error instanceof CommandFailedException))
           throw error;
-        this.log.write(Resources.formatPowerShellLookupFailed(unasked.length, FailureText.read(error)));
+        if (!this.failing.has(shell))
+          this.log.write(Resources.formatPowerShellLookupFailed(unasked.length, FailureText.read(error)));
+        this.failing.add(shell);
       }
     }
     return new TerminalMissingCommands(asked.filter(t => answers.get(t) === true));

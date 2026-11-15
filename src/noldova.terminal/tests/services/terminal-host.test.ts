@@ -896,7 +896,7 @@ describe("TerminalHost", () => {
 
     assert.deepEqual([reset, unasked, await findAsync(), fixture.runner.environments.at(-1)?.["PSModulePath"]], [[], true, ["gti"], "C:\\Mine"]);
     assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]).filter(t => String(t).startsWith("PowerShell's lookup")),
-      ["PowerShell's lookup of the names a command line runs is skipped for a session whose PATH or PSModulePath was reset, so every name counts as found."]);
+      ["PowerShell's lookup of the names a command line runs is skipped, since the session's PSModulePath was reset, so every name counts as found."]);
   });
 
   it("lists PATH's programs again for a restarted terminal's shell, whose prompts count from the start again", async () => {

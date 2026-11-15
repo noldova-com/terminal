@@ -32,6 +32,7 @@ export class CommandTracker {
   public modulePath: string | null = null;
   public isModulePathReset: boolean = false;
   public names: ReadonlySet<string> | null = null;
+  public isNamesReset: boolean = false;
   public builtins: ReadonlySet<string> | null = null;
   public hasOptionsBinding: boolean = false;
   public isLoaded: boolean = false;
@@ -118,10 +119,14 @@ export class CommandTracker {
           this.modulePath = null;
           this.isModulePathReset = true;
         }
-        else if (mark.value?.startsWith(Resources.namesProperty) === true)
+        else if (mark.value?.startsWith(Resources.namesProperty) === true) {
           this.names = new Set(mark.value.slice(Resources.namesProperty.length).split(Resources.namesSeparator).filter(t => t !== ""));
-        else if (mark.value === Resources.namesReset)
+          this.isNamesReset = false;
+        }
+        else if (mark.value === Resources.namesReset) {
           this.names = null;
+          this.isNamesReset = true;
+        }
         else if (mark.value?.startsWith(Resources.builtinsProperty) === true)
           this.builtins = new Set(mark.value.slice(Resources.builtinsProperty.length).split(Resources.namesSeparator).filter(t => t !== ""));
         else if (mark.value === Resources.builtinsReset)
