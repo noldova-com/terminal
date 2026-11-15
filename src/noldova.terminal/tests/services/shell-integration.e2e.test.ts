@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { ShellClients } from "@noldova/desktop.protocol";
-import { RequestContext, type IMethodHandler } from "@noldova/desktop.runtime";
+import { RequestContext, type IMethodHandler, type ProcessRequest } from "@noldova/desktop.runtime";
 import { FakeModuleLog, FakeModuleSettings } from "@noldova/desktop.runtime/testing";
 import type { JsonValue } from "@noldova/context.json";
 import { TerminalAttachment, TerminalCommandAdded, TerminalCompletion, TerminalCwd, TerminalMissingCommands, TerminalOutput, TerminalReference, TerminalShellKind, TerminalShells } from "@noldova/terminal.protocol";
@@ -841,13 +841,15 @@ describe("shell integration with real shells", () => {
             `${shellId} did not prompt again after its PSModulePath changed.`);
           await fixture.waitForQuietAsync(sessionId);
 
+          const requested: number = fixture.context.requests.length;
           const missing: readonly string[] = TerminalMissingCommands.fromJson(await fixture.callAsync("terminal.findCommands", { sessionId,
             names: ["Get-NoldovaProfileRuns", "NoldovaProfileRuns", "Invoke-NoldovaProbe", "NoldovaProbe", "Invoke-NoldovaBare", "whoami", "noldovanone",
               "nöldovanone"] })).names;
           const names: readonly string[] = (fixture.marks(sessionId).findLast(t => t.value?.startsWith("Names=") === true)?.value ?? "").split(" ");
           const isImported: boolean = await stat(imported).then(() => true, () => false);
+          const lookups: readonly ProcessRequest[] = fixture.context.requests.slice(requested).filter(t => t.arguments.includes("-EncodedCommand"));
           assert.deepEqual([missing, names.includes("Get-NoldovaProfileRuns"), names.includes("Invoke-NoldovaProbe"), isImported],
-            [["noldovanone", "nöldovanone"], true, false, false]);
+            [["noldovanone", "nöldovanone"], true, false, false], missing.includes("whoami") ? describeProgramLookups(lookups) : undefined);
           await fixture.callAsync("terminal.close", { sessionId });
         });
       });
@@ -1198,6 +1200,29 @@ function profileTime(step: string): string {
 
 function executableOf(shellId: string): string {
   return SHELL_FILES.get(shellId) ?? shellId;
+}
+
+function describeProgramLookups(lookups: readonly ProcessRequest[]): string {
+  if (lookups.length === 0)
+    return "whoami was missing, and no lookup ran.";
+  const systemFolder: string = join(process.env["SystemRoot"] ?? "", "System32").toLowerCase();
+  return lookups.map((lookup, index) => {
+    const path: string = lookup.environment["PATH"] ?? "";
+    const extensions: string = lookup.environment["PATHEXT"] ?? "";
+    const folders: readonly string[] = path.split(";").filter(t => t !== "");
+    const hasSystemFolder: boolean = folders.some(t => t.replace(/[\\/]+$/u, "").toLowerCase() === systemFolder);
+    const hasExe: boolean = extensions.split(";").some(t => t.toUpperCase() === ".EXE");
+    const replaced: ReadonlySet<string> = new Set(Object.keys(lookup.environment).map(t => t.toUpperCase()));
+    const again: SpawnSyncReturns<string> = spawnSync(lookup.program, ["-NoProfile", "-NonInteractive", "-Command",
+      "@(Get-Command -Name 'whoami*' -CommandType Application).Name -join ','"], { encoding: "utf8", timeout: WAIT_MS,
+      env: { ...Object.fromEntries(Object.entries(process.env).filter(([t]) => !replaced.has(t.toUpperCase()))), ...lookup.environment } });
+    const cause: string = !hasSystemFolder ? `its PATH, of ${folders.length} folders${folders.some(t => t.includes("%")) ? " with an unexpanded %" : ""}, had no ${systemFolder}`
+      : !hasExe ? `its PATHEXT, ${JSON.stringify(extensions)}, had no .EXE`
+        : "its PATH and PATHEXT held them, so its program search ended early";
+    return `Lookup ${index + 1} of ${lookups.length}: ${cause}. The same search run again with its PATH and PATHEXT found `
+      + `${JSON.stringify((again.stdout ?? "").trim())}, status ${again.status}, errors ${JSON.stringify((again.stderr ?? "").trim().slice(0, OUTPUT_TAIL))}`
+      + `${again.error === undefined ? "" : `, and it could not run: ${again.error.message}`}.`;
+  }).join(" ");
 }
 
 async function withProfilesAsync(context: TestContext, shellId: string, texts: readonly string[], check: (profiles: readonly string[]) => Promise<void>): Promise<void> {
