@@ -252,36 +252,82 @@ describe("AgentTerminals", () => {
     assert.deepEqual(fixture.process.writes, ["\u001b[O", "l"]);
   });
 
-  it("reads the prompt as busy while the person's keys wait for their echo, and after it, until a clear prompt shows", async () => {
+  it("reads the prompt as busy while the person's keys wait for their echo, and after it, until the shell waits at a new prompt", async () => {
     const fixture: TerminalsFixture = new TerminalsFixture();
     fixture.host.bindAgentSession("session-1", "example.chat/42");
     const terminal: IAgentTerminal = await fixture.openBashAsync();
 
-    await fixture.host.handleAsync("terminal.input", { sessionId: terminal.id, data: "rm -rf " }, APP);
+    await fixture.host.handleAsync("terminal.input", { sessionId: terminal.id, data: "make\r" }, APP);
     const unechoed: boolean = terminal.readPrompt().isIdle;
-    fixture.process.emitData("rm -rf ");
+    fixture.process.emitData("make");
     const echoed: boolean = terminal.readPrompt().isIdle;
-    fixture.process.emitData(`^C
-${fixture.mark("A")}$ ${fixture.mark("B")}`);
+    fixture.process.emitData(`\r\n${fixture.mark("C")}${fixture.mark("D", "0")}${fixture.mark("A")}$ ${fixture.mark("B")}`);
 
     assert.deepEqual([unechoed, echoed, terminal.readPrompt().isIdle], [false, false, true]);
-    assert.throws(() => terminal.run("make", new TerminalPrompt(false, "/work", 2, false, 1), 0), StaleTerminalException);
+    assert.throws(() => terminal.run("ls", new TerminalPrompt(false, "/work", 2, false, 1), 0), StaleTerminalException);
   });
 
-  it("counts output that leaves no text, such as a cursor move or a bell, as the keys' echo", async () => {
+  it("reads a new prompt that no command reached, as after Ctrl+C, as busy until the keys' settle passes", async () => {
     const fixture: TerminalsFixture = new TerminalsFixture();
     fixture.host.bindAgentSession("session-1", "example.chat/42");
     const terminal: IAgentTerminal = await fixture.openBashAsync();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      await fixture.host.handleAsync("terminal.input", { sessionId: terminal.id, data: "rm -rf " }, APP);
+      fixture.process.emitData(`rm -rf ^C\r\n${fixture.mark("A")}$ ${fixture.mark("B")}`);
+      const cleared: boolean = terminal.readPrompt().isIdle;
+      passTime(999);
+      const unsettled: boolean = terminal.readPrompt().isIdle;
+      passTime(1);
 
-    await fixture.host.handleAsync("terminal.input", { sessionId: terminal.id, data: "\u001b[D" }, APP);
-    const left: boolean = terminal.readPrompt().isIdle;
-    fixture.process.emitData("\b");
-    const moved: boolean = terminal.readPrompt().isIdle;
-    await fixture.host.handleAsync("terminal.input", { sessionId: terminal.id, data: "\u001b[A" }, APP);
-    const up: boolean = terminal.readPrompt().isIdle;
-    fixture.process.emitData("\u0007");
+      assert.deepEqual([cleared, unsettled, terminal.readPrompt().isIdle], [false, false, true]);
+    }
+    finally {
+      vi.useRealTimers();
+    }
+  });
 
-    assert.deepEqual([left, moved, up, terminal.readPrompt().isIdle], [false, true, false, true]);
+  it("reads the prompt as busy while a key's first output is only cursor codes, as PowerShell's line editor sends before the key's text", async () => {
+    const fixture: TerminalsFixture = new TerminalsFixture();
+    fixture.host.bindAgentSession("session-1", "example.chat/42");
+    const terminal: IAgentTerminal = await fixture.openBashAsync();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      await fixture.host.handleAsync("terminal.input", { sessionId: terminal.id, data: "l" }, APP);
+      fixture.process.emitData("\u001b[?25l\u001b[1;3H");
+      const codes: boolean = terminal.readPrompt().isIdle;
+      fixture.process.emitData("l\u001b[?25h");
+      const typed: boolean = terminal.readPrompt().isIdle;
+      passTime(1_000);
+
+      assert.deepEqual([codes, typed, terminal.readPrompt().isIdle], [false, false, false]);
+    }
+    finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reads the prompt as idle a settle after a key whose output leaves no text, such as a cursor move or a bell, and not before", async () => {
+    const fixture: TerminalsFixture = new TerminalsFixture();
+    fixture.host.bindAgentSession("session-1", "example.chat/42");
+    const terminal: IAgentTerminal = await fixture.openBashAsync();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      await fixture.host.handleAsync("terminal.input", { sessionId: terminal.id, data: "\u001b[D" }, APP);
+      fixture.process.emitData("\b");
+      const moved: boolean = terminal.readPrompt().isIdle;
+      passTime(1_000);
+      const settled: boolean = terminal.readPrompt().isIdle;
+      await fixture.host.handleAsync("terminal.input", { sessionId: terminal.id, data: "\u001b[A" }, APP);
+      fixture.process.emitData("\u0007");
+      const rang: boolean = terminal.readPrompt().isIdle;
+      passTime(1_000);
+
+      assert.deepEqual([moved, settled, rang, terminal.readPrompt().isIdle], [false, true, false, true]);
+    }
+    finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reads the prompt as idle at once after a focus report, which the shell never echoes, and busy at the next key", async () => {
