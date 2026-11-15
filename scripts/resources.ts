@@ -240,12 +240,14 @@ export class Resources {
   public static readonly testWaitQuotes: readonly string[] = ["\"", "'", "`"];
   public static readonly testWaitEscape: string = "\\";
   public static readonly testWaitWindowFolder: string = "src/noldova.terminal.window/";
-  public static readonly testWaitLimitedCalls: RegExp = /\b(?:vi\.waitFor|expect\.poll)\(/g;
+  public static readonly testWaitLimitedCalls: RegExp = /\b(?:vi\.waitFor|expect\.poll)(?:<[^()]*>)?\(/g;
+  public static readonly testWaitObjectStart: string = "{";
+  public static readonly testWaitTimeoutProperty: RegExp = /^\s*(["']?)timeout\1\s*(?::|$)/u;
   public static readonly testWaitOpenings: string = "([{";
   public static readonly testWaitClosings: string = ")]}";
   public static readonly testWaitArgumentSeparator: string = ",";
   public static readonly testWaitRegexDelimiter: string = "/";
-  public static readonly testWaitRegexStarts: string = "(,=:[!&|?{};";
+  public static readonly testWaitRegexStarts: string = "(,=:[!&|?{};>";
   public static readonly testWaitClassStart: string = "[";
   public static readonly testWaitClassEnd: string = "]";
   public static readonly runnerTempVariable: string = "RUNNER_TEMP";

@@ -72,12 +72,23 @@ export class TestWaitCheck {
   private static findDefaultLimits(text: string): readonly number[] {
     const lines: number[] = [];
     for (const match of text.matchAll(Resources.testWaitLimitedCalls))
-      if (!TestWaitCheck.isInString(text, match.index) && !TestWaitCheck.hasSecondArgument(text, match.index + match[0].length))
+      if (!TestWaitCheck.isInString(text, match.index) && !TestWaitCheck.hasLimit(text, match.index + match[0].length))
         lines.push(text.slice(0, match.index).split(Resources.lineEnd).length);
     return lines;
   }
 
-  private static hasSecondArgument(text: string, start: number): boolean {
+  private static hasLimit(text: string, start: number): boolean {
+    const options: string | undefined = TestWaitCheck.readItems(text, start)[1]?.trim();
+    if (options === undefined || options === "")
+      return false;
+    if (!options.startsWith(Resources.testWaitObjectStart))
+      return true;
+    return TestWaitCheck.readItems(options, 1).some(t => Resources.testWaitTimeoutProperty.test(t));
+  }
+
+  private static readItems(text: string, start: number): readonly string[] {
+    const items: string[] = [];
+    let itemStart: number = start;
     let depth: number = 1;
     let quote: string | null = null;
     let isInClass: boolean = false;
@@ -106,14 +117,19 @@ export class TestWaitCheck {
         quote = character;
       else if (Resources.testWaitOpenings.includes(character))
         depth++;
-      else if (Resources.testWaitClosings.includes(character))
+      else if (Resources.testWaitClosings.includes(character)) {
         depth--;
-      else if (depth === 1 && character === Resources.testWaitArgumentSeparator)
-        return true;
+        if (depth === 0)
+          items.push(text.slice(itemStart, position));
+      }
+      else if (depth === 1 && character === Resources.testWaitArgumentSeparator) {
+        items.push(text.slice(itemStart, position));
+        itemStart = position + 1;
+      }
       if (character.trim() !== "")
         previous = character;
     }
-    return false;
+    return items;
   }
 
   private static isInString(text: string, index: number): boolean {
