@@ -30,6 +30,10 @@ import { ProcessState } from "./fixtures/process-state.fixture.ts";
 import { SupervisedTerminals } from "./fixtures/supervised-terminals.fixture.ts";
 
 const WAIT_MS: number = 20_000;
+const RUN_WAIT_MS: number = 55_000;
+const TEST_DEADLINE_MS: number = 65_000;
+const OUTPUT_TAIL: number = 1_500;
+const MARK_KIND: RegExp = /\u001b\]6973;([A-Z]);/gu;
 const POLL_MS: number = 25;
 const IS_WINDOWS: boolean = process.platform === "win32";
 const PRIVATE_FOLDER: RegExp = /^noldova-terminal-(?:lines-\d+-)?[A-Za-z0-9]{6}$/u;
@@ -51,6 +55,7 @@ class RuntimeFixture {
   private readonly chunks: Map<string, string[]> = new Map<string, string[]>();
   private readonly lengths: Map<string, number> = new Map<string, number>();
   private outputsRead: number = 0;
+  private readonly deadline: number = Date.now() + TEST_DEADLINE_MS;
 
   public constructor(readsEnvironment: boolean = false, environment: Readonly<Record<string, string | undefined>> = process.env) {
     if (!readsEnvironment)
@@ -122,6 +127,35 @@ class RuntimeFixture {
     const handler: IMethodHandler | undefined = this.context.methods.get(method);
     assert.ok(handler !== undefined, `The part has no method ${method}.`);
     return handler.handleAsync(new RequestContext(client, payload, new AbortController().signal, connection, window));
+  }
+
+  public async runAsync(payload: JsonValue): Promise<TerminalRunResult> {
+    const milliseconds: number = Math.max(0, Math.min(RUN_WAIT_MS, this.deadline - Date.now()));
+    const limit: AbortSignal = AbortSignal.timeout(milliseconds);
+    let stop: () => void = (): void => undefined;
+    const missed: Promise<never> = new Promise<never>((_resolve, reject) => {
+      const miss = (): void => reject(new Error(`terminal.run didn't answer within ${milliseconds} ms, the lesser of ${RUN_WAIT_MS} ms and what was left of the test's ${TEST_DEADLINE_MS} ms.\n`
+        + this.describeTerminals()));
+      limit.addEventListener("abort", miss, { once: true });
+      stop = (): void => limit.removeEventListener("abort", miss);
+    });
+    try {
+      return TerminalRunResult.fromJson(await Promise.race([this.callAsync("terminal.run", payload), missed]));
+    }
+    finally {
+      stop();
+    }
+  }
+
+  public describeTerminals(): string {
+    const sessionIds: readonly string[] = [...new Set(this.outputs.map(t => t.sessionId))];
+    if (sessionIds.length === 0)
+      return "No terminal sent output.";
+    return sessionIds.map(t => {
+      const text: string = this.text(t);
+      const kinds: string = [...text.matchAll(MARK_KIND)].map(m => m[1] ?? "").join("");
+      return `Terminal ${t}: marks ${kinds === "" ? "none" : kinds}; its output ends with ${JSON.stringify(text.slice(-OUTPUT_TAIL))}`;
+    }).join("\n");
   }
 
   public async listAsync(client: string = ShellClients.mainProcess, connection: number = 1, window: number | null = 1): Promise<readonly (string | null)[][]> {
@@ -419,8 +453,8 @@ describe("the runtime part with real shells", () => {
       const shells: readonly string[] = TerminalShells.fromJson(await fixture.callAsync("terminal.shells", null)).shells.map(t => t.id);
       context.skip(!shells.includes(shellId), `${shellId} is not installed.`);
       const run = async (command: string): Promise<TerminalRunResult> =>
-        TerminalRunResult.fromJson(await fixture.callAsync("terminal.run", { owner: OWNER, command, folder, shellKinds: [], shellId,
-          size: { cols: 20, rows: 10 }, storedLimit: 104_857_600, sessionId: null, whenBusy: "Refuse", opensTab: true }));
+        fixture.runAsync({ owner: OWNER, command, folder, shellKinds: [], shellId,
+          size: { cols: 20, rows: 10 }, storedLimit: 104_857_600, sessionId: null, whenBusy: "Refuse", opensTab: true });
 
       const first: TerminalRunResult = await run(`${setPrompt}; ${sum("first", 1, 1)}`);
       const sessionId: string = first.sessionId ?? "";
@@ -445,8 +479,8 @@ describe("the runtime part with real shells", () => {
         const isPowerShell: boolean = shellId === "pwsh" || shellId === "powershell";
         const exit = (code: number): string => isPowerShell && IS_WINDOWS ? `cmd /c exit ${code}` : `sh -c 'exit ${code}'`;
         const run = async (command: string, sessionId: string | null, whenBusy: string = "Refuse"): Promise<TerminalRunResult> =>
-          TerminalRunResult.fromJson(await fixture.callAsync("terminal.run", { owner: OWNER, command, folder, shellKinds: [], shellId,
-            size: { cols: 120, rows: 30 }, storedLimit: 104_857_600, sessionId, whenBusy, opensTab: true }));
+          fixture.runAsync({ owner: OWNER, command, folder, shellKinds: [], shellId,
+            size: { cols: 120, rows: 30 }, storedLimit: 104_857_600, sessionId, whenBusy, opensTab: true });
         const endOf = async (result: TerminalRunResult): Promise<TerminalRunEnded> => {
           const find = (): TerminalRunEnded | undefined => fixture.published("terminal.runEnded").map(t => TerminalRunEnded.fromJson(t)).find(t => t.runId === result.runId);
           await fixture.channel("terminal.runEnded").waitUntilAsync(`The end of run ${result.runId}`, () => find() !== undefined);
@@ -490,8 +524,8 @@ describe("the runtime part with real shells", () => {
     const fixture: RuntimeFixture = new RuntimeFixture();
     await fixture.part.activateAsync(fixture.context);
 
-    const result: TerminalRunResult = TerminalRunResult.fromJson(await fixture.callAsync("terminal.run", { owner: OWNER, command: "echo done", folder,
-      shellKinds: [], shellId: "cmd", size: { cols: 120, rows: 30 }, storedLimit: 104_857_600, sessionId: null, whenBusy: "Refuse", opensTab: true }));
+    const result: TerminalRunResult = await fixture.runAsync({ owner: OWNER, command: "echo done", folder,
+      shellKinds: [], shellId: "cmd", size: { cols: 120, rows: 30 }, storedLimit: 104_857_600, sessionId: null, whenBusy: "Refuse", opensTab: true });
     await fixture.waitForTextAsync(result.sessionId ?? "", "done");
 
     assert.deepEqual([result.outcome, result.endedRuns.map(t => t.toJson()), fixture.published("terminal.runEnded")],
@@ -504,8 +538,8 @@ describe("the runtime part with real shells", () => {
     const fixture: RuntimeFixture = new RuntimeFixture();
     await fixture.part.activateAsync(fixture.context);
     const run = async (command: string, sessionId: string | null, whenBusy: string = "Refuse"): Promise<TerminalRunResult> =>
-      TerminalRunResult.fromJson(await fixture.callAsync("terminal.run", { owner: OWNER, command, folder, shellKinds: [], shellId: null,
-        size: { cols: 400, rows: 30 }, storedLimit: 104_857_600, sessionId, whenBusy, opensTab: true }));
+      fixture.runAsync({ owner: OWNER, command, folder, shellKinds: [], shellId: null,
+        size: { cols: 400, rows: 30 }, storedLimit: 104_857_600, sessionId, whenBusy, opensTab: true });
     const output = async (result: TerminalRunResult): Promise<string> => TerminalRunOutput.fromJson(await fixture.callAsync("terminal.runOutput",
       { sessionId: result.sessionId, runId: result.runId, maximumLines: 2_000 })).lines.map(t => t.text).join("\n");
     const sum = (name: string, left: number, right: number): string => IS_WINDOWS ? `echo "${name}=$(${left}+${right})."` : `echo "${name}=$((${left}+${right}))."`;
@@ -760,7 +794,7 @@ describe("the runtime part with real shells", () => {
       const pane: { cols: number; rows: number } = { cols: 200, rows: 30 };
       await fixture.callAsync("terminal.showOwner", { owner: OWNER });
 
-      const running: Promise<JsonValue> = fixture.callAsync("terminal.run", { owner: OWNER, command: `echo ${word}`, folder: runFolder,
+      const running: Promise<TerminalRunResult> = fixture.runAsync({ owner: OWNER, command: `echo ${word}`, folder: runFolder,
         shellKinds: [], shellId, size: { cols: 80, rows: 24 }, storedLimit: 104_857_600, sessionId: null, whenBusy: "Refuse", opensTab: true });
       await fixture.waitForEventsAsync("terminal.opened", 1);
       const sessionId: string = TerminalSummary.fromJson(fixture.published("terminal.opened")[0] ?? null).sessionId;
