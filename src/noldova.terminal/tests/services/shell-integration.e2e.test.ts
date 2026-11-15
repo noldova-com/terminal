@@ -672,8 +672,16 @@ describe("shell integration with real shells", () => {
         const before: string = await screen("p1");
         const marked: string = fixture.kinds(sessionId);
 
+        const askedAt: number = performance.now();
         const completion: TerminalCompletion = TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete",
           { sessionId, line: "noldovaprobe -", cursor: 14, asksShell: true }));
+        const returnedAt: number = performance.now();
+        let answeredAt: number = -1;
+        await vi.waitFor(() => {
+          assert.ok(fixture.kinds(sessionId).slice(marked.length).includes("O"));
+          answeredAt = performance.now();
+        }, { timeout: 10_000, interval: 5 }).catch(() => undefined);
+        console.log(`[probe-6] ${shellId} returned ${Math.round(returnedAt - askedAt)} ms, O ${answeredAt < 0 ? "none in 10 s" : `${Math.round(answeredAt - askedAt)} ms`}, isShellTab ${completion.isShellTab}`);
         await fixture.waitForQuietAsync(sessionId);
         const after: string = await screen("p2");
         const answeredMarks: string = fixture.kinds(sessionId).slice(marked.length);
