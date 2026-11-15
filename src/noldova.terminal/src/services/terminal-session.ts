@@ -51,6 +51,7 @@ export class TerminalSession {
   private reportedCwd: string | null = null;
   private readonly typedLines: Set<TypedLine> = new Set<TypedLine>();
   private readonly options: ShellOptionsQueue = new ShellOptionsQueue();
+  private isPromptNew: boolean = false;
   private readonly disposal: AbortController = new AbortController();
 
   public readonly sessionId: string;
@@ -272,6 +273,7 @@ export class TerminalSession {
     this.hasIntegration = nonce !== null;
     this.commands = this.trackCommands();
     this.options.reset();
+    this.isPromptNew = false;
     this.replacePromptLine(null);
     this.typedLines.clear();
     this.reportedCwd = null;
@@ -364,8 +366,12 @@ export class TerminalSession {
   private applyMark(mark: ShellMark): void {
     if (mark.kind === MarkKind.Options)
       this.options.answer(mark.values);
-    else if (mark.kind === MarkKind.PromptStart || mark.kind === MarkKind.OutputStart)
+    else if (mark.kind === MarkKind.OutputStart || mark.kind === MarkKind.PromptStart && this.isPromptNew)
       this.options.reset();
+    if (mark.kind === MarkKind.CommandEnd || mark.kind === MarkKind.Property)
+      this.isPromptNew = true;
+    else if (mark.kind === MarkKind.PromptStart)
+      this.isPromptNew = false;
     this.commands.apply(mark);
     this.settleTypedLines(mark);
     if (mark.kind === MarkKind.CommandEnd) {
