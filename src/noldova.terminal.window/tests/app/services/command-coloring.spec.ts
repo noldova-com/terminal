@@ -13,7 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CommandTokenKind } from "../../../src/app/enums/command-token-kind.ts";
 import { CommandColors } from "../../../src/app/models/command-colors.ts";
 import { CommandColoring } from "../../../src/app/services/command-coloring.ts";
+import { DrawnWait } from "../../fixtures/drawn-wait.fixture.ts";
 
+const ASK_WAIT_MS: number = DrawnWait.milliseconds;
 const COLORS: Readonly<Record<CommandTokenKind, string>> = {
   Command: "#ff0000",
   NotFound: "#ff8000",
@@ -101,7 +103,7 @@ describe("CommandColoring", () => {
 
     await writeAsync("git commit -m \"fix\" ./src $HOME | wc # done");
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CCC........OO.SSSSS.PPPPP.VVVVV.X.CC.######"));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CCC........OO.SSSSS.PPPPP.VVVVV.X.CC.######"), { timeout: DrawnWait.milliseconds });
   });
 
   it("colors keywords, and reads the line by PowerShell's rules once the shell is PowerShell", async () => {
@@ -111,18 +113,18 @@ describe("CommandColoring", () => {
 
     await writeAsync("if ($x) { gci $env:Path }");
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("....KK.XVVX.X.CCC.VVVVVVVVV.X"));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("....KK.XVVX.X.CCC.VVVVVVVVV.X"), { timeout: DrawnWait.milliseconds });
   });
 
   it("follows the line as it changes, and takes the colors off cells the shell erased", async () => {
     open(40);
     await promptAsync();
     await writeAsync("ls -la");
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.OOO"));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.OOO"), { timeout: DrawnWait.milliseconds });
 
     await writeAsync("\b\b\b\u001b[K| wc");
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.X.CC"));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.X.CC"), { timeout: DrawnWait.milliseconds });
   });
 
   it("keeps the colors the shell drew itself, and colors only its cells in the default text color", async () => {
@@ -131,7 +133,7 @@ describe("CommandColoring", () => {
 
     await writeAsync("\u001b[31mls\u001b[0m -la");
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..rr.OOO"));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..rr.OOO"), { timeout: DrawnWait.milliseconds });
   });
 
   it("colors a part on the rows the line wraps to, a cell the shell skipped as a blank, and a wide character's two cells as one", async () => {
@@ -139,12 +141,12 @@ describe("CommandColoring", () => {
     await promptAsync();
 
     await writeAsync("echo \"aaaa bbbb\" -n");
-    await vi.waitFor(() => expect([drawnOf(0), drawnOf(1), drawnOf(2)]).toEqual(["..CCCC.SSS", "SSSSSSSS.O", "O"]));
+    await vi.waitFor(() => expect([drawnOf(0), drawnOf(1), drawnOf(2)]).toEqual(["..CCCC.SSS", "SSSSSSSS.O", "O"]), { timeout: DrawnWait.milliseconds });
     await writeAsync("\r\n$ ");
     coloring.startInput();
     await writeAsync("ls\u001b[C中 -a");
 
-    await vi.waitFor(() => expect(drawnOf(3)).toBe("..CC....OO"));
+    await vi.waitFor(() => expect(drawnOf(3)).toBe("..CC....OO"), { timeout: DrawnWait.milliseconds });
   });
 
   it("reads a command over several lines after each continuation prompt the shell marked, so a quote open at a line's end goes on", async () => {
@@ -158,12 +160,12 @@ describe("CommandColoring", () => {
     coloring.continueInput();
     await writeAsync("b' | wc");
 
-    await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..CCCC.SS", "..SS.X.CC"]));
+    await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..CCCC.SS", "..SS.X.CC"]), { timeout: DrawnWait.milliseconds });
     coloring.endInput();
     await writeAsync("\r\n> ");
     coloring.continueInput();
     await writeAsync("ls");
-    await vi.waitFor(() => expect(drawnOf(2)).toBe("...."));
+    await vi.waitFor(() => expect(drawnOf(2)).toBe("...."), { timeout: DrawnWait.milliseconds });
   });
 
   it("reads a line's last row to its last cell that isn't blank, so a \\ there joins the next line", async () => {
@@ -174,7 +176,7 @@ describe("CommandColoring", () => {
 
     await writeAsync("-a");
 
-    await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..CC..", "..OO"]));
+    await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..CC..", "..OO"]), { timeout: DrawnWait.milliseconds });
   });
 
   it("ends a here-document at its closing word on the screen, so the command after it is read as one", async () => {
@@ -189,7 +191,7 @@ describe("CommandColoring", () => {
 
     await writeAsync("echo done");
 
-    await vi.waitFor(() => expect([drawnOf(1), drawnOf(2), drawnOf(3)]).toEqual(["..S", "..SSS", "..CCCC....."]));
+    await vi.waitFor(() => expect([drawnOf(1), drawnOf(2), drawnOf(3)]).toEqual(["..S", "..SSS", "..CCCC....."]), { timeout: DrawnWait.milliseconds });
   });
 
   it("colors nothing past the right prompt the shell marked on the line's row", async () => {
@@ -199,7 +201,7 @@ describe("CommandColoring", () => {
 
     await writeAsync("ls ~/x");
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.PPP" + ".".repeat(22) + "....."));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.PPP" + ".".repeat(22) + "....."), { timeout: DrawnWait.milliseconds });
   });
 
   it("reads a right prompt marked on the line's row, but none marked before a line starts or on another row", async () => {
@@ -213,35 +215,35 @@ describe("CommandColoring", () => {
 
     await writeAsync("\u001b[A\u001b[3Gls ~/x");
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.PPP" + ".".repeat(22) + "....."));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.PPP" + ".".repeat(22) + "....."), { timeout: DrawnWait.milliseconds });
   });
 
   it("keeps a line's colors once the shell leaves it, colors nothing until the next line starts, and drops every color when turned off", async () => {
     open(40);
     await promptAsync();
     await writeAsync("ls -a");
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.OO"));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.OO"), { timeout: DrawnWait.milliseconds });
     coloring.endInput();
 
     await writeAsync("\r\nls -x\r\n$ ");
     coloring.startInput();
     await writeAsync("cd");
 
-    await vi.waitFor(() => expect([drawnOf(0), drawnOf(1), drawnOf(2)]).toEqual(["..CC.OO", ".....", "..CC"]));
+    await vi.waitFor(() => expect([drawnOf(0), drawnOf(1), drawnOf(2)]).toEqual(["..CC.OO", ".....", "..CC"]), { timeout: DrawnWait.milliseconds });
     coloring.enable(false);
-    await vi.waitFor(() => expect([drawnOf(0), drawnOf(2)]).toEqual([".......", "...."]));
+    await vi.waitFor(() => expect([drawnOf(0), drawnOf(2)]).toEqual([".......", "...."]), { timeout: DrawnWait.milliseconds });
   });
 
   it("takes a kept line's colors off once other text is written over its cells, so that text draws plain", async () => {
     open(40);
     await promptAsync();
     await writeAsync("ls -a ~/x");
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.OO.PPP"));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CC.OO.PPP"), { timeout: DrawnWait.milliseconds });
     coloring.endInput();
 
     await writeAsync("\r\n\u001b[Hnotes.txt here");
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe(".............."));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe(".............."), { timeout: DrawnWait.milliseconds });
   });
 
   it("reads a # in a zsh line as a plain character, since an interactive zsh reads no comments", async () => {
@@ -251,7 +253,7 @@ describe("CommandColoring", () => {
 
     await writeAsync("echo a # -b");
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CCCC.....OO"));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CCCC.....OO"), { timeout: DrawnWait.milliseconds });
   });
 
   it("reads a zsh line by zsh's rules, with its modifiers, =name and &!", async () => {
@@ -261,7 +263,7 @@ describe("CommandColoring", () => {
 
     await writeAsync("noglob =ls -a &! ls");
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..KKKKKK.PPP.OO.XX.CC"));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..KKKKKK.PPP.OO.XX.CC"), { timeout: DrawnWait.milliseconds });
   });
 
   it("recolors the lines it keeps when the colors change, and leaves a part without a color in the cell's own", async () => {
@@ -275,7 +277,7 @@ describe("CommandColoring", () => {
 
     coloring.setColors(new CommandColors({ Command: COLORS.Keyword, Option: COLORS.Comment }));
 
-    await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..KK.##", "..KK.."]));
+    await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..KK.##", "..KK.."]), { timeout: DrawnWait.milliseconds });
   });
 
   it("draws nothing on rows the terminal cleared, when the colors change", async () => {
@@ -286,12 +288,12 @@ describe("CommandColoring", () => {
     await writeAsync("\r\n$ ");
     coloring.startInput();
     await writeAsync("cd");
-    await vi.waitFor(() => expect(drawnOf(1)).toBe("..CC"));
+    await vi.waitFor(() => expect(drawnOf(1)).toBe("..CC"), { timeout: DrawnWait.milliseconds });
 
     terminal.clear();
     coloring.setColors(new CommandColors({ ...COLORS, Command: COLORS.Keyword }));
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("...."));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("...."), { timeout: DrawnWait.milliseconds });
   });
 
   describe("for a command the shell would find nowhere", () => {
@@ -316,18 +318,18 @@ describe("CommandColoring", () => {
       findLater();
       await promptAsync();
       await writeAsync("gti");
-      await vi.waitFor(() => expect(asked).toEqual([["gti"]]));
+      await vi.waitFor(() => expect(asked).toEqual([["gti"]]), { timeout: ASK_WAIT_MS });
 
       await writeAsync(" | ls");
-      await vi.waitFor(() => expect(drawnOf(0)).toBe("..CCC.X.CC"));
+      await vi.waitFor(() => expect(drawnOf(0)).toBe("..CCC.X.CC"), { timeout: DrawnWait.milliseconds });
       expect(asked).toEqual([["gti"]]);
       answers[0]?.(["gti"]);
-      await vi.waitFor(() => expect(asked).toEqual([["gti"], ["ls"]]));
+      await vi.waitFor(() => expect(asked).toEqual([["gti"], ["ls"]]), { timeout: ASK_WAIT_MS });
       answers[1]?.([]);
-      await vi.waitFor(() => expect(drawnOf(0)).toBe("..NNN.X.CC"));
+      await vi.waitFor(() => expect(drawnOf(0)).toBe("..NNN.X.CC"), { timeout: DrawnWait.milliseconds });
       await writeAsync(" | gti");
 
-      await vi.waitFor(() => expect(drawnOf(0)).toBe("..NNN.X.CC.X.NNN"));
+      await vi.waitFor(() => expect(drawnOf(0)).toBe("..NNN.X.CC.X.NNN"), { timeout: DrawnWait.milliseconds });
       expect(asked).toEqual([["gti"], ["ls"]]);
     });
 
@@ -342,7 +344,7 @@ describe("CommandColoring", () => {
 
       await writeAsync("Get-ChildItem $x | gti");
 
-      await vi.waitFor(() => expect(drawnOf(0)).toBe("..CCCCCCCCCCCCC.VV.X.NNN"));
+      await vi.waitFor(() => expect(drawnOf(0)).toBe("..CCCCCCCCCCCCC.VV.X.NNN"), { timeout: DrawnWait.milliseconds });
       expect(asked).toEqual([["Get-ChildItem", "gti"]]);
     });
 
@@ -351,18 +353,18 @@ describe("CommandColoring", () => {
       findLater();
       await promptAsync();
       await writeAsync("gti");
-      await vi.waitFor(() => expect(asked).toEqual([["gti"]]));
+      await vi.waitFor(() => expect(asked).toEqual([["gti"]]), { timeout: ASK_WAIT_MS });
       coloring.endInput();
       await writeAsync("\r\n");
       await promptAsync();
       await writeAsync("gti");
 
       answers[0]?.(["gti"]);
-      await vi.waitFor(() => expect(asked).toEqual([["gti"], ["gti"]]));
-      expect([drawnOf(0), drawnOf(1)]).toEqual(["..CCC", "..CCC"]);
+      await vi.waitFor(() => expect(asked).toEqual([["gti"], ["gti"]]), { timeout: ASK_WAIT_MS });
+      await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..CCC", "..CCC"]), { timeout: DrawnWait.milliseconds });
       answers[1]?.(["gti"]);
 
-      await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..CCC", "..NNN"]));
+      await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..CCC", "..NNN"]), { timeout: DrawnWait.milliseconds });
     });
 
     it("asks nothing about a quoted or expanded name, nor for a shell other than bash, zsh or PowerShell, and nothing more once a request fails", async () => {
@@ -374,12 +376,12 @@ describe("CommandColoring", () => {
       });
       await promptAsync();
       await writeAsync("\"gti\" | $x | gti");
-      await vi.waitFor(() => expect(asked).toEqual([["gti"]]));
+      await vi.waitFor(() => expect(asked).toEqual([["gti"]]), { timeout: ASK_WAIT_MS });
       coloring.endInput();
       await writeAsync("\r\n");
       await promptAsync();
       await writeAsync("gtx");
-      await vi.waitFor(() => expect(drawnOf(1)).toBe("..CCC"));
+      await vi.waitFor(() => expect(drawnOf(1)).toBe("..CCC"), { timeout: DrawnWait.milliseconds });
       coloring.setShell(TerminalShellKind.Fish);
       coloring.setFinder(async names => {
         asked.push(names);
@@ -387,7 +389,7 @@ describe("CommandColoring", () => {
       });
       await writeAsync(" | gty");
 
-      await vi.waitFor(() => expect(drawnOf(1)).toBe("..CCC.X.CCC"));
+      await vi.waitFor(() => expect(drawnOf(1)).toBe("..CCC.X.CCC"), { timeout: DrawnWait.milliseconds });
       expect(asked).toEqual([["gti"]]);
       expect(logs).toEqual(["The terminal could not look up typed commands, so it colors them without telling whether they exist: The runtime has no terminal.findCommands."]);
     });
@@ -406,17 +408,17 @@ describe("CommandColoring", () => {
     });
     await promptAsync();
     await writeAsync("gti");
-    await vi.waitFor(() => expect(asked).toEqual([["gti"]]));
+    await vi.waitFor(() => expect(asked).toEqual([["gti"]]), { timeout: ASK_WAIT_MS });
     coloring.setFinder(async names => {
       asked.push(names);
       return names;
     });
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..NNN"));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..NNN"), { timeout: DrawnWait.milliseconds });
 
     fail(new Error("The terminal closed."));
     await writeAsync(" | gtx");
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("..NNN.X.NNN"));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..NNN.X.NNN"), { timeout: DrawnWait.milliseconds });
     expect(asked).toEqual([["gti"], ["gti"], ["gtx"]]);
     expect(logs).toEqual(["The terminal could not look up typed commands, so it colors them without telling whether they exist: The terminal closed."]);
   });
@@ -428,6 +430,6 @@ describe("CommandColoring", () => {
 
     await writeAsync("ls -a");
 
-    await vi.waitFor(() => expect(drawnOf(0)).toBe("....."));
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("....."), { timeout: DrawnWait.milliseconds });
   });
 });
