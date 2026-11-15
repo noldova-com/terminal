@@ -61,6 +61,15 @@ describe("CommandRunner", () => {
     await assert.rejects(runAsync("process.stdout.write('partial'); process.exit(3);"), new CommandExitedException(NODE, new ProcessExit(3, null)));
   });
 
+  it("says what a program that exits with another code than 0 wrote to its errors last, at most 1,000 characters, on one line", async () => {
+    await assert.rejects(runAsync("process.stderr.write('x'.repeat(2000) + 'ERROR:\\n  Access\\tdenied.\\r\\n', () => process.exit(1));"), (error: unknown) => {
+      assert.ok(error instanceof CommandExitedException);
+      assert.deepEqual([error.exitCode, error.errorText, error.message],
+        [1, `${"x".repeat(975)}ERROR: Access denied.`, `${NODE} exited with 1: ${"x".repeat(975)}ERROR: Access denied.`]);
+      return true;
+    });
+  });
+
   it("stops a program that runs past its time", async () => {
     await assert.rejects(runAsync(STAY, 200), new CommandTimedOutException(NODE, 200));
   });

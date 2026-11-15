@@ -11,6 +11,7 @@ import path from "node:path";
 import type { IModuleLog } from "@noldova/desktop.runtime";
 
 import { CommandExitedException } from "../exceptions/command-exited.exception.ts";
+import { EnvironmentKeyUnreadableException } from "../exceptions/environment-key-unreadable.exception.ts";
 import { EnvironmentExportInvalidException } from "../exceptions/environment-export-invalid.exception.ts";
 import { SystemRootMissingException } from "../exceptions/system-root-missing.exception.ts";
 import type { IEnvironmentSource } from "../interfaces/i-environment-source.ts";
@@ -133,7 +134,7 @@ export class WindowsEnvironment implements IEnvironmentSource {
       catch (error: unknown) {
         if (error instanceof CommandExitedException && error.exitCode !== null && key === Resources.userEnvironmentKey)
           return new Map<string, RegistryValue>();
-        throw error;
+        throw new EnvironmentKeyUnreadableException(key, error);
       }
       const bytes: Uint8Array | null = await this.tools.reader.readBytesOrNullAsync(file);
       if (bytes === null)
