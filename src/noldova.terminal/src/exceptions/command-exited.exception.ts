@@ -15,12 +15,15 @@ export class CommandExitedException extends CommandFailedException {
   public readonly command: string;
   public readonly exitCode: number | null;
   public readonly signal: NodeJS.Signals | null;
+  public readonly errorText: string;
 
-  public constructor(command: string, exit: ProcessExit) {
-    super(Resources.formatCommandExited(command, exit.code, exit.signal));
+  public constructor(command: string, exit: ProcessExit, errorText: string = "") {
+    const text: string = errorText.replace(Resources.whitespaceRuns, " ").trim();
+    super(Resources.formatCommandExited(command, exit.code, exit.signal, text));
 
     this.command = command;
     this.exitCode = exit.code;
     this.signal = exit.signal;
+    this.errorText = text;
   }
 }

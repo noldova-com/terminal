@@ -23,7 +23,16 @@ describe("CommandExitedException", () => {
     assert.equal(error.command, "reg.exe");
     assert.equal(error.exitCode, 1);
     assert.equal(error.signal, null);
+    assert.equal(error.errorText, "");
     assert.equal(error.message, "reg.exe exited with 1.");
+  });
+
+  it("adds what the command wrote to its errors, on one line, and leaves out errors of only spaces", () => {
+    const said: CommandExitedException = new CommandExitedException("reg.exe", new ProcessExit(1, null), "\r\nERROR: The system was unable\r\n  to find the key.\r\n");
+    const blank: CommandExitedException = new CommandExitedException("reg.exe", new ProcessExit(1, null), " \r\n\t");
+
+    assert.deepEqual([said.errorText, said.message], ["ERROR: The system was unable to find the key.", "reg.exe exited with 1: ERROR: The system was unable to find the key."]);
+    assert.deepEqual([blank.errorText, blank.message], ["", "reg.exe exited with 1."]);
   });
 
   it("names the signal that ended the command when it has no code", () => {

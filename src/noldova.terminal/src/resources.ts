@@ -111,6 +111,7 @@ export class Resources {
   public static readonly leadingBlankLines: RegExp = /^(?:[ \t]*\r?\n)+/u;
   public static readonly trailingLineBreaks: RegExp = /(?:\r?\n)+$/u;
   public static readonly whitespace: RegExp = /\s/gu;
+  public static readonly whitespaceRuns: RegExp = /\s+/gu;
   public static readonly interruptKey: string = "\u0003";
   public static readonly terminalReplies: RegExp = /^(?:\u001b\[[IO]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\))+$/u;
   public static readonly cmdExecutable: string = "cmd";
@@ -539,6 +540,7 @@ exit 0
   public static readonly environmentFolderPrefix: string = "noldova-terminal-environment-";
   public static readonly maximumLineLength: number = 4_194_304;
   public static readonly maximumCommandOutputLength: number = 4_194_304;
+  public static readonly maximumCommandErrorLength: number = 1_000;
   public static readonly lineProcessStopped: string = "The program was stopped before it started.";
   public static readonly systemRootMissing: string = "SystemRoot is not set, so reg.exe can't be found.";
   public static readonly environmentExportInvalid: string = "reg.exe did not export the machine's and the person's variables in a form that could be read.";
@@ -602,8 +604,13 @@ exit 0
     return `${name} could not start: ${variable} isn't set.`;
   }
 
-  public static formatCommandExited(name: string, exitCode: number | null, signal: string | null): string {
-    return `${name} exited with ${String(exitCode ?? signal)}.`;
+  public static formatCommandExited(name: string, exitCode: number | null, signal: string | null, errorText: string): string {
+    const exited: string = `${name} exited with ${String(exitCode ?? signal)}`;
+    return errorText === "" ? `${exited}.` : `${exited}: ${errorText}`;
+  }
+
+  public static formatEnvironmentKeyUnread(key: string): string {
+    return `The key ${key} could not be read.`;
   }
 
   public static formatFailureWithCause(message: string, cause: string): string {
