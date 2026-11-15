@@ -672,6 +672,7 @@ describe("shell integration with real shells", () => {
         const screen = async (paneId: string): Promise<string> =>
           TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId })).snapshot;
         const before: string = await screen("p1");
+        await fixture.waitForQuietAsync(sessionId);
         const marked: string = fixture.kinds(sessionId);
 
         const askedAt: number = performance.now();
