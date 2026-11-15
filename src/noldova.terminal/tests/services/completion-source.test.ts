@@ -550,6 +550,29 @@ describe("CompletionSource", () => {
       assert.deepEqual(fixture.runner.environments, [{ PATH: "C:\\Windows", PATHEXT: ".EXE", PSModulePath: "C:\\Modules" }]);
     });
 
+    it("on Windows, gives the lookup each PSModulePath folder written with a short 8.3 name in its long form, and one it can't read as it is", async () => {
+      const fixture: SourceFixture = new SourceFixture("win32", "C:\\Users\\a");
+      fixture.runner.answers.set(PWSH, "");
+      fixture.fileSystem.realPaths.set("C:\\Users\\RUNNER~1\\Modules", "C:\\Users\\runneradmin\\Modules");
+      fixture.fileSystem.realPaths.set("C:\\Program Files\\PowerShell\\Modules", "D:\\Elsewhere");
+
+      await fixture.powerShellMissingAsync(["gti"], new Set(),
+        { PSModulePath: "C:\\Users\\RUNNER~1\\Modules;C:\\Program Files\\PowerShell\\Modules;C:\\GONE~1\\Modules;" });
+
+      assert.deepEqual(fixture.runner.environments,
+        [{ PSModulePath: "C:\\Users\\runneradmin\\Modules;C:\\Program Files\\PowerShell\\Modules;C:\\GONE~1\\Modules;" }]);
+    });
+
+    it("leaves a PSModulePath folder with a ~ in its name as it is off Windows", async () => {
+      const fixture: SourceFixture = new SourceFixture();
+      fixture.runner.answers.set(PWSH, "");
+      fixture.fileSystem.realPaths.set("/opt/a~1", "/opt/long");
+
+      await fixture.powerShellMissingAsync(["gti"], new Set(), { PSModulePath: "/opt/a~1" });
+
+      assert.deepEqual(fixture.runner.environments, [{ PSModulePath: "/opt/a~1" }]);
+    });
+
     it("reads the lookup's answer as the indexes of the names it asked about, so a name outside the console's code page comes back", async () => {
       const fixture: SourceFixture = new SourceFixture();
       fixture.runner.answers.set(PWSH, "1\r\nünïcode\r\n7\r\n");

@@ -26,6 +26,7 @@ import { SharedReads } from "./shared-reads.ts";
 import { ShellWords } from "./shell-words.ts";
 
 export class CompletionSource {
+  private readonly fileSystem: IFileSystemReader;
   private readonly runner: ICommandRunner;
   private readonly isWindows: boolean;
   private readonly paths: path.PlatformPath;
@@ -37,6 +38,7 @@ export class CompletionSource {
   private readonly looked: WeakMap<CommandTracker, PowerShellLookup> = new WeakMap<CommandTracker, PowerShellLookup>();
 
   public constructor(fileSystem: IFileSystemReader, runner: ICommandRunner, platform: string, homeFolder: string) {
+    this.fileSystem = fileSystem;
     this.runner = runner;
     this.isWindows = platform === Resources.windowsPlatform;
     this.paths = this.isWindows ? path.win32 : path.posix;
@@ -101,11 +103,11 @@ export class CompletionSource {
     environment: Readonly<Record<string, string>>): Promise<TerminalMissingCommands> {
     if (shellNames === null)
       return new TerminalMissingCommands([]);
-    const variables: Readonly<Record<string, string>> = Object.fromEntries([Resources.pathVariable, Resources.pathExtensionsVariable,
-      Resources.modulePathVariable].flatMap(t => {
+    const variables: Readonly<Record<string, string>> = await this.toLongModulePathsAsync(Object.fromEntries([Resources.pathVariable,
+      Resources.pathExtensionsVariable, Resources.modulePathVariable].flatMap(t => {
       const value: string | undefined = this.readVariable(environment, this.isWindows ? t.toUpperCase() : t);
       return value === undefined ? [] : [[t, value]];
-    }));
+    })));
     const search: string = JSON.stringify([program, variables]);
     const last: PowerShellLookup | undefined = this.looked.get(shell);
     const answers: Map<string, boolean> = last !== undefined && last.shellNames === shellNames && last.search === search ? last.answers : new Map<string, boolean>();
@@ -288,6 +290,15 @@ export class CompletionSource {
 
   private searchFolders(environment: Readonly<Record<string, string>>): readonly string[] {
     return [...new Set((this.readVariable(environment, Resources.pathVariable) ?? "").split(this.paths.delimiter).filter(t => this.paths.isAbsolute(t)))];
+  }
+
+  private async toLongModulePathsAsync(variables: Readonly<Record<string, string>>): Promise<Readonly<Record<string, string>>> {
+    const modulePath: string | undefined = variables[Resources.modulePathVariable];
+    if (!this.isWindows || modulePath === undefined || !modulePath.includes(Resources.shortNameMark))
+      return variables;
+    const entries: readonly string[] = await Promise.all(modulePath.split(Resources.windowsPathListSeparator)
+      .map(async t => t.includes(Resources.shortNameMark) ? await this.fileSystem.readRealPathOrNullAsync(t) ?? t : t));
+    return { ...variables, [Resources.modulePathVariable]: entries.join(Resources.windowsPathListSeparator) };
   }
 
   private readVariable(environment: Readonly<Record<string, string>>, name: string): string | undefined {

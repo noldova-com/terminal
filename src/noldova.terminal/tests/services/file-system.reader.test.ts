@@ -7,7 +7,7 @@
  */
 
 import assert from "node:assert/strict";
-import { chmod, lstat, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -101,6 +101,24 @@ describe("FileSystemReader", () => {
 
     assert.equal(await reader.isFileAsync(join(aliasFolder, alias ?? "")), false);
     assert.equal(await reader.isProgramAsync(join(aliasFolder, alias ?? "")), true);
+  });
+
+  it("reads the real path a link leads to, and null where nothing exists or a link loops", async () => {
+    const reader: FileSystemReader = new FileSystemReader();
+    const links: string = await mkdtemp(join(tmpdir(), "terminal-file-system-real-"));
+    try {
+      await mkdir(join(links, "target"));
+      await symlink(join(links, "target"), join(links, "to-folder"), "junction");
+      await symlink(join(links, "loop-b"), join(links, "loop-a"), "junction");
+      await symlink(join(links, "loop-a"), join(links, "loop-b"), "junction");
+      const target: string = await realpath(join(links, "target"));
+
+      assert.deepEqual([await reader.readRealPathOrNullAsync(join(links, "to-folder")), await reader.readRealPathOrNullAsync(join(links, "gone")),
+        await reader.readRealPathOrNullAsync(join(links, "loop-a"))], [target, null, null]);
+    }
+    finally {
+      await rm(links, { recursive: true, force: true });
+    }
   });
 
   it("reads a text file, and null where none exists", async () => {

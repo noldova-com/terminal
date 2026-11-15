@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import type { Dirent } from "node:fs";
-import { lstat, readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { IFileSystemReader } from "../interfaces/i-file-system-reader.ts";
@@ -51,6 +51,10 @@ export class FileSystemReader implements IFileSystemReader {
   public async readEntriesAsync(path: string): Promise<readonly FolderEntry[]> {
     const entries: readonly Dirent[] = await FileSystemReader.readOrAsync(() => readdir(path, { withFileTypes: true }), [], Resources.unreadablePathCodes);
     return Promise.all(entries.map(async t => new FolderEntry(t.name, t.isDirectory() || (t.isSymbolicLink() && await this.isFolderAsync(join(path, t.name))))));
+  }
+
+  public readRealPathOrNullAsync(path: string): Promise<string | null> {
+    return FileSystemReader.readOrAsync(() => realpath(path), null, Resources.unreadablePathCodes);
   }
 
   private static async readOrAsync<T>(read: () => Promise<T>, fallback: T, codes: readonly string[]): Promise<T> {
