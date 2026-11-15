@@ -44,8 +44,8 @@ class IntegrationFixture {
   public readonly access: FakeFolderAccess = new FakeFolderAccess(this.writer);
   public readonly integration: ShellIntegration;
 
-  public constructor(hasAccess: boolean = false) {
-    this.integration = new ShellIntegration(this.writer, "/tmp", this.log, hasAccess ? this.access : null, this.settings);
+  public constructor(hasAccess: boolean = false, platform: string = "linux") {
+    this.integration = new ShellIntegration(this.writer, "/tmp", this.log, hasAccess ? this.access : null, this.settings, platform);
   }
 
   public get messages(): readonly unknown[] {
@@ -148,7 +148,7 @@ describe("ShellIntegration", () => {
   it("leaves PSReadLine's own predictions to the person's profile whatever the Suggest earlier commands setting, so the window's suggestion gives way to them", async () => {
     const writer: FakeFileSystemWriter = new FakeFileSystemWriter();
     const settings: FakeModuleSettings = new FakeModuleSettings();
-    const integration: ShellIntegration = new ShellIntegration(writer, "/tmp", new FakeModuleLog(), null, settings);
+    const integration: ShellIntegration = new ShellIntegration(writer, "/tmp", new FakeModuleLog(), null, settings, "win32");
     const shell: Shell = new Shell("vs-a1-powershell", "Developer PowerShell", TerminalShellKind.PowerShell, "C:\\Program Files\\PowerShell\\7\\pwsh.exe", [], false,
       "& { Enter-VsDevShell }");
 
@@ -160,6 +160,44 @@ describe("ShellIntegration", () => {
     const expected: string = `${Resources.shellIntegrationPowerShellNonce}\n${Resources.shellIntegrationPowerShellNote}\n${Resources.shellIntegrationPowerShellProfiles}\n& { Enter-VsDevShell }\n${Resources.shellIntegrationPowerShellScript}`;
     assert.deepEqual([decode(suggesting.args[3]), decode(plain.args[3])], [expected, expected]);
     assert.equal(expected.includes("PredictionSource"), false);
+  });
+
+  it("makes .NET's shared memory folder in the runtime folder, for its owner alone, before the first PowerShell of each runtime folder on Linux", async () => {
+    const fixture: IntegrationFixture = new IntegrationFixture();
+
+    await fixture.prepareAsync("/usr/bin/pwsh", [], { XDG_RUNTIME_DIR: "/run/user/1000" });
+    await fixture.prepareAsync("/opt/microsoft/powershell/7/pwsh", ["-NoLogo"], { XDG_RUNTIME_DIR: "/run/user/1000" });
+    await fixture.prepareAsync("/usr/bin/pwsh", [], { XDG_RUNTIME_DIR: "/run/user/1001/" });
+
+    assert.deepEqual(fixture.writer.missingFolders, [["/run/user/1000/.dotnet/shm", 0o700], ["/run/user/1001/.dotnet/shm", 0o700]]);
+    assert.deepEqual(fixture.messages, []);
+  });
+
+  it("makes no shared memory folder for other shells, without a runtime folder, or on Windows and macOS", async () => {
+    const linux: IntegrationFixture = new IntegrationFixture();
+    const others: IntegrationFixture[] = [new IntegrationFixture(false, "win32"), new IntegrationFixture(false, "darwin")];
+
+    for (const file of ["/bin/bash", "/bin/zsh", "/usr/bin/fish"])
+      await linux.prepareAsync(file, [], { XDG_RUNTIME_DIR: "/run/user/1000" });
+    for (const environment of [{}, { XDG_RUNTIME_DIR: "" }, { XDG_RUNTIME_DIR: undefined }])
+      await linux.prepareAsync("/usr/bin/pwsh", [], environment);
+    for (const fixture of others)
+      await fixture.prepareAsync("pwsh", [], { XDG_RUNTIME_DIR: "/run/user/1000" });
+
+    assert.deepEqual([linux, ...others].map(t => t.writer.missingFolders), [[], [], []]);
+  });
+
+  it("starts PowerShell with its integration when the shared memory folder can't be made, saying why in the log once for the folder", async () => {
+    const fixture: IntegrationFixture = new IntegrationFixture();
+    fixture.writer.missingFolderFailure = new Error("EACCES: permission denied, mkdir '/run/user/1000/.dotnet'");
+
+    const first: ShellLaunch = await fixture.prepareAsync("/usr/bin/pwsh", [], { XDG_RUNTIME_DIR: "/run/user/1000" });
+    const second: ShellLaunch = await fixture.prepareAsync("/usr/bin/pwsh", [], { XDG_RUNTIME_DIR: "/run/user/1000" });
+
+    assert.deepEqual([first.nonce, second.nonce], [NONCE, NONCE]);
+    assert.equal(fixture.writer.missingFolders.length, 1);
+    assert.deepEqual(fixture.messages, [Resources.formatDotnetSharedMemoryFolderFailed("/run/user/1000/.dotnet/shm",
+      "EACCES: permission denied, mkdir '/run/user/1000/.dotnet'")]);
   });
 
   it("suggests earlier commands with the setting unset or on, and while the setting can't be read, saying why in the log", () => {
@@ -188,7 +226,7 @@ describe("ShellIntegration", () => {
 
     fixture.settings.raiseChanged(ProtocolResources.suggestionsSetting, changed(false));
     fixture.settings.raiseChanged(ProtocolResources.suggestionsSetting, changed(null));
-    new ShellIntegration(new FakeFileSystemWriter(), "/tmp", fixture.log, null, refusing).onSuggestingChanged(t => changes.push(t));
+    new ShellIntegration(new FakeFileSystemWriter(), "/tmp", fixture.log, null, refusing, "linux").onSuggestingChanged(t => changes.push(t));
 
     assert.deepEqual(changes, [false, true]);
     assert.deepEqual(fixture.settings.activeCallsOf("onChanged").map(t => t[0]), [ProtocolResources.suggestionsSetting]);

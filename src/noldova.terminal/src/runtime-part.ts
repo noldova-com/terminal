@@ -78,7 +78,7 @@ export class RuntimePart implements IRuntimePart {
       const host: TerminalHost = new TerminalHost(
         new ContextPtySpawner(context),
         reader,
-        new ShellIntegration(writer, tmpdir(), context.log, access, context.settings),
+        new ShellIntegration(writer, tmpdir(), context.log, access, context.settings, process.platform),
         new TerminalHistoryFolder(writer, reader, new ProcessSignaller(), tmpdir(), process.pid, context.log, access),
         new ShellLocator(process.platform, process.arch, process.env, ShellLocator.readUserShell(), reader, runner, context.log),
         process.platform,
