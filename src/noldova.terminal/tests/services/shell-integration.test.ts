@@ -173,7 +173,7 @@ describe("ShellIntegration", () => {
     assert.deepEqual(fixture.messages, []);
   });
 
-  it("makes no shared memory folder for other shells, without a runtime folder, or on Windows and macOS", async () => {
+  it("makes the shared memory folder for a PowerShell on Linux with a runtime folder alone, not for other shells, without a runtime folder, or on Windows and macOS", async () => {
     const linux: IntegrationFixture = new IntegrationFixture();
     const others: IntegrationFixture[] = [new IntegrationFixture(false, "win32"), new IntegrationFixture(false, "darwin")];
 
@@ -183,8 +183,9 @@ describe("ShellIntegration", () => {
       await linux.prepareAsync("/usr/bin/pwsh", [], environment);
     for (const fixture of others)
       await fixture.prepareAsync("pwsh", [], { XDG_RUNTIME_DIR: "/run/user/1000" });
+    await linux.prepareAsync("/usr/bin/pwsh", [], { XDG_RUNTIME_DIR: "/run/user/1002" });
 
-    assert.deepEqual([linux, ...others].map(t => t.writer.missingFolders), [[], [], []]);
+    assert.deepEqual([linux, ...others].map(t => t.writer.missingFolders), [[["/run/user/1002/.dotnet/shm", 0o700]], [], []]);
   });
 
   it("starts PowerShell with its integration when the shared memory folder can't be made, saying why in the log once for the folder", async () => {
