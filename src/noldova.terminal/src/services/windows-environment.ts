@@ -133,26 +133,27 @@ export class WindowsEnvironment implements IEnvironmentSource {
     const files: string[] = [file];
     try {
       try {
-        try {
-          await this.exportAsync(reg, key, file);
-        }
-        catch (error: unknown) {
-          if (!(error instanceof CommandExitedException) || !error.errorText.includes(Resources.regWriteFailureText))
-            throw error;
-          this.log.write(Resources.formatEnvironmentExportRetried(key, error.errorText));
-          await this.waitAsync(Resources.environmentExportRetryMilliseconds);
-          if (this.ended)
-            return new Map<string, RegistryValue>();
-          file = path.win32.join(folder, `${name}${Resources.windowsEnvironmentRetryFileSuffix}${Resources.windowsEnvironmentExportExtension}`);
-          files.push(file);
-          await this.exportAsync(reg, key, file);
-        }
+        await this.exportAsync(reg, key, file);
       }
       catch (error: unknown) {
-        if (error instanceof CommandExitedException && error.exitCode !== null && key === Resources.userEnvironmentKey
-          && !error.errorText.includes(Resources.regWriteFailureText))
+        if (!(error instanceof CommandExitedException) || error.exitCode === null)
+          throw new EnvironmentKeyUnreadableException(key, error);
+        const isPresent: boolean = await this.isPresentAsync(reg, key).catch((): never => {
+          throw new EnvironmentKeyUnreadableException(key, error);
+        });
+        if (!isPresent && key === Resources.userEnvironmentKey)
           return new Map<string, RegistryValue>();
-        throw new EnvironmentKeyUnreadableException(key, error);
+        if (!isPresent)
+          throw new EnvironmentKeyUnreadableException(key, error);
+        this.log.write(Resources.formatEnvironmentExportRetried(key, error.errorText));
+        await this.waitAsync(Resources.environmentExportRetryMilliseconds);
+        if (this.ended)
+          return new Map<string, RegistryValue>();
+        file = path.win32.join(folder, `${name}${Resources.windowsEnvironmentRetryFileSuffix}${Resources.windowsEnvironmentExportExtension}`);
+        files.push(file);
+        await this.exportAsync(reg, key, file).catch((retryError: unknown): never => {
+          throw new EnvironmentKeyUnreadableException(key, retryError);
+        });
       }
       const bytes: Uint8Array | null = await this.tools.reader.readBytesOrNullAsync(file);
       if (bytes === null)
@@ -167,6 +168,18 @@ export class WindowsEnvironment implements IEnvironmentSource {
 
   private async exportAsync(reg: string, key: string, file: string): Promise<void> {
     await this.tools.runner.runAsync(reg, [Resources.regExportArgument, key, file, Resources.regOverwriteArgument], Resources.environmentReadMilliseconds);
+  }
+
+  private async isPresentAsync(reg: string, key: string): Promise<boolean> {
+    try {
+      await this.tools.runner.runAsync(reg, [Resources.regQueryArgument, key], Resources.environmentReadMilliseconds);
+      return true;
+    }
+    catch (error: unknown) {
+      if (error instanceof CommandExitedException && error.exitCode !== null)
+        return false;
+      throw error;
+    }
   }
 
   private async waitAsync(milliseconds: number): Promise<void> {

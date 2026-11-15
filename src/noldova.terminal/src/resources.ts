@@ -537,7 +537,7 @@ exit 0
   public static readonly regPath: readonly string[] = ["System32", "reg.exe"];
   public static readonly regExportArgument: string = "export";
   public static readonly regOverwriteArgument: string = "/y";
-  public static readonly regWriteFailureText: string = "ERROR: Unable to write to the file.";
+  public static readonly regQueryArgument: string = "query";
   public static readonly environmentExportRetryMilliseconds: number = 250;
   public static readonly machineEnvironmentKey: string = "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment";
   public static readonly userEnvironmentKey: string = "HKCU\\Environment";
@@ -626,7 +626,7 @@ exit 0
   }
 
   public static formatEnvironmentExportRetried(key: string, errorText: string): string {
-    return `reg.exe could not write its export of the key ${key}, so it exports it once more in ${Resources.environmentExportRetryMilliseconds} ms: ${errorText}`;
+    return `reg.exe could not export the key ${key}, which it finds, so it exports it once more in ${Resources.environmentExportRetryMilliseconds} ms: ${errorText}`;
   }
 
   public static formatCommandTimedOut(name: string, milliseconds: number): string {
