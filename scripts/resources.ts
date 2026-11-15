@@ -239,6 +239,15 @@ export class Resources {
   ];
   public static readonly testWaitQuotes: readonly string[] = ["\"", "'", "`"];
   public static readonly testWaitEscape: string = "\\";
+  public static readonly testWaitWindowFolder: string = "src/noldova.terminal.window/";
+  public static readonly testWaitLimitedCalls: RegExp = /\b(?:vi\.waitFor|expect\.poll)\(/g;
+  public static readonly testWaitOpenings: string = "([{";
+  public static readonly testWaitClosings: string = ")]}";
+  public static readonly testWaitArgumentSeparator: string = ",";
+  public static readonly testWaitRegexDelimiter: string = "/";
+  public static readonly testWaitRegexStarts: string = "(,=:[!&|?{};";
+  public static readonly testWaitClassStart: string = "[";
+  public static readonly testWaitClassEnd: string = "]";
   public static readonly runnerTempVariable: string = "RUNNER_TEMP";
   public static readonly nodeTypesPackage: string = "@types/node";
   public static readonly installedArchivePrefix: string = "noldova-terminal";
@@ -707,6 +716,10 @@ export class Resources {
 
   public static formatTestWaitPause(file: string, line: number): string {
     return `${file}:${line}: pauses for a fixed time; wait for the event or the promise instead, or list the file in ${Resources.readmeFile}, Fixed pauses, with its reason.`;
+  }
+
+  public static formatTestWaitDefaultLimit(file: string, line: number): string {
+    return `${file}:${line}: waits on its 1-second default; pass a limit, such as { timeout: SpecWait.milliseconds }.`;
   }
 
   public static formatTestWaitStale(line: number, file: string): string {
