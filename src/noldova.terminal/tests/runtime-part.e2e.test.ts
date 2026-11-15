@@ -31,6 +31,7 @@ import { SupervisedTerminals } from "./fixtures/supervised-terminals.fixture.ts"
 
 const WAIT_MS: number = 20_000;
 const RUN_WAIT_MS: number = 55_000;
+const TEST_DEADLINE_MS: number = 65_000;
 const OUTPUT_TAIL: number = 1_500;
 const MARK_KIND: RegExp = /\u001b\]6973;([A-Z]);/gu;
 const POLL_MS: number = 25;
@@ -54,6 +55,7 @@ class RuntimeFixture {
   private readonly chunks: Map<string, string[]> = new Map<string, string[]>();
   private readonly lengths: Map<string, number> = new Map<string, number>();
   private outputsRead: number = 0;
+  private readonly deadline: number = Date.now() + TEST_DEADLINE_MS;
 
   public constructor(readsEnvironment: boolean = false, environment: Readonly<Record<string, string | undefined>> = process.env) {
     if (!readsEnvironment)
@@ -128,10 +130,12 @@ class RuntimeFixture {
   }
 
   public async runAsync(payload: JsonValue): Promise<TerminalRunResult> {
-    const limit: AbortSignal = AbortSignal.timeout(RUN_WAIT_MS);
+    const milliseconds: number = Math.max(0, Math.min(RUN_WAIT_MS, this.deadline - Date.now()));
+    const limit: AbortSignal = AbortSignal.timeout(milliseconds);
     let stop: () => void = (): void => undefined;
     const missed: Promise<never> = new Promise<never>((_resolve, reject) => {
-      const miss = (): void => reject(new Error(`terminal.run didn't answer within ${RUN_WAIT_MS} ms.\n${this.describeTerminals()}`));
+      const miss = (): void => reject(new Error(`terminal.run didn't answer within ${milliseconds} ms, the lesser of ${RUN_WAIT_MS} ms and what was left of the test's ${TEST_DEADLINE_MS} ms.\n`
+        + this.describeTerminals()));
       limit.addEventListener("abort", miss, { once: true });
       stop = (): void => limit.removeEventListener("abort", miss);
     });
