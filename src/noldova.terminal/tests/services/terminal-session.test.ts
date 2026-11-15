@@ -1014,13 +1014,28 @@ describe("TerminalSession marking the shell's line", () => {
     it("keeps a request waiting while the shell redraws its prompt in place, as zsh can before it answers, and takes the answer", async () => {
       const process: FakePtyProcess = new FakePtyProcess();
       const session: TerminalSession = createBoundSession(process);
-      process.emitData("git -");
+      process.emitData("ls\r\n\u001b]6973;C;n1\u0007\u001b]6973;P;n1;Cwd=/work\u0007\u001b]6973;D;n1;0\u0007\u001b]6973;A;n1\u0007$ \u001b]6973;B;n1\u0007git -");
       const redraw: string = "\r\r\u001b[J\u001b]6973;A;n1\u0007$ \u001b]6973;B;n1\u0007git -";
 
       const reply: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
       process.emitData(`${redraw}${redraw}\u001b]6973;O;n1;--all\u0007`);
 
       assert.deepEqual((await reply).options, ["--all"]);
+      await session.disposeAsync();
+    });
+
+    it("ends a request waiting at a new prompt with no command's end, as zsh's after Ctrl+C or an empty line, so a later request gets its own answer", async () => {
+      const process: FakePtyProcess = new FakePtyProcess();
+      const session: TerminalSession = createBoundSession(process);
+      process.emitData("git -");
+
+      const interrupted: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
+      process.emitData("^C\r\n\u001b]6973;P;n1;Cwd=/work\u0007\u001b]6973;A;n1\u0007$ \u001b]6973;B;n1\u0007git -");
+      const ended: ShellOptionsReply = await interrupted;
+      const later: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
+      process.emitData("\u001b]6973;O;n1;--all\u0007");
+
+      assert.deepEqual([ended, (await later).options], [ShellOptionsReply.none, ["--all"]]);
       await session.disposeAsync();
     });
 
