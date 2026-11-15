@@ -35,8 +35,6 @@ jobs:
       version: ${{ inputs.version }}
       commit: ${{ inputs.commit }}
       environment: release
-    secrets:
-      registry-token: ${{ secrets.NPM_FIRST_PUBLISH_TOKEN }}
 
   dependents:
     needs: release

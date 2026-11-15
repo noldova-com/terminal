@@ -4,6 +4,10 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version; other pull requests don't edit this file.
 
+## 0.0.2
+
+- The packages are published through npm's trusted publishing, with provenance, so the release stores no token.
+
 ## 0.0.1
 
 - The first version of `@noldova/terminal`, `@noldova/terminal.window` and `@noldova/terminal.protocol`, under the MIT License. The three packages move together.
