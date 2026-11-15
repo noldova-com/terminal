@@ -1218,7 +1218,8 @@ function describeProgramLookups(lookups: readonly ProcessRequest[]): string {
       : !hasExe ? `its PATHEXT, ${JSON.stringify(extensions)}, had no .EXE`
         : "its PATH and PATHEXT held them, so its program search ended early";
     return `Lookup ${index + 1} of ${lookups.length}: ${cause}. The same search run again with its PATH and PATHEXT found `
-      + `${JSON.stringify(again.stdout.trim())}, status ${again.status}, errors ${JSON.stringify(again.stderr.trim().slice(0, OUTPUT_TAIL))}.`;
+      + `${JSON.stringify((again.stdout ?? "").trim())}, status ${again.status}, errors ${JSON.stringify((again.stderr ?? "").trim().slice(0, OUTPUT_TAIL))}`
+      + `${again.error === undefined ? "" : `, and it could not run: ${again.error.message}`}.`;
   }).join(" ");
 }
 
