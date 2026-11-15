@@ -522,8 +522,8 @@ export class Resources {
     return `${description} must name ${name} at ${Resources.ownPin} in ${field}, which packing sets to the module's version.`;
   }
 
-  public static formatPartNoldovaPinned(description: string, name: string, field: string): string {
-    return `${description} pins ${name} in ${field}; the root manifest pins every @noldova package the parts build and test against, once, so moving one to its newest version leaves no older copy under a part's folder.`;
+  public static formatPartNoldovaPinned(folder: string, name: string, field: string): string {
+    return `${folder}/${Resources.manifestFile} pins ${name} in ${field}; the root manifest pins every @noldova package the parts build and test against, once, so moving one to its newest version leaves no older copy under a part's folder.`;
   }
 
   public static formatManifestPinInvalid(description: string, name: string, field: string): string {

@@ -22,7 +22,7 @@ const folders: string[] = [];
 async function copyRepositoryAsync(): Promise<string> {
   const root: string = await mkdtemp(path.join(tmpdir(), "noldova-declaration-check-"));
   folders.push(root);
-  for (const file of [Resources.manifestFile, `${Resources.moduleFolder}/${Resources.moduleFile}`, `${Resources.moduleFolder}/${Resources.manifestFile}`, `${Resources.windowFolder}/${Resources.manifestFile}`]) {
+  for (const file of [Resources.manifestFile, `${Resources.moduleFolder}/${Resources.moduleFile}`, ...Resources.packageFolders.map(t => `${t}/${Resources.manifestFile}`)]) {
     await mkdir(path.dirname(path.join(root, file)), { recursive: true });
     await copyFile(path.join(repository, file), path.join(root, file));
   }
@@ -49,12 +49,13 @@ afterEach(async () => {
 
 describe("the declaration check", () => {
   it.each([
-    [Resources.windowFolder, Resources.devDependenciesField, "@noldova/context.json", Resources.windowPackageManifest],
-    [Resources.moduleFolder, Resources.dependenciesField, "@noldova/desktop.protocol", Resources.packageManifest]
-  ])("refuses a part's manifest in %s that pins its own copy of a @noldova package in %s", async (folder, field, name, description) => {
+    [Resources.windowFolder, Resources.devDependenciesField, "@noldova/context.json"],
+    [Resources.moduleFolder, Resources.dependenciesField, "@noldova/desktop.protocol"],
+    [Resources.protocolFolder, Resources.devDependenciesField, "@noldova/context.exceptions"]
+  ])("refuses a part's manifest in %s that pins its own copy of a @noldova package in %s", async (folder, field, name) => {
     const root: string = await copyRepositoryAsync();
     await pinAsync(root, folder, field, name, "0.0.7");
 
-    expect(runCheck(root)).toEqual({ status: 1, problems: [Resources.formatPartNoldovaPinned(description, name, field)] });
+    expect(runCheck(root)).toEqual({ status: 1, problems: [Resources.formatPartNoldovaPinned(folder, name, field)] });
   });
 });
