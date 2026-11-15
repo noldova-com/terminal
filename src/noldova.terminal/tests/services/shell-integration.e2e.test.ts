@@ -671,8 +671,11 @@ describe("shell integration with real shells", () => {
         await fixture.waitForQuietAsync(sessionId);
         const screen = async (paneId: string): Promise<string> =>
           TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId })).snapshot;
+        const beforeAttach: string = fixture.kinds(sessionId);
         const before: string = await screen("p1");
+        const atAttach: string = fixture.kinds(sessionId);
         await fixture.waitForQuietAsync(sessionId);
+        console.log(`[probe-6z] ${shellId} marks during the attach ${JSON.stringify(atAttach.slice(beforeAttach.length))}, after it settled ${JSON.stringify(fixture.kinds(sessionId).slice(beforeAttach.length))}`);
         const marked: string = fixture.kinds(sessionId);
 
         const askedAt: number = performance.now();
