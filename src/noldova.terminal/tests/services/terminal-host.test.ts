@@ -4059,11 +4059,11 @@ describe("TerminalHost", () => {
           await vi.advanceTimersByTimeAsync(59_999);
           const beforeLimit: readonly string[] = [...process.writes];
           await vi.advanceTimersByTimeAsync(1);
-          for (let step: number = 0; step < 10 && process.writes.length === 0; step++)
-            await vi.advanceTimersByTimeAsync(0);
+          const atLimit: readonly string[] = [...process.writes];
+          await vi.advanceTimersByTimeAsync(1);
           const { sessionId, runId, outcome, endedRuns } = await result;
 
-          assert.deepEqual([beforeLimit, process.writes, outcome], [[], ["npm test\r"], "Typed"]);
+          assert.deepEqual([beforeLimit, atLimit, process.writes, outcome], [[], [], ["npm test\r"], "Typed"]);
           assert.deepEqual([endedRuns.map(t => t.toJson()), fixture.runEnded.published], [[{ sessionId, runId, endedBy: "NoIntegration", exitCode: null }], []]);
           vi.useRealTimers();
           await fixture.endAllAsync();
