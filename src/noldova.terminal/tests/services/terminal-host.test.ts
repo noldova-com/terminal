@@ -2473,31 +2473,54 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    it("types into a shell with the integration that shows no text at all after 60 seconds and its output's half-second rest, and not before", async () => {
+    it("types into a shell with the integration that shows no text at all once 60 seconds pass, and not before", async () => {
       vi.useFakeTimers();
       const fixture: HostFixture = await HostFixture.createAsync();
       await launchAsync(fixture, { ...launch, command: "npm test" });
 
-      await vi.advanceTimersByTimeAsync(60_000);
-      const atLimit: readonly string[] = [...fixture.process.writes];
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(59_999);
+      const beforeLimit: readonly string[] = [...fixture.process.writes];
+      await vi.advanceTimersByTimeAsync(1);
 
-      assert.deepEqual([atLimit, fixture.process.writes], [[], ["npm test\r"]]);
+      assert.deepEqual([beforeLimit, fixture.process.writes], [[], ["npm test\r"]]);
       await fixture.endAllAsync();
     });
 
-    it("types into a slow shell with the integration that shows its own prompt late and never marks once that output rests for half a second", async () => {
+    it("types into a slow shell with the integration that shows its own prompt late and never marks 10 seconds after that first text, and not before", async () => {
       vi.useFakeTimers();
       const fixture: HostFixture = await HostFixture.createAsync();
       await launchAsync(fixture, { ...launch, command: "npm test" });
 
       await vi.advanceTimersByTimeAsync(15_000);
       fixture.process.emitData("custom> ");
-      await vi.advanceTimersByTimeAsync(400);
-      const whileDrawing: readonly string[] = [...fixture.process.writes];
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(9_999);
+      const beforeLimit: readonly string[] = [...fixture.process.writes];
+      await vi.advanceTimersByTimeAsync(1);
 
-      assert.deepEqual([whileDrawing, fixture.process.writes], [[], ["npm test\r"]]);
+      assert.deepEqual([beforeLimit, fixture.process.writes], [[], ["npm test\r"]]);
+      await fixture.endAllAsync();
+    });
+
+    it("keeps waiting for the integration of a slow shell that shows text, then rests for seconds before its loaded mark, and types at its first prompt, so its end comes with its code", async () => {
+      vi.useFakeTimers();
+      const fixture: HostFixture = await HostFixture.createAsync();
+      const sessionId: string = (await launchAsync(fixture, { ...launch, command: "npm test" })).sessionId ?? "";
+      const nonce: string = fixture.writer.nonceFor(fixture.spawner.environments[fixture.spawner.spawned.indexOf(fixture.process)]);
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      fixture.process.emitData("Windows PowerShell\r\nCopyright (C) Microsoft Corporation. All rights reserved.\r\n");
+      await vi.advanceTimersByTimeAsync(3_000);
+      const whileResting: readonly string[] = [...fixture.process.writes];
+      fixture.process.emitData(`\u001b]6973;L;${nonce}\u0007`);
+      await vi.advanceTimersByTimeAsync(2_000);
+      const afterLoaded: readonly string[] = [...fixture.process.writes];
+      showPrompt(fixture, fixture.process);
+      await vi.advanceTimersByTimeAsync(0);
+      fixture.process.emitData(`\r\n\u001b]6973;C;${nonce}\u0007\u001b]6973;D;${nonce};3\u0007`);
+
+      assert.deepEqual([whileResting, afterLoaded, fixture.process.writes], [[], [], ["npm test\r"]]);
+      assert.deepEqual(fixture.launchCommandEnded.published, [{ sessionId, exitCode: 3 }]);
+      vi.useRealTimers();
       await fixture.endAllAsync();
     });
 
@@ -3067,6 +3090,29 @@ describe("TerminalHost", () => {
 
       assert.deepEqual([(await result).outcome, process.writes], ["Ended", []]);
     });
+
+    const silentEnds: readonly (readonly [string, (fixture: HostFixture, sessionId: string, process: FakePtyProcess) => Promise<unknown>])[] = [
+      ["its shell exits", async (_fixture, _sessionId, process) => process.exit(0)],
+      ["its terminal closes", (fixture, sessionId) => fixture.host.handleAsync("terminal.close", { sessionId }, APP)]
+    ];
+    for (const [ending, end] of silentEnds)
+      it(`answers Ended at once, typing nothing, when ${ending} at 20 seconds while the run waits for a shell with the integration that has shown no text`, async () => {
+        vi.useFakeTimers();
+        const fixture: HostFixture = await HostFixture.createAsync();
+        const { result, sessionId, process } = await startNewAsync(fixture);
+        const outcomes: string[] = [];
+        void result.then(t => outcomes.push(t.outcome));
+
+        await vi.advanceTimersByTimeAsync(20_000);
+        const whileWaiting: readonly string[] = [...outcomes];
+        const ended: Promise<unknown> = end(fixture, sessionId, process);
+        await vi.advanceTimersByTimeAsync(0);
+
+        assert.deepEqual([whileWaiting, outcomes, process.writes], [[], ["Ended"], []]);
+        vi.useRealTimers();
+        await ended;
+        await fixture.endAllAsync();
+      });
 
     it("types each run into a new Command Prompt, which has no integration and is never free, once its output settles, and refuses commands holding a tab there", async () => {
       const fixture: HostFixture = await HostFixture.createAsync("win32", "10.0.26100", { SystemRoot: "C:\\Windows" });

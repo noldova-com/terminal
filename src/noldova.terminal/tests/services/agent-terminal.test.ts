@@ -147,6 +147,37 @@ describe("AgentTerminal", () => {
     }
   });
 
+  const silentEnds: readonly (readonly [string, (fixture: AgentTerminalFixture, terminal: AgentTerminal) => Promise<void>])[] = [
+    ["its shell exits", async fixture => fixture.process.exit(0)],
+    ["its terminal closes", (fixture, terminal) => fixture.host.closeTerminalAsync(terminal.id)]
+  ];
+  for (const [ending, end] of silentEnds)
+    it(`stops waiting at once when ${ending} at 20 seconds while it waits for a shell that shows no text yet`, async () => {
+      const fixture: AgentTerminalFixture = new AgentTerminalFixture();
+      const terminal: AgentTerminal = await fixture.openAsync(null);
+      vi.useFakeTimers();
+      let ended: Promise<void> = Promise.resolve();
+      try {
+        let isDone: boolean = false;
+        const waiting: Promise<void> = terminal.waitForIntegrationAsync(SIGNAL).then(() => {
+          isDone = true;
+        });
+
+        await vi.advanceTimersByTimeAsync(20_000);
+        const whileWaiting: boolean = isDone;
+        ended = end(fixture, terminal);
+        await vi.advanceTimersByTimeAsync(0);
+        const afterEnd: boolean = isDone;
+        await waiting;
+
+        assert.deepEqual([whileWaiting, afterEnd, terminal.isRunning, fixture.process.writes], [false, true, false, []]);
+      }
+      finally {
+        vi.useRealTimers();
+      }
+      await ended;
+    });
+
   it("waits past 10 seconds for the first prompt of a shell whose integration said it loaded, as while a slow profile runs", async () => {
     const fixture: AgentTerminalFixture = new AgentTerminalFixture();
     const terminal: AgentTerminal = await fixture.openAsync(null);

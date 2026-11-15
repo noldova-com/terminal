@@ -436,9 +436,10 @@ export class TerminalHost {
     const startedAt: number = Date.now();
     const isReady = (): boolean => session.hasIntegration ? session.commands.promptEndOffset !== null : session.receivedLength > 0;
     const isStarted = (): boolean => session.hasExited || isReady() || session.commands.isLoaded;
-    const isLate: boolean = await session.waitForStartAsync(isStarted, signal);
-    const deadline: number = (isLate ? Date.now() : startedAt) + Resources.integrationWaitMilliseconds;
-    while ((!session.hasIntegration || isLate && !isStarted()) && !session.hasExited && Date.now() < deadline) {
+    if (await session.waitForStartAsync(isStarted, signal) && session.text.endOffset > 0)
+      await session.changes.waitUntilAsync(isStarted, Resources.integrationWaitMilliseconds, signal);
+    const deadline: number = startedAt + Resources.integrationWaitMilliseconds;
+    while (!session.hasIntegration && !session.hasExited && Date.now() < deadline) {
       const length: number = session.receivedLength;
       await session.changes.waitUntilAsync(() => session.hasExited || session.receivedLength !== length, Resources.promptSettleMilliseconds, signal);
       if (session.receivedLength === length)
