@@ -13,7 +13,7 @@ const RUNTIME_FOLDER_VARIABLE: string = "XDG_RUNTIME_DIR";
 const SHARED_MEMORY_FOLDER: readonly string[] = [".dotnet", "shm"];
 const OWNER_ONLY: number = 0o700;
 
-export default async function setup(): Promise<void> {
+export async function setup(): Promise<void> {
   const runtimeFolder: string | undefined = process.env[RUNTIME_FOLDER_VARIABLE];
   if (process.platform !== "linux" || runtimeFolder === undefined || runtimeFolder === "")
     return;
