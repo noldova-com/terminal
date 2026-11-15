@@ -45,7 +45,7 @@ export class AgentHostFixture {
     this.host = new TerminalHost(
       this.spawner,
       this.fileSystem,
-      new ShellIntegration(this.writer, "/tmp", this.log, null, this.settings),
+      new ShellIntegration(this.writer, "/tmp", this.log, null, this.settings, "linux"),
       new TerminalHistoryFolder(this.historyWriter, this.fileSystem, this.signaller, "/tmp", 400, this.log),
       new ShellLocator("linux", "x64", { SHELL: "/bin/bash" }, null, this.fileSystem, new FakeCommandRunner(), this.log),
       "linux",
