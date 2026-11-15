@@ -101,11 +101,11 @@ export class CompletionSource {
     environment: Readonly<Record<string, string>>): Promise<TerminalMissingCommands> {
     if (shellNames === null)
       return new TerminalMissingCommands([]);
-    const variables: Readonly<Record<string, string>> = Object.fromEntries([Resources.pathVariable, Resources.pathExtensionsVariable,
-      Resources.modulePathVariable].flatMap(t => {
+    const variables: Readonly<Record<string, string>> = await this.toLongModulePathsAsync(Object.fromEntries([Resources.pathVariable,
+      Resources.pathExtensionsVariable, Resources.modulePathVariable].flatMap(t => {
       const value: string | undefined = this.readVariable(environment, this.isWindows ? t.toUpperCase() : t);
       return value === undefined ? [] : [[t, value]];
-    }));
+    })));
     const search: string = JSON.stringify([program, variables]);
     const last: PowerShellLookup | undefined = this.looked.get(shell);
     const answers: Map<string, boolean> = last !== undefined && last.shellNames === shellNames && last.search === search ? last.answers : new Map<string, boolean>();
@@ -288,6 +288,21 @@ export class CompletionSource {
 
   private searchFolders(environment: Readonly<Record<string, string>>): readonly string[] {
     return [...new Set((this.readVariable(environment, Resources.pathVariable) ?? "").split(this.paths.delimiter).filter(t => this.paths.isAbsolute(t)))];
+  }
+
+  private async toLongModulePathsAsync(variables: Readonly<Record<string, string>>): Promise<Readonly<Record<string, string>>> {
+    const modulePath: string | undefined = variables[Resources.modulePathVariable];
+    if (!this.isWindows || modulePath === undefined || !modulePath.includes(Resources.shortNameMark))
+      return variables;
+    const reads: BoundedReads = new BoundedReads(this.shared, Resources.completionReadMilliseconds);
+    try {
+      const entries: readonly string[] = await Promise.all(modulePath.split(Resources.windowsPathListSeparator)
+        .map(async t => t.includes(Resources.shortNameMark) ? await reads.readRealPathOrNullAsync(t) ?? t : t));
+      return { ...variables, [Resources.modulePathVariable]: entries.join(Resources.windowsPathListSeparator) };
+    }
+    finally {
+      reads.end();
+    }
   }
 
   private readVariable(environment: Readonly<Record<string, string>>, name: string): string | undefined {

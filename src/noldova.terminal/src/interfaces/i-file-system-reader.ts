@@ -22,4 +22,6 @@ export interface IFileSystemReader {
   readFolderNamesAsync(path: string): Promise<readonly string[]>;
 
   readEntriesAsync(path: string): Promise<readonly FolderEntry[]>;
+
+  readRealPathOrNullAsync(path: string): Promise<string | null>;
 }

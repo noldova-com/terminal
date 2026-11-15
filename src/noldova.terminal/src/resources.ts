@@ -73,6 +73,8 @@ export class Resources {
   public static readonly modulePathProperty: string = "ModulePath=";
   public static readonly modulePathReset: string = "ModulePath";
   public static readonly modulePathVariable: string = "PSModulePath";
+  public static readonly shortNameMark: string = "~";
+  public static readonly windowsPathListSeparator: string = ";";
   public static readonly optionsProperty: string = "Options=";
   public static readonly optionsBound: string = "1";
   public static readonly autocdName: string = "*/";

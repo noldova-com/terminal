@@ -16,6 +16,8 @@ export class FakeFileSystemReader implements IFileSystemReader {
   public readonly bytes: Map<string, Uint8Array> = new Map<string, Uint8Array>();
   public readonly folders: Set<string> = new Set<string>();
   public readonly aliases: Set<string> = new Set<string>();
+  public readonly realPaths: Map<string, string> = new Map<string, string>();
+  public readonly realPathFailures: Map<string, Error> = new Map<string, Error>();
   public hold: Promise<void> | null = null;
   public readonly held: PromiseWithResolvers<void> = Promise.withResolvers<void>();
   public readonly stalled: Map<string, Promise<void>> = new Map<string, Promise<void>>();
@@ -62,6 +64,16 @@ export class FakeFileSystemReader implements IFileSystemReader {
       ...[...this.folders].filter(t => this.parentOf(t) === path).map(t => new FolderEntry(this.nameOf(t), true)),
       ...[...this.files.keys(), ...this.aliases].filter(t => this.parentOf(t) === path).map(t => new FolderEntry(this.nameOf(t), false))
     ];
+  }
+
+  public async readRealPathOrNullAsync(path: string): Promise<string | null> {
+    const stall: Promise<void> | undefined = this.stalled.get(path);
+    if (stall !== undefined)
+      await stall;
+    const failure: Error | undefined = this.realPathFailures.get(path);
+    if (failure !== undefined)
+      throw failure;
+    return this.realPaths.get(path) ?? null;
   }
 
   private parentOf(path: string): string {

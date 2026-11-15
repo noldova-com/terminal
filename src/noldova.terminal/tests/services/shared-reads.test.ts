@@ -45,6 +45,22 @@ describe("SharedReads", () => {
     assert.equal(await program, true);
   });
 
+  it("shares one read of a real path per path while it runs, and reads a failure with a system error code as none, but passes on a fault of its own", async () => {
+    const reader: FakeFileSystemReader = new FakeFileSystemReader();
+    reader.realPaths.set("C:\\PROGRA~1", "C:\\Program Files");
+    reader.realPathFailures.set("R:\\", Object.assign(new Error("EISDIR: illegal operation on a directory"), { code: "EISDIR" }));
+    reader.realPathFailures.set("V:\\", Object.assign(new Error("UNKNOWN: unknown error"), { code: "UNKNOWN" }));
+    reader.realPathFailures.set("B:\\", new TypeError("broken"));
+    const reads: SharedReads = new SharedReads(reader);
+
+    const real: Promise<string | null> = reads.readRealPathOrNullAsync("C:\\PROGRA~1");
+
+    assert.equal(reads.readRealPathOrNullAsync("C:\\PROGRA~1"), real);
+    assert.deepEqual([await real, await reads.readRealPathOrNullAsync("R:\\"), await reads.readRealPathOrNullAsync("V:\\"),
+      await reads.readRealPathOrNullAsync("C:\\GONE~1")], ["C:\\Program Files", null, null, null]);
+    await assert.rejects(reads.readRealPathOrNullAsync("B:\\"), TypeError);
+  });
+
   it("starts a new read of a path once the last one ended", async () => {
     const reader: FakeFileSystemReader = new FakeFileSystemReader();
     const reads: SharedReads = new SharedReads(reader);
