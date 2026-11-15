@@ -677,6 +677,7 @@ describe("shell integration with real shells", () => {
         await fixture.waitForQuietAsync(sessionId);
         const after: string = await screen("p2");
         const answeredMarks: string = fixture.kinds(sessionId).slice(marked.length);
+        console.log(`PROBE options ${shellId} | items ${JSON.stringify(completion.toJson())} | answered ${answeredMarks} | kinds ${marked} | last O ${JSON.stringify(fixture.marks(sessionId).findLast(t => t.kind === "O") ?? null)} | tail ${JSON.stringify(fixture.text(sessionId).slice(-1500))}`);
         await fixture.typeAsync(sessionId, "\u007f".repeat(14));
         await promptAsync(historyLine);
         const counts: readonly string[] = [...fixture.text(sessionId).matchAll(/\[history-(\d+)\]/gu)].map(t => t[1] ?? "");
