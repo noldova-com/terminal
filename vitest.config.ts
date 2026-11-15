@@ -12,7 +12,6 @@ export default defineConfig({
   cacheDir: "_build/vite",
   test: {
     projects: [
-      "scripts",
       "src/noldova.terminal",
       "src/noldova.terminal.protocol"
     ],
