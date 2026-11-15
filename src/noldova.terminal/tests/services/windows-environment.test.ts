@@ -41,6 +41,8 @@ const INHERITED: Readonly<Record<string, string | undefined>> = {
 const UNREAD: string = "The shell starts with the app's environment, since the Windows environment could not be read: ";
 const INVALID: string = "reg.exe did not export the machine's and the person's variables in a form that could be read.";
 const CLEANUP: string = "The Windows environment's temporary files were not removed: ";
+const MACHINE_UNREAD: string = "The key HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment could not be read. ";
+const USER_UNREAD: string = "The key HKCU\\Environment could not be read. ";
 
 function plain(variables: Readonly<Record<string, string>>): Scope {
   return Object.fromEntries(Object.entries(variables).map(([name, value]) => [name, [value, false] as const]));
@@ -294,7 +296,7 @@ describe("WindowsEnvironment", () => {
 
     assert.equal(failed, INHERITED);
     assert.equal(next["NEXT"], "yes");
-    assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [`${UNREAD}reg.exe did not end within 5 seconds.`]);
+    assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [`${UNREAD}${USER_UNREAD}reg.exe did not end within 5 seconds.`]);
     assert.equal(fixture.writer.removedFiles.length, 4);
   });
 
@@ -303,7 +305,7 @@ describe("WindowsEnvironment", () => {
     fixture.answer(new CommandNotStartedException("reg.exe", new Error("refused")), {});
 
     assert.equal(await fixture.source.readAsync(), INHERITED);
-    assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [`${UNREAD}reg.exe could not start. refused`]);
+    assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [`${UNREAD}${MACHINE_UNREAD}reg.exe could not start. refused`]);
   });
 
   it("takes a key reg.exe refuses to export, as a person's missing Environment key, as holding no variables, and logs nothing", async () => {
@@ -318,12 +320,12 @@ describe("WindowsEnvironment", () => {
     assert.equal(fixture.writer.removedFiles.length, 2);
   });
 
-  it("starts the shell with the inherited environment, and logs why, when reg.exe refuses the machine's key, which every Windows has", async () => {
+  it("starts the shell with the inherited environment, and logs the key and what reg.exe said, when reg.exe refuses the machine's key, which every Windows has", async () => {
     const fixture: EnvironmentFixture = new EnvironmentFixture();
-    fixture.answer(new CommandExitedException("reg.exe", new ProcessExit(1, null)), plain({ USER: "yes" }));
+    fixture.answer(new CommandExitedException("reg.exe", new ProcessExit(1, null), "ERROR: Access is denied.\r\n"), plain({ USER: "yes" }));
 
     assert.equal(await fixture.source.readAsync(), INHERITED);
-    assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [`${UNREAD}reg.exe exited with 1.`]);
+    assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [`${UNREAD}${MACHINE_UNREAD}reg.exe exited with 1: ERROR: Access is denied.`]);
   });
 
   it("makes a SystemRoot that is set but empty count as not set, so it never runs a reg.exe relative to its folder", async () => {

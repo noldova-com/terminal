@@ -51,15 +51,20 @@ export class CommandRunner implements ICommandRunner {
           stopping.abort();
         }
       });
-      process.errors.resume();
+      let errors: string = "";
+      process.errors.setEncoding(Resources.utf8Encoding);
+      process.errors.on(Resources.dataEvent, (text: string) => {
+        errors = (errors + text).slice(-Resources.maximumCommandErrorLength);
+      });
       const closed: Promise<void> = new Promise<void>(resolve => process.output.once(Resources.closeEvent, () => resolve()));
-      const [exit]: [ProcessExit, void] = await Promise.all([process.exited.finally(() => clearTimeout(timer)), closed]);
+      const errorsClosed: Promise<void> = new Promise<void>(resolve => process.errors.once(Resources.closeEvent, () => resolve()));
+      const [exit]: [ProcessExit, void, void] = await Promise.all([process.exited.finally(() => clearTimeout(timer)), closed, errorsClosed]);
       if (isTooLong)
         throw new CommandOutputTooLongException(name, Resources.maximumCommandOutputLength);
       if (stopping.signal.aborted)
         throw new CommandTimedOutException(name, timeoutMilliseconds);
       if (exit.code !== 0)
-        throw new CommandExitedException(name, exit);
+        throw new CommandExitedException(name, exit, errors);
       return output;
     }
     finally {
