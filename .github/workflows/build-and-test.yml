@@ -62,6 +62,42 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 update
           sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y --no-install-recommends zsh fish
 
+      - name: Make zsh's completion folders safe on Linux
+        if: runner.os == 'Linux'
+        timeout-minutes: 2
+        run: |
+          insecure="$(zsh -c 'autoload -Uz compaudit; compaudit' 2>/dev/null)" || true
+          if [ -n "$insecure" ]; then
+            echo "compaudit finds these folders writable by others, so Ubuntu's compinit would ask before zsh's first prompt:"
+            printf '%s\n' "$insecure"
+            printf '%s\n' "$insecure" | while IFS= read -r folder; do
+              ls -ld "$folder"
+              sudo chmod g-w,o-w "$folder"
+            done
+          fi
+          left="$(zsh -c 'autoload -Uz compaudit; compaudit' 2>/dev/null)" || true
+          if [ -n "$left" ]; then
+            echo "::error::compaudit still finds insecure folders: $left"
+            exit 1
+          fi
+          echo "compaudit finds no insecure folder."
+
+      - name: List the job's shells in /etc/shells on Linux
+        if: runner.os == 'Linux'
+        timeout-minutes: 2
+        env:
+          SHELLS: ${{ matrix.shells }}
+        run: |
+          echo "/etc/shells lists:"
+          cat /etc/shells
+          for shell in $SHELLS; do
+            file="$(command -v "$shell")" || continue
+            if ! grep -qxF "$file" /etc/shells; then
+              echo "/etc/shells doesn't list $file, so the terminal, which offers the shells it lists, wouldn't offer $shell; adding it."
+              printf '%s\n' "$file" | sudo tee -a /etc/shells > /dev/null
+            fi
+          done
+
       - name: List the shells
         env:
           SHELLS: ${{ matrix.shells }}
