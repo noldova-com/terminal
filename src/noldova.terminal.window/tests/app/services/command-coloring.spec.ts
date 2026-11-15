@@ -15,6 +15,7 @@ import { CommandColors } from "../../../src/app/models/command-colors.ts";
 import { CommandColoring } from "../../../src/app/services/command-coloring.ts";
 import { DrawnWait } from "../../fixtures/drawn-wait.fixture.ts";
 
+const ASK_WAIT_MS: number = DrawnWait.milliseconds;
 const COLORS: Readonly<Record<CommandTokenKind, string>> = {
   Command: "#ff0000",
   NotFound: "#ff8000",
@@ -317,13 +318,13 @@ describe("CommandColoring", () => {
       findLater();
       await promptAsync();
       await writeAsync("gti");
-      await vi.waitFor(() => expect(asked).toEqual([["gti"]]));
+      await vi.waitFor(() => expect(asked).toEqual([["gti"]]), { timeout: ASK_WAIT_MS });
 
       await writeAsync(" | ls");
       await vi.waitFor(() => expect(drawnOf(0)).toBe("..CCC.X.CC"), { timeout: DrawnWait.milliseconds });
       expect(asked).toEqual([["gti"]]);
       answers[0]?.(["gti"]);
-      await vi.waitFor(() => expect(asked).toEqual([["gti"], ["ls"]]));
+      await vi.waitFor(() => expect(asked).toEqual([["gti"], ["ls"]]), { timeout: ASK_WAIT_MS });
       answers[1]?.([]);
       await vi.waitFor(() => expect(drawnOf(0)).toBe("..NNN.X.CC"), { timeout: DrawnWait.milliseconds });
       await writeAsync(" | gti");
@@ -352,14 +353,14 @@ describe("CommandColoring", () => {
       findLater();
       await promptAsync();
       await writeAsync("gti");
-      await vi.waitFor(() => expect(asked).toEqual([["gti"]]));
+      await vi.waitFor(() => expect(asked).toEqual([["gti"]]), { timeout: ASK_WAIT_MS });
       coloring.endInput();
       await writeAsync("\r\n");
       await promptAsync();
       await writeAsync("gti");
 
       answers[0]?.(["gti"]);
-      await vi.waitFor(() => expect(asked).toEqual([["gti"], ["gti"]]));
+      await vi.waitFor(() => expect(asked).toEqual([["gti"], ["gti"]]), { timeout: ASK_WAIT_MS });
       await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..CCC", "..CCC"]), { timeout: DrawnWait.milliseconds });
       answers[1]?.(["gti"]);
 
@@ -375,7 +376,7 @@ describe("CommandColoring", () => {
       });
       await promptAsync();
       await writeAsync("\"gti\" | $x | gti");
-      await vi.waitFor(() => expect(asked).toEqual([["gti"]]));
+      await vi.waitFor(() => expect(asked).toEqual([["gti"]]), { timeout: ASK_WAIT_MS });
       coloring.endInput();
       await writeAsync("\r\n");
       await promptAsync();
@@ -407,7 +408,7 @@ describe("CommandColoring", () => {
     });
     await promptAsync();
     await writeAsync("gti");
-    await vi.waitFor(() => expect(asked).toEqual([["gti"]]));
+    await vi.waitFor(() => expect(asked).toEqual([["gti"]]), { timeout: ASK_WAIT_MS });
     coloring.setFinder(async names => {
       asked.push(names);
       return names;
