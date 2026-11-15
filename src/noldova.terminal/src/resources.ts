@@ -1349,8 +1349,8 @@ fi
   }
   Remove-Item -LiteralPath $env:NOLDOVA_TERMINAL_NONCE_FILE -Force -ErrorAction SilentlyContinue
   Remove-Item -Path Env:NOLDOVA_TERMINAL_NONCE_FILE
-  # The loaded mark, before the person's profiles, tells the runtime the integration runs, so it waits for the first prompt however long
-  # they take.
+  # The loaded mark, before the person's profiles, tells the runtime the integration runs, so it waits for the first prompt while
+  # they run, up to 60 seconds.
   if ($Global:__NoldovaNonceRead) {
     [Console]::Write("$([char] 0x1b)]6973;L;$Global:__NoldovaNonceRead$([char] 0x07)")
   }

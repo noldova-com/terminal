@@ -189,12 +189,35 @@ describe("AgentTerminal", () => {
       });
       fixture.process.emitData(fixture.mark("L"));
 
-      await vi.advanceTimersByTimeAsync(60_000);
+      await vi.advanceTimersByTimeAsync(59_999);
       const doneBeforePrompt: boolean = isDone;
       fixture.showPrompt();
       await waiting;
 
       assert.deepEqual([doneBeforePrompt, terminal.hasShellIntegration], [false, true]);
+    }
+    finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops waiting for the first prompt of a shell whose integration said it loaded 60 seconds after its loaded mark, and not before", async () => {
+    const fixture: AgentTerminalFixture = new AgentTerminalFixture();
+    const terminal: AgentTerminal = await fixture.openAsync(null);
+    vi.useFakeTimers();
+    try {
+      let isDone: boolean = false;
+      const waiting: Promise<void> = terminal.waitForIntegrationAsync(SIGNAL).then(() => {
+        isDone = true;
+      });
+      fixture.process.emitData(fixture.mark("L"));
+
+      await vi.advanceTimersByTimeAsync(59_999);
+      const beforeLimit: boolean = isDone;
+      await vi.advanceTimersByTimeAsync(1);
+      await waiting;
+
+      assert.deepEqual([beforeLimit, isDone, terminal.isRunning, fixture.process.writes], [false, true, true, []]);
     }
     finally {
       vi.useRealTimers();
