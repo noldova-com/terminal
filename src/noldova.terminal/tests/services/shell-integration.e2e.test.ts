@@ -822,6 +822,7 @@ describe("shell integration with real shells", () => {
     it(`[${shellId}] finds the names ${shellId} would run: a profile's function, modules' commands it never imports, a program and a name it runs with Get-`,
       async context => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
+        const logged: number = fixture.context.log.callsOf("write").length;
         const modules: string = join(dirname(workFolder), `modules-${shellId}`);
         const imported: string = join(dirname(workFolder), `imported-${shellId}`);
         const marking: string = `Set-Content -LiteralPath '${imported.replaceAll("'", "''")}' -Value 'imported'\n`;
@@ -848,8 +849,12 @@ describe("shell integration with real shells", () => {
           const names: readonly string[] = (fixture.marks(sessionId).findLast(t => t.value?.startsWith("Names=") === true)?.value ?? "").split(" ");
           const isImported: boolean = await stat(imported).then(() => true, () => false);
           const lookups: readonly ProcessRequest[] = fixture.context.requests.slice(requested).filter(t => t.arguments.includes("-EncodedCommand"));
-          assert.deepEqual([missing, names.includes("Get-NoldovaProfileRuns"), names.includes("Invoke-NoldovaProbe"), isImported],
-            [["noldovanone", "nöldovanone"], true, false, false], missing.includes("whoami") ? describeProgramLookups(lookups) : undefined);
+          const found: readonly unknown[] = [missing, names.includes("Get-NoldovaProfileRuns"), names.includes("Invoke-NoldovaProbe"), isImported];
+          const written: readonly unknown[] = fixture.context.log.callsOf("write").slice(logged).map(t => t[0]);
+          const notes: readonly string[] = [...missing.includes("whoami") ? [describeProgramLookups(lookups)] : [],
+            ...written.length > 0 ? [`During this test the runtime logged ${JSON.stringify(written)}.`] : []];
+          assert.deepEqual(found, [["noldovanone", "nöldovanone"], true, false, false],
+            notes.length === 0 ? undefined : `Got ${JSON.stringify(found)}. ${notes.join(" ")}`);
           await fixture.callAsync("terminal.close", { sessionId });
         });
       });

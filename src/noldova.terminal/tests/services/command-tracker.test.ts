@@ -131,14 +131,19 @@ describe("CommandTracker", () => {
     assert.deepEqual([before, bound, answered, tracker.hasOptionsBinding, tracker.isAtPrompt], [false, true, true, false, false]);
   });
 
-  it("keeps the names a shell reports apart by spaces, none for an empty list, and forgets them at a reset", () => {
+  it("keeps the names a shell reports apart by spaces, none for an empty list, and forgets them at a reset, which it tells from none reported yet", () => {
+    const unreported: boolean = new CommandTracker(() => "").isNamesReset;
     const tracker: CommandTracker = track(new ShellMark(MarkKind.Property, "Names=ll  gs __git_ps1 ", 5));
     const reported: readonly string[] = [...tracker.names ?? []];
     tracker.apply(new ShellMark(MarkKind.Property, "Names=", 10));
     const emptied: readonly string[] = [...tracker.names ?? ["unset"]];
     tracker.apply(new ShellMark(MarkKind.Property, "Names", 15));
+    const forgotten: ReadonlySet<string> | null = tracker.names;
+    const reset: boolean = tracker.isNamesReset;
+    tracker.apply(new ShellMark(MarkKind.Property, "Names=ll", 20));
 
-    assert.deepEqual([reported, emptied, tracker.names, tracker.path], [["ll", "gs", "__git_ps1"], [], null, null]);
+    assert.deepEqual([reported, emptied, forgotten, tracker.path], [["ll", "gs", "__git_ps1"], [], null, null]);
+    assert.deepEqual([unreported, reset, tracker.isNamesReset, [...tracker.names ?? []]], [false, true, false, ["ll"]]);
   });
 
   it("keeps the builtins a shell reports apart from its names, so a names reset leaves them, and forgets them at their own reset", () => {

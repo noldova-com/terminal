@@ -149,7 +149,7 @@ class HostFixture {
       new TerminalEvents(this.output, this.exited, this.restarted, this.titleChanged, this.cwdChanged, this.detached, this.closed, this.opened,
         this.launchCommandEnded, this.runOpened, this.runEnded, this.renamed, this.commandAdded),
       this.saved,
-      new CompletionSource(this.fileSystem, this.runner, platform, "/home/a"));
+      new CompletionSource(this.fileSystem, this.runner, platform, "/home/a", this.log));
   }
 
   public static async createAsync(...args: ConstructorParameters<typeof HostFixture>): Promise<HostFixture> {
@@ -895,6 +895,8 @@ describe("TerminalHost", () => {
     fixture.process.emitData(`\u001b]6973;P;${nonce};ModulePath=C:\\x5cMine\u0007PS> `);
 
     assert.deepEqual([reset, unasked, await findAsync(), fixture.runner.environments.at(-1)?.["PSModulePath"]], [[], true, ["gti"], "C:\\Mine"]);
+    assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]).filter(t => String(t).startsWith("PowerShell's lookup")),
+      ["PowerShell's lookup of the names a command line runs is skipped, since the session's PSModulePath was reset, so every name counts as found."]);
   });
 
   it("lists PATH's programs again for a restarted terminal's shell, whose prompts count from the start again", async () => {
