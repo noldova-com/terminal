@@ -37,6 +37,8 @@ import { SupervisedTerminals } from "../fixtures/supervised-terminals.fixture.ts
 const WAIT_MS: number = 20_000;
 const SHELL_COLD_START_MS: number = 55_000;
 const TEXT_POLL_MS: number = 100;
+const OPTIONS_WAIT_MS: number = 10_000;
+const OPTIONS_POLL_MS: number = 10;
 const OUTPUT_TAIL: number = 1_500;
 const QUIET_MS: number = 1_000;
 const WORK_FOLDER: string = "work-folder";
@@ -691,12 +693,19 @@ describe("shell integration with real shells", () => {
         const before: string = await screen("p1");
         const marked: string = fixture.kinds(sessionId);
 
+        const askedAt: number = performance.now();
         const completion: TerminalCompletion = TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete",
           { sessionId, line: "noldovaprobe -", cursor: 14, asksShell: true }));
+        const returnedIn: number = Math.round(performance.now() - askedAt);
+        const optionsIn: number | null = await vi.waitFor(() => {
+          assert.ok(fixture.kinds(sessionId).slice(marked.length).includes("O"));
+          return Math.round(performance.now() - askedAt);
+        }, { timeout: OPTIONS_WAIT_MS, interval: OPTIONS_POLL_MS }).catch(() => null);
         await fixture.waitForQuietAsync(sessionId);
         const after: string = await screen("p2");
         const answeredMarks: string = fixture.kinds(sessionId).slice(marked.length);
-        const answer: string = `The completion answered ${JSON.stringify(completion.toJson())}, with marks ${answeredMarks === "" ? "none" : answeredMarks} after `
+        const answer: string = `The completion answered in ${returnedIn} ms, and the options mark `
+          + `${optionsIn === null ? `didn't come within ${OPTIONS_WAIT_MS} ms of the ask` : `came ${optionsIn} ms after the ask`}. It answered ${JSON.stringify(completion.toJson())}, with marks ${answeredMarks === "" ? "none" : answeredMarks} after `
           + `it asked and the last options mark ${JSON.stringify(fixture.marks(sessionId).findLast(t => t.kind === "O")?.value ?? null)}. `
           + `Marks: ${fixture.kinds(sessionId)}. Output ends with: ${JSON.stringify(fixture.text(sessionId).slice(-OUTPUT_TAIL))}`;
         await fixture.typeAsync(sessionId, "\u007f".repeat(14));
