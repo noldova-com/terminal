@@ -2469,6 +2469,7 @@ describe("TerminalHost", () => {
 
       assert.deepEqual([whileStarting, afterLoaded, fixture.process.writes], [[], [], ["npm test\r"]]);
       assert.deepEqual(fixture.launchCommandEnded.published, [{ sessionId, exitCode: 3 }]);
+      vi.useRealTimers();
       await fixture.endAllAsync();
     });
 
