@@ -28,6 +28,7 @@ import { TerminalStartFolder } from "../../../src/app/services/terminal-start-fo
 import { Resources } from "../../../src/resources.ts";
 import { FakeRuntime } from "../../fixtures/fake-runtime.fixture.ts";
 import { HeldAnswer } from "../../fixtures/held-answer.fixture.ts";
+import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 import { OpenedTab } from "../../fixtures/terminal-part-context.fixture.ts";
 
 async function rejectionAsync<T extends Error>(promise: Promise<unknown>, type: abstract new (...args: never[]) => T): Promise<T> {
@@ -74,7 +75,7 @@ describe("TerminalLauncher", () => {
     });
 
     const opening: Promise<LaunchedTerminal> = TerminalLauncher.openAsync(app.context, new TerminalLaunch("/work"));
-    await vi.waitFor(() => expect(app.context.sent(TerminalNames.launchMethod).length).toBe(1));
+    await vi.waitFor(() => expect(app.context.sent(TerminalNames.launchMethod).length).toBe(1), { timeout: SpecWait.milliseconds });
     stopServing();
     answer.resolve(null);
     const launched: LaunchedTerminal = await opening;
@@ -169,7 +170,7 @@ describe("TerminalLauncher", () => {
   it("hears an end that comes before the runtime's answer", async () => {
     app.holdOpens();
     const launching: Promise<LaunchedTerminal> = TerminalLauncher.openAsync(app.context, new TerminalLaunch("/work"));
-    await expect.poll(() => app.context.sent(TerminalNames.launchMethod).length).toBe(1);
+    await expect.poll(() => app.context.sent(TerminalNames.launchMethod).length, { timeout: SpecWait.milliseconds }).toBe(1);
 
     app.exitSession("launched-1", 0);
     app.releaseOpens();
@@ -250,7 +251,7 @@ describe("TerminalLauncher", () => {
   it("hears a command's end that comes before the runtime's answer", async () => {
     app.holdOpens();
     const launching: Promise<LaunchedTerminal> = TerminalLauncher.openAsync(app.context, new TerminalLaunch("/work", {}, null, null, "npm test"));
-    await expect.poll(() => app.context.sent(TerminalNames.launchMethod).length).toBe(1);
+    await expect.poll(() => app.context.sent(TerminalNames.launchMethod).length, { timeout: SpecWait.milliseconds }).toBe(1);
 
     app.context.emit(TerminalNames.launchCommandEndedEvent, new TerminalCommandEnded("launched-1", 1).toJson());
     app.exitSession("launched-1", 0);

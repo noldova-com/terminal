@@ -22,6 +22,7 @@ import { TerminalThemeReader } from "../../../../src/app/services/terminal-theme
 import { ErrorRecorder } from "../../../fixtures/error-recorder.fixture.ts";
 import { FakeRuntime } from "../../../fixtures/fake-runtime.fixture.ts";
 import { PaneHost } from "../../../fixtures/pane-host.fixture.ts";
+import { SpecWait } from "../../../fixtures/spec-wait.fixture.ts";
 
 function attachedSessions(host: PaneHost<TerminalPanelComponent>): readonly string[] {
   return host.runtime.context.sent(TerminalNames.attachMethod).map(t => TerminalPaneReference.fromJson(t).sessionId);
@@ -57,7 +58,7 @@ describe("TerminalPanelComponent", () => {
       if (element === null)
         throw new Error("The panel shows no pane yet.");
       return element;
-    });
+    }, { timeout: SpecWait.milliseconds });
     const backgrounds = (): string[] => [getComputedStyle(host.element).backgroundColor, getComputedStyle(pane).backgroundColor, TerminalThemeReader.readBackground(pane)];
 
     expect(backgrounds()).toEqual(["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)", "rgb(1, 2, 3)"]);
@@ -82,7 +83,7 @@ describe("TerminalPanelComponent", () => {
     host.shown.set(true);
     await host.settleAsync();
 
-    await vi.waitFor(() => expect(attachedSessions(host)).toEqual(["mine"]));
+    await vi.waitFor(() => expect(attachedSessions(host)).toEqual(["mine"]), { timeout: SpecWait.milliseconds });
     expect(host.runtime.context.sent(TerminalNames.sessionsMethod)).toHaveLength(1);
     expect(host.runtime.context.sent(TerminalNames.openMethod)).toEqual([]);
   });
@@ -94,7 +95,7 @@ describe("TerminalPanelComponent", () => {
 
     await host.startAsync();
 
-    await vi.waitFor(() => expect(attachedSessions(host)).toEqual(["opened-1"]));
+    await vi.waitFor(() => expect(attachedSessions(host)).toEqual(["opened-1"]), { timeout: SpecWait.milliseconds });
     expect(host.runtime.context.sent(TerminalNames.openMethod)).toEqual([
       { shellId: null, folder: null, size: { cols: 80, rows: 24 }, storedLimit: 104_857_600, isPanelTerminal: true, owner: null }
     ]);
@@ -110,11 +111,11 @@ describe("TerminalPanelComponent", () => {
     element.style.inlineSize = "40rem";
     element.style.blockSize = "20rem";
     second.detectChanges();
-    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.openMethod)).toHaveLength(2));
+    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.openMethod)).toHaveLength(2), { timeout: SpecWait.milliseconds });
 
     host.runtime.releaseOpens();
 
-    await vi.waitFor(() => expect(attachedSessions(host)).toEqual(["opened-1", "opened-1"]));
+    await vi.waitFor(() => expect(attachedSessions(host)).toEqual(["opened-1", "opened-1"]), { timeout: SpecWait.milliseconds });
     expect(host.runtime.sessions.map(t => t.sessionId)).toEqual(["opened-1"]);
   });
 
@@ -123,11 +124,11 @@ describe("TerminalPanelComponent", () => {
     host.runtime.openFailure = FakeRuntime.refusal("no shell found");
     host.fixture.detectChanges();
 
-    await vi.waitFor(() => expect(host.element.querySelector(".ended")?.textContent).toContain("The terminal could not start: no shell found"));
+    await vi.waitFor(() => expect(host.element.querySelector(".ended")?.textContent).toContain("The terminal could not start: no shell found"), { timeout: SpecWait.milliseconds });
     host.runtime.openFailure = null;
     host.element.querySelector<HTMLButtonElement>(".ended button")?.click();
 
-    await vi.waitFor(() => expect(attachedSessions(host)).toEqual(["opened-1"]));
+    await vi.waitFor(() => expect(attachedSessions(host)).toEqual(["opened-1"]), { timeout: SpecWait.milliseconds });
     expect(host.runtime.context.logs).toEqual(["The terminal could not start: no shell found"]);
     expect(host.element.querySelector(".ended")).toBeNull();
   });
@@ -138,7 +139,7 @@ describe("TerminalPanelComponent", () => {
     host.runtime.openFailure = FakeRuntime.refusal("no shell found");
 
     host.fixture.detectChanges();
-    await vi.waitFor(() => expect(announced.mock.calls.map(t => t[0])).toEqual(["The terminal could not start: no shell found"]));
+    await vi.waitFor(() => expect(announced.mock.calls.map(t => t[0])).toEqual(["The terminal could not start: no shell found"]), { timeout: SpecWait.milliseconds });
     await Promise.all(announced.mock.results.map(t => t.value));
 
     const strip: HTMLElement = PaneHost.find(host.element, ".ended", HTMLElement);
@@ -154,7 +155,7 @@ describe("TerminalPanelComponent", () => {
 
     host.fixture.detectChanges();
 
-    await vi.waitFor(() => expect(errors.errors.map(t => t instanceof JsonException)).toEqual([true]));
+    await vi.waitFor(() => expect(errors.errors.map(t => t instanceof JsonException)).toEqual([true]), { timeout: SpecWait.milliseconds });
     expect([host.runtime.context.logs, host.element.querySelector(".ended")]).toEqual([[], null]);
   });
 
@@ -167,7 +168,7 @@ describe("TerminalPanelComponent", () => {
 
     host.fixture.detectChanges();
 
-    await vi.waitFor(() => expect(errors.errors).toEqual([defect]));
+    await vi.waitFor(() => expect(errors.errors).toEqual([defect]), { timeout: SpecWait.milliseconds });
     expect([host.runtime.context.logs, host.element.querySelector(".ended")]).toEqual([[], null]);
   });
 
@@ -175,7 +176,7 @@ describe("TerminalPanelComponent", () => {
     const host: PaneHost<TerminalPanelComponent> = new PaneHost(TerminalPanelComponent, true);
     host.runtime.addSession("mine", "zsh", "/work/project", null, false, true);
     await host.startAsync();
-    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.resizeMethod)).not.toHaveLength(0));
+    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.resizeMethod)).not.toHaveLength(0), { timeout: SpecWait.milliseconds });
     expect(tabMenuTarget()?.canRestart()).toBe(true);
     host.textarea.blur();
 
@@ -192,13 +193,13 @@ describe("TerminalPanelComponent", () => {
     const host: PaneHost<TerminalPanelComponent> = new PaneHost(TerminalPanelComponent, true);
     host.runtime.openFailure = FakeRuntime.refusal("no shell found");
     host.fixture.detectChanges();
-    await vi.waitFor(() => expect(host.element.querySelector(".ended")).not.toBeNull());
+    await vi.waitFor(() => expect(host.element.querySelector(".ended")).not.toBeNull(), { timeout: SpecWait.milliseconds });
     host.runtime.openFailure = null;
 
     expect(tabMenuTarget()?.canRestart()).toBe(true);
     await tabMenuTarget()?.restartAsync();
 
-    await vi.waitFor(() => expect(attachedSessions(host)).toEqual(["opened-1"]));
+    await vi.waitFor(() => expect(attachedSessions(host)).toEqual(["opened-1"]), { timeout: SpecWait.milliseconds });
     expect(host.runtime.context.sent(TerminalNames.restartMethod)).toEqual([]);
   });
 
@@ -220,7 +221,7 @@ describe("TerminalPanelComponent", () => {
 
     expect(await TerminalFocus.toggleAsync()).toBe(true);
 
-    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea));
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea), { timeout: SpecWait.milliseconds });
     expect(host.runtime.context.hiddenDocks).toEqual([]);
     expect(await TerminalFocus.toggleAsync()).toBe(true);
     expect(document.activeElement).toBe(field);
@@ -241,7 +242,7 @@ describe("TerminalPanelComponent", () => {
     expect([host.runtime.context.shownViews, document.activeElement === field]).toEqual([["terminal.panel"], true]);
     host.shown.set(true);
     await host.settleAsync();
-    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea));
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea), { timeout: SpecWait.milliseconds });
   });
 
   it("has its terminal's input as the first element a tab's choice focuses", async () => {
@@ -267,14 +268,14 @@ describe("TerminalPanelComponent", () => {
     expect(document.activeElement).toBe(field);
     expect(await TerminalFocus.showAsync("mine")).toBe(true);
 
-    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea));
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea), { timeout: SpecWait.milliseconds });
   });
 
   it("is passed by from Toggle Terminal while its shell couldn't start", async () => {
     const host: PaneHost<TerminalPanelComponent> = new PaneHost(TerminalPanelComponent, true);
     host.runtime.openFailure = FakeRuntime.refusal("no shell found");
     host.fixture.detectChanges();
-    await vi.waitFor(() => expect(host.element.querySelector(".ended")).not.toBeNull());
+    await vi.waitFor(() => expect(host.element.querySelector(".ended")).not.toBeNull(), { timeout: SpecWait.milliseconds });
 
     expect(await TerminalFocus.toggleAsync()).toBe(false);
   });
@@ -284,12 +285,12 @@ describe("TerminalPanelComponent", () => {
     host.runtime.addSession("mine", "zsh", "/work/project", null, false, true);
     host.runtime.exit = new TerminalExit(1, EndedBy.Exit);
     await host.startAsync();
-    await vi.waitFor(() => expect(host.element.querySelector("nol-terminal-pane .nol-terminal-pane-ended button")).not.toBeNull());
+    await vi.waitFor(() => expect(host.element.querySelector("nol-terminal-pane .nol-terminal-pane-ended button")).not.toBeNull(), { timeout: SpecWait.milliseconds });
 
     host.element.querySelector<HTMLButtonElement>("nol-terminal-pane .nol-terminal-pane-ended button")?.click();
     host.element.querySelector<HTMLButtonElement>("nol-terminal-pane .nol-terminal-pane-ended button")?.click();
 
-    await vi.waitFor(() => expect(host.element.querySelector("nol-terminal-pane .nol-terminal-pane-ended")).toBeNull());
+    await vi.waitFor(() => expect(host.element.querySelector("nol-terminal-pane .nol-terminal-pane-ended")).toBeNull(), { timeout: SpecWait.milliseconds });
     expect(host.runtime.context.sent(TerminalNames.restartMethod)).toEqual([{ sessionId: "mine", size: { cols: expect.any(Number), rows: expect.any(Number) } }]);
     expect([attachedSessions(host), host.runtime.context.sent(TerminalNames.openMethod)]).toEqual([["mine"], []]);
   });

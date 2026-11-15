@@ -15,6 +15,7 @@ import { TerminalPager } from "../../../src/app/services/terminal-pager.ts";
 import { Resources } from "../../../src/resources.ts";
 import { DrawnWait } from "../../fixtures/drawn-wait.fixture.ts";
 import { FakeRuntime } from "../../fixtures/fake-runtime.fixture.ts";
+import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 
 const drawn: { timeout: number } = { timeout: DrawnWait.milliseconds };
 
@@ -101,7 +102,7 @@ describe("TerminalPager", () => {
     const reset = vi.spyOn(terminal, "reset");
     void pager.connection.openAsync();
     pager.connection.setVisible(true);
-    await vi.waitFor(() => expect(held).toHaveLength(1));
+    await vi.waitFor(() => expect(held).toHaveLength(1), { timeout: SpecWait.milliseconds });
 
     pager.connection.close();
     held[0]?.();
@@ -199,7 +200,7 @@ describe("TerminalPager", () => {
     runtime.output("s1", 0, "ignored\r\n");
     await parsedAsync();
     expect(lines().length).toBe(6000);
-    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.ackMethod).at(-1)).toMatchObject({ offset: 9 }));
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.ackMethod).at(-1)).toMatchObject({ offset: 9 }), { timeout: SpecWait.milliseconds });
 
     runtime.offset = 9;
     terminal.scrollToLine(terminal.buffer.active.baseY);
@@ -228,7 +229,7 @@ describe("TerminalPager", () => {
     runtime.holdLines();
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(pageRequests()).toEqual([[800, 500]]));
+    await vi.waitFor(() => expect(pageRequests()).toEqual([[800, 500]]), { timeout: SpecWait.milliseconds });
     runtime.output("s1", 0, "\r\nwhile loading");
     runtime.releaseLines();
     await vi.waitFor(() => expect(lines().length).toBe(531), drawn);
@@ -255,7 +256,7 @@ describe("TerminalPager", () => {
     await startAsync(1300);
 
     TerminalConnection.reattachAll();
-    await vi.waitFor(() => expect(runtime.attachCount).toBe(2));
+    await vi.waitFor(() => expect(runtime.attachCount).toBe(2), { timeout: SpecWait.milliseconds });
     await parsedAsync();
     await parsedAsync();
 
@@ -267,7 +268,7 @@ describe("TerminalPager", () => {
     runtime.holdLines();
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(pageRequests()).toEqual([[800, 500]]));
+    await vi.waitFor(() => expect(pageRequests()).toEqual([[800, 500]]), { timeout: SpecWait.milliseconds });
     terminal.input("l");
     terminal.input("s");
     terminal.input("\r");
@@ -283,14 +284,14 @@ describe("TerminalPager", () => {
     runtime.holdLines();
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(pageRequests()).toEqual([[800, 500]]));
+    await vi.waitFor(() => expect(pageRequests()).toEqual([[800, 500]]), { timeout: SpecWait.milliseconds });
     runtime.snapshot = newRows.join("\r\n");
     TerminalConnection.reattachAll();
-    await vi.waitFor(() => expect(runtime.attachCount).toBe(3));
+    await vi.waitFor(() => expect(runtime.attachCount).toBe(3), { timeout: SpecWait.milliseconds });
     await parsedAsync();
     runtime.linesFailure = new Error("restarted");
     runtime.releaseLines();
-    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["Paging the terminal's stored lines failed: restarted"]));
+    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["Paging the terminal's stored lines failed: restarted"]), { timeout: SpecWait.milliseconds });
 
     await vi.waitFor(() => expect(lines()).toEqual(newRows), drawn);
   });
@@ -362,10 +363,10 @@ describe("TerminalPager", () => {
     runtime.holdLines();
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(pageRequests()).toEqual([[1300, 100]]));
+    await vi.waitFor(() => expect(pageRequests()).toEqual([[1300, 100]]), { timeout: SpecWait.milliseconds });
     runtime.stored = new TerminalLineRange(1400, 1400);
     runtime.releaseLines();
-    await vi.waitFor(() => expect(pageRequests()).toEqual([[1300, 100], [800, 500]]));
+    await vi.waitFor(() => expect(pageRequests()).toEqual([[1300, 100], [800, 500]]), { timeout: SpecWait.milliseconds });
     await vi.waitFor(() => expect(lines()).toEqual(newRows), drawn);
 
     expect(runtime.attachCount).toBe(2);
@@ -417,7 +418,7 @@ describe("TerminalPager", () => {
     runtime.holdAttaches();
 
     terminal.scrollToLine(terminal.buffer.active.baseY);
-    await vi.waitFor(() => expect(runtime.attachCount).toBe(15));
+    await vi.waitFor(() => expect(runtime.attachCount).toBe(15), { timeout: SpecWait.milliseconds });
     store(6600);
     runtime.releaseAttaches();
     await vi.waitFor(() => expect([lines()[0], lines().at(-1), lines().length]).toEqual(["stored 500", "stored 6499", 6000]), drawn);
@@ -456,7 +457,7 @@ describe("TerminalPager", () => {
     runtime.stored = new TerminalLineRange(1000, 7000, 1000);
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(pageRequests().at(-1)).toEqual([0, 500]));
+    await vi.waitFor(() => expect(pageRequests().at(-1)).toEqual([0, 500]), { timeout: SpecWait.milliseconds });
     await parsedAsync();
 
     expect([lines()[0], lines().at(-1), lines().length, runtime.attachCount]).toEqual(["stored 500", "stored 6499", 6000, 14]);
@@ -467,7 +468,7 @@ describe("TerminalPager", () => {
     runtime.holdLines();
 
     terminal.scrollToLine(terminal.buffer.active.baseY);
-    await vi.waitFor(() => expect(pageRequests().at(-1)).toEqual([6000, 500]));
+    await vi.waitFor(() => expect(pageRequests().at(-1)).toEqual([6000, 500]), { timeout: SpecWait.milliseconds });
     terminal.input("x");
     runtime.releaseLines();
     await vi.waitFor(() => expect(lines().length).toBe(6030), drawn);
@@ -482,7 +483,7 @@ describe("TerminalPager", () => {
     runtime.linesFailure = new Error("unreadable");
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["Paging the terminal's stored lines failed: unreadable"]));
+    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["Paging the terminal's stored lines failed: unreadable"]), { timeout: SpecWait.milliseconds });
     await parsedAsync();
     expect(lines()).toEqual(screenRows);
     runtime.output("s1", 0, "\r\nstill live");
@@ -495,7 +496,7 @@ describe("TerminalPager", () => {
     runtime.linesFailure = new Error("unreadable");
 
     terminal.scrollToLine(terminal.buffer.active.baseY);
-    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["Paging the terminal's stored lines failed: unreadable"]));
+    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["Paging the terminal's stored lines failed: unreadable"]), { timeout: SpecWait.milliseconds });
     expect([lines()[0], lines().at(-1), lines().length]).toEqual(["stored 0", "stored 5999", 6000]);
 
     terminal.input("x");

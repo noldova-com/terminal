@@ -33,6 +33,7 @@ import { TerminalStartFolder } from "../../../src/app/services/terminal-start-fo
 import { TerminalWindowPart } from "../../../src/app/services/terminal-window-part.ts";
 import { FakeRuntime } from "../../fixtures/fake-runtime.fixture.ts";
 import { HeldAnswer } from "../../fixtures/held-answer.fixture.ts";
+import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 import { TerminalPartContext } from "../../fixtures/terminal-part-context.fixture.ts";
 
 async function rejectionAsync<T extends Error>(promise: Promise<unknown>, type: abstract new (...args: never[]) => T): Promise<T> {
@@ -184,7 +185,7 @@ describe("TerminalOwners", () => {
     });
 
     const showing: Promise<void> = owners.showAsync("example.chat/42");
-    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.sessionsMethod).length).toBe(1));
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.sessionsMethod).length).toBe(1), { timeout: SpecWait.milliseconds });
     stopServing();
     listing.resolve(null);
     await showing;
@@ -199,7 +200,7 @@ describe("TerminalOwners", () => {
     const listing: HeldAnswer = runtime.holdListings(t => t > 1);
 
     const showing: Promise<void> = provide(runtime.context).showAsync("example.chat/42");
-    await vi.waitFor(() => expect(runtime.listingCount).toBe(2));
+    await vi.waitFor(() => expect(runtime.listingCount).toBe(2), { timeout: SpecWait.milliseconds });
     stopServing();
     listing.resolve(null);
     await showing;
@@ -401,7 +402,7 @@ describe("TerminalOwners", () => {
     const listing: HeldAnswer = runtime.holdListings(t => t > 1);
 
     const showing: Promise<void> = provide(runtime.context, () => null).showAsync("example.chat/42");
-    await vi.waitFor(() => expect(runtime.listingCount).toBe(2));
+    await vi.waitFor(() => expect(runtime.listingCount).toBe(2), { timeout: SpecWait.milliseconds });
     runtime.context.emit(TerminalNames.closedEvent, { sessionId: "c42a" });
     listing.resolve(null);
     await showing;
@@ -526,13 +527,13 @@ describe("TerminalOwners", () => {
         runtime.holdOpens();
 
         const hidden: Promise<string> = owners.runAsync(OWNER, "ls", "/work", []);
-        await vi.waitFor(() => expect(runs(runtime)).toHaveLength(1));
+        await vi.waitFor(() => expect(runs(runtime)).toHaveLength(1), { timeout: SpecWait.milliseconds });
         const showing: Promise<void> = owners.showAsync("example.chat/7");
         runtime.releaseOpens();
         await Promise.all([hidden, showing]);
         runtime.holdOpens();
         const stopped: Promise<string> = owners.runAsync("example.chat/7", "ls", "/work", []);
-        await vi.waitFor(() => expect(runs(runtime)).toHaveLength(2));
+        await vi.waitFor(() => expect(runs(runtime)).toHaveLength(2), { timeout: SpecWait.milliseconds });
         const served: IWindowPartContext | null = TerminalPart.context;
         if (served !== null)
           TerminalPart.serve(served)();
@@ -833,7 +834,7 @@ describe("TerminalOwners", () => {
             t => notices.push(["failing", t])), TerminalRunNotTypedException);
           const first: Promise<TerminalRun> = owners.startRunAsync(OWNER, "npm test", "/work", [], null, t => notices.push(["first", t]));
           const second: Promise<TerminalRun> = owners.startRunAsync(OWNER, "npm test", "/work", [], null, t => notices.push(["second", t]));
-          await vi.waitFor(() => expect(runs(runtime)).toHaveLength(1));
+          await vi.waitFor(() => expect(runs(runtime)).toHaveLength(1), { timeout: SpecWait.milliseconds });
           const sentWhileHeld: number = runs(runtime).length;
           runtime.releaseOpens();
 
@@ -849,9 +850,9 @@ describe("TerminalOwners", () => {
           runtime.holdOpens();
 
           const withoutTab: Promise<TerminalRun> = owners.startRunAsync(OWNER, "npm test", "/work", [], null, t => notices.push(t));
-          await vi.waitFor(() => expect(runs(runtime)).toHaveLength(1));
+          await vi.waitFor(() => expect(runs(runtime)).toHaveLength(1), { timeout: SpecWait.milliseconds });
           const withTab: Promise<TerminalRun> = owners.startRunAsync(OWNER, "ls", "/work", [], null);
-          await vi.waitFor(() => expect(runs(runtime)).toHaveLength(2));
+          await vi.waitFor(() => expect(runs(runtime)).toHaveLength(2), { timeout: SpecWait.milliseconds });
           runtime.releaseOpens();
 
           expect([await withoutTab, await withTab]).toEqual([new TerminalRun("run-1", "run-id-1"), new TerminalRun("run-2", "run-id-2")]);

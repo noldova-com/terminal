@@ -26,6 +26,7 @@ import { TerminalPart } from "../../../src/app/services/terminal-part.ts";
 import { Resources } from "../../../src/resources.ts";
 import { FakeRuntime } from "../../fixtures/fake-runtime.fixture.ts";
 import { PaneHost } from "../../fixtures/pane-host.fixture.ts";
+import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 
 const ROWS: number = 5;
 
@@ -78,7 +79,7 @@ describe("EmbeddedTerminal", () => {
     tab.detectChanges();
     PaneHost.fill(element);
     await tab.whenStable();
-    await vi.waitFor(() => expect(element.querySelector("textarea")).not.toBeNull());
+    await vi.waitFor(() => expect(element.querySelector("textarea")).not.toBeNull(), { timeout: SpecWait.milliseconds });
     return tab;
   }
 
@@ -104,8 +105,8 @@ describe("EmbeddedTerminal", () => {
   async function openAsync(runtime: FakeRuntime): Promise<EmbeddedTerminal> {
     const attached: number = runtime.attachCount;
     const embedded: EmbeddedTerminal = open();
-    await vi.waitFor(() => expect(runtime.attachCount).toBeGreaterThan(attached));
-    await vi.waitFor(() => expect(screenOf(embedded).height).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(runtime.attachCount).toBeGreaterThan(attached), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(screenOf(embedded).height).toBeGreaterThan(0), { timeout: SpecWait.milliseconds });
     return embedded;
   }
 
@@ -126,7 +127,7 @@ describe("EmbeddedTerminal", () => {
   }
 
   async function declinedAsync(asked: MockInstance<typeof SessionSizing.isSizing>): Promise<void> {
-    await vi.waitFor(() => expect(asked.mock.results.map(t => t.value)).toContain(false));
+    await vi.waitFor(() => expect(asked.mock.results.map(t => t.value)).toContain(false), { timeout: SpecWait.milliseconds });
   }
 
   function visibilities(runtime: FakeRuntime): readonly boolean[] {
@@ -134,9 +135,10 @@ describe("EmbeddedTerminal", () => {
   }
 
   async function expectRowsShownAsync(embedded: EmbeddedTerminal, rows: number, shellRows: number = ROWS): Promise<void> {
-    await vi.waitFor(() => expect(embedded.rows()).toBe(rows));
-    await vi.waitFor(() => expect(rowHeight(embedded, shellRows)).toBeGreaterThan(0));
-    await vi.waitFor(() => expect(rem(embedded.element.getBoundingClientRect().height)).toBeCloseTo(rem(rows * rowHeight(embedded, shellRows)) + 0.75, 2));
+    await vi.waitFor(() => expect(embedded.rows()).toBe(rows), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(rowHeight(embedded, shellRows)).toBeGreaterThan(0), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(rem(embedded.element.getBoundingClientRect().height)).toBeCloseTo(rem(rows * rowHeight(embedded, shellRows)) + 0.75, 2),
+      { timeout: SpecWait.milliseconds });
   }
 
   it("refuses to open while Terminal's part isn't active in the window", () => {
@@ -155,7 +157,7 @@ describe("EmbeddedTerminal", () => {
   it.each([0, 1.5, 1_001])("refuses to set %s rows, and keeps its rows", async rows => {
     const runtime: FakeRuntime = serve();
     const embedded: EmbeddedTerminal = await openAsync(runtime);
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""));
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""), { timeout: SpecWait.milliseconds });
 
     expect(() => embedded.setMaximumRows(rows)).toThrow(EmbeddedRowsRefusedException);
     expect(() => embedded.setMaximumRows(rows)).toThrow(`An embedded terminal's rows must be a whole number from 1 to 1000, not ${rows}.`);
@@ -165,13 +167,13 @@ describe("EmbeddedTerminal", () => {
   it("gives its shell fewer rows when the app lowers them below the rows drawn, shrinks, and scrolls inside", async () => {
     const runtime: FakeRuntime = serve();
     const embedded: EmbeddedTerminal = await openAsync(runtime);
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""));
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""), { timeout: SpecWait.milliseconds });
     runtime.output("s1", 0, ["line 0", "line 1", "line 2", "line 3"].join("\r\n"));
     await expectRowsShownAsync(embedded, 4);
 
     embedded.setMaximumRows(2);
 
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toMatch(/x2$/));
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toMatch(/x2$/), { timeout: SpecWait.milliseconds });
     await expectRowsShownAsync(embedded, 2, 2);
     expect(textOf(embedded)).toContain("line 3");
     expect(textOf(embedded)).not.toContain("line 1");
@@ -180,13 +182,13 @@ describe("EmbeddedTerminal", () => {
   it("gives its rows to the shell again when the app raises them", async () => {
     const runtime: FakeRuntime = serve();
     const embedded: EmbeddedTerminal = await openAsync(runtime);
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""));
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""), { timeout: SpecWait.milliseconds });
 
     embedded.setMaximumRows(2);
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toMatch(/x2$/));
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toMatch(/x2$/), { timeout: SpecWait.milliseconds });
     embedded.setMaximumRows(8);
 
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toMatch(/x8$/));
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toMatch(/x8$/), { timeout: SpecWait.milliseconds });
   });
 
   it("lets a terminal tab the person types in keep the shell's size as it opens, and hands it back and forth on focus", async () => {
@@ -194,8 +196,8 @@ describe("EmbeddedTerminal", () => {
     const tab: ComponentFixture<TerminalPaneComponent> = await openTabAsync();
     const tabTextarea: HTMLTextAreaElement = PaneHost.find(PaneHost.hostOf(tab), "textarea", HTMLTextAreaElement);
     tabTextarea.focus();
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""));
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toBe(sizeOf(tab.componentInstance)));
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toBe(sizeOf(tab.componentInstance)), { timeout: SpecWait.milliseconds });
     const tabSize: string = PaneHost.lastSize(runtime);
     const asked = vi.spyOn(SessionSizing, "isSizing");
 
@@ -203,12 +205,12 @@ describe("EmbeddedTerminal", () => {
     await declinedAsync(asked);
     const whileTyping: string = PaneHost.lastSize(runtime);
     embedded.focus();
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toMatch(new RegExp(`x${ROWS}$`)));
-    await vi.waitFor(() => expect(sizeOf(tab.componentInstance)).toBe(PaneHost.lastSize(runtime)));
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toMatch(new RegExp(`x${ROWS}$`)), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(sizeOf(tab.componentInstance)).toBe(PaneHost.lastSize(runtime)), { timeout: SpecWait.milliseconds });
     const embeddedSize: string = PaneHost.lastSize(runtime);
     tabShown.set(false);
     TestBed.tick();
-    await vi.waitFor(() => expect(visibilities(runtime).at(-1)).toBe(false));
+    await vi.waitFor(() => expect(visibilities(runtime).at(-1)).toBe(false), { timeout: SpecWait.milliseconds });
     const whileHidden: string = PaneHost.lastSize(runtime);
     asked.mockClear();
     tabShown.set(true);
@@ -218,13 +220,13 @@ describe("EmbeddedTerminal", () => {
     tabTextarea.focus();
 
     expect([whileTyping, whileHidden, shownUnfocused]).toEqual([tabSize, embeddedSize, embeddedSize]);
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toBe(tabSize));
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toBe(tabSize), { timeout: SpecWait.milliseconds });
     embedded.focus();
-    await vi.waitFor(() => expect([PaneHost.lastSize(runtime), sizeOf(tab.componentInstance)]).toEqual([embeddedSize, embeddedSize]));
+    await vi.waitFor(() => expect([PaneHost.lastSize(runtime), sizeOf(tab.componentInstance)]).toEqual([embeddedSize, embeddedSize]), { timeout: SpecWait.milliseconds });
     opened.splice(0);
     embedded.dispose();
 
-    await vi.waitFor(() => expect([PaneHost.lastSize(runtime), sizeOf(tab.componentInstance)]).toEqual([tabSize, tabSize]));
+    await vi.waitFor(() => expect([PaneHost.lastSize(runtime), sizeOf(tab.componentInstance)]).toEqual([tabSize, tabSize]), { timeout: SpecWait.milliseconds });
     tab.destroy();
   });
 
@@ -235,8 +237,8 @@ describe("EmbeddedTerminal", () => {
     tabTextarea.focus();
     for (const type of ["keydown", "keyup"])
       tabTextarea.dispatchEvent(new KeyboardEvent(type, { key: "Enter", code: "Enter", keyCode: 13, bubbles: true, cancelable: true }));
-    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.inputMethod)).toHaveLength(1));
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toBe(sizeOf(tab.componentInstance)));
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.inputMethod)).toHaveLength(1), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toBe(sizeOf(tab.componentInstance)), { timeout: SpecWait.milliseconds });
     const tabSize: string = PaneHost.lastSize(runtime);
     tabTextarea.blur();
     const isFocusOut: boolean = !PaneHost.hostOf(tab).contains(document.activeElement);
@@ -255,7 +257,7 @@ describe("EmbeddedTerminal", () => {
 
     const embedded: EmbeddedTerminal = await openAsync(runtime);
 
-    await vi.waitFor(() => expect(embedded.element.querySelectorAll(".xterm-screen canvas").length).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(embedded.element.querySelectorAll(".xterm-screen canvas").length).toBeGreaterThan(0), { timeout: SpecWait.milliseconds });
   });
 
   it("shows the session, gives its shell the rows asked for and the element's width, and is as tall as the rows drawn", async () => {
@@ -265,8 +267,8 @@ describe("EmbeddedTerminal", () => {
 
     const embedded: EmbeddedTerminal = open();
 
-    await vi.waitFor(() => expect(textOf(embedded)).toContain("two"));
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toMatch(new RegExp(`^\\d+x${ROWS}$`)));
+    await vi.waitFor(() => expect(textOf(embedded)).toContain("two"), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).toMatch(new RegExp(`^\\d+x${ROWS}$`)), { timeout: SpecWait.milliseconds });
     await expectRowsShownAsync(embedded, 2);
     expect([embedded.isFullScreen(), embedded.hasEnded()]).toEqual([false, false]);
   });
@@ -274,11 +276,11 @@ describe("EmbeddedTerminal", () => {
   it("grows up to the rows asked for, then scrolls inside", async () => {
     const runtime: FakeRuntime = serve();
     const embedded: EmbeddedTerminal = await openAsync(runtime);
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""));
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""), { timeout: SpecWait.milliseconds });
 
     runtime.output("s1", 0, Array.from({ length: 12 }, (_, t) => `line ${t}`).join("\r\n"));
 
-    await vi.waitFor(() => expect(textOf(embedded)).toContain("line 11"));
+    await vi.waitFor(() => expect(textOf(embedded)).toContain("line 11"), { timeout: SpecWait.milliseconds });
     await expectRowsShownAsync(embedded, ROWS);
     expect(textOf(embedded)).not.toContain("line 6");
   });
@@ -298,27 +300,27 @@ describe("EmbeddedTerminal", () => {
   it("gives the new row height once the font size changes", async () => {
     const runtime: FakeRuntime = serve();
     const embedded: EmbeddedTerminal = await openAsync(runtime);
-    await vi.waitFor(() => expect(embedded.rowHeight()).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(embedded.rowHeight()).toBeGreaterThan(0), { timeout: SpecWait.milliseconds });
     const before: number = embedded.rowHeight();
 
     runtime.context.changeSetting(Resources.fontSizeSetting, 21);
 
-    await vi.waitFor(() => expect(embedded.rowHeight()).toBeGreaterThan(before));
-    await vi.waitFor(() => expect(rem(embedded.rowHeight())).toBeCloseTo(rem(rowHeight(embedded)), 2));
+    await vi.waitFor(() => expect(embedded.rowHeight()).toBeGreaterThan(before), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(rem(embedded.rowHeight())).toBeCloseTo(rem(rowHeight(embedded)), 2), { timeout: SpecWait.milliseconds });
   });
 
   it("shows all its rows while a full-screen program has the alternate screen, and its drawn rows once it leaves", async () => {
     const runtime: FakeRuntime = serve();
     const embedded: EmbeddedTerminal = await openAsync(runtime);
-    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""));
+    await vi.waitFor(() => expect(PaneHost.lastSize(runtime)).not.toBe(""), { timeout: SpecWait.milliseconds });
 
     const enter: string = "\u001b[?1049hfull";
     runtime.output("s1", 0, enter);
-    await vi.waitFor(() => expect(embedded.isFullScreen()).toBe(true));
+    await vi.waitFor(() => expect(embedded.isFullScreen()).toBe(true), { timeout: SpecWait.milliseconds });
     await expectRowsShownAsync(embedded, ROWS);
     runtime.output("s1", enter.length, "\u001b[?1049l");
 
-    await vi.waitFor(() => expect(embedded.isFullScreen()).toBe(false));
+    await vi.waitFor(() => expect(embedded.isFullScreen()).toBe(false), { timeout: SpecWait.milliseconds });
     await expectRowsShownAsync(embedded, 1);
   });
 
@@ -327,12 +329,12 @@ describe("EmbeddedTerminal", () => {
     runtime.snapshot = "moved";
     runtime.offset = runtime.snapshot.length;
     const embedded: EmbeddedTerminal = await openAsync(runtime);
-    await vi.waitFor(() => expect(textOf(embedded)).toContain("moved"));
+    await vi.waitFor(() => expect(textOf(embedded)).toContain("moved"), { timeout: SpecWait.milliseconds });
 
     addHost().append(embedded.element);
     runtime.output("s1", runtime.offset, " on");
 
-    await vi.waitFor(() => expect(textOf(embedded)).toContain("moved on"));
+    await vi.waitFor(() => expect(textOf(embedded)).toContain("moved on"), { timeout: SpecWait.milliseconds });
     expect(runtime.attachCount).toBe(1);
   });
 
@@ -342,7 +344,7 @@ describe("EmbeddedTerminal", () => {
     addHost().append(field);
     field.focus();
     const embedded: EmbeddedTerminal = open();
-    await vi.waitFor(() => expect(embedded.element.querySelector("textarea")).not.toBeNull());
+    await vi.waitFor(() => expect(embedded.element.querySelector("textarea")).not.toBeNull(), { timeout: SpecWait.milliseconds });
     TestBed.tick();
     await TestBed.inject(ApplicationRef).whenStable();
     const before: Element | null = document.activeElement;
@@ -350,7 +352,7 @@ describe("EmbeddedTerminal", () => {
     early.focus();
 
     expect(before).toBe(field);
-    await vi.waitFor(() => expect(document.activeElement).toBe(early.element.querySelector("textarea")));
+    await vi.waitFor(() => expect(document.activeElement).toBe(early.element.querySelector("textarea")), { timeout: SpecWait.milliseconds });
     embedded.focus();
     expect(document.activeElement).toBe(embedded.element.querySelector("textarea"));
   });
@@ -370,7 +372,7 @@ describe("EmbeddedTerminal", () => {
     TestBed.tick();
 
     expect(outHeight).toBeCloseTo(height, 1);
-    await vi.waitFor(() => expect(visibilities(runtime)).toEqual([true, false, true]));
+    await vi.waitFor(() => expect(visibilities(runtime)).toEqual([true, false, true]), { timeout: SpecWait.milliseconds });
     await expectRowsShownAsync(embedded, 1);
   });
 
@@ -385,28 +387,28 @@ describe("EmbeddedTerminal", () => {
     const launched: LaunchedTerminal = await TerminalLauncher.openAsync(runtime.context, new TerminalLaunch(null, {}, null, null, "agent login", false));
 
     const embedded: EmbeddedTerminal = open(launched.sessionId);
-    await vi.waitFor(() => expect(textOf(embedded)).toContain("Sign in at the page"));
+    await vi.waitFor(() => expect(textOf(embedded)).toContain("Sign in at the page"), { timeout: SpecWait.milliseconds });
     await launched.closeAsync();
 
-    await vi.waitFor(() => expect(embedded.hasEnded()).toBe(true));
+    await vi.waitFor(() => expect(embedded.hasEnded()).toBe(true), { timeout: SpecWait.milliseconds });
     expect([runtime.context.opened, runtime.context.closed]).toEqual([[], []]);
   });
 
   it("tells when the session's shell ended, and offers no restart", async () => {
     const runtime: FakeRuntime = serve();
     const embedded: EmbeddedTerminal = await openAsync(runtime);
-    await vi.waitFor(() => expect(runtime.attachCount).toBe(1));
+    await vi.waitFor(() => expect(runtime.attachCount).toBe(1), { timeout: SpecWait.milliseconds });
 
     runtime.exitSession("s1", 0);
 
-    await vi.waitFor(() => expect(embedded.hasEnded()).toBe(true));
+    await vi.waitFor(() => expect(embedded.hasEnded()).toBe(true), { timeout: SpecWait.milliseconds });
     expect(embedded.element.querySelector("button")).toBeNull();
   });
 
   it("detaches from the session when disposed, without closing it, and removes its element", async () => {
     const runtime: FakeRuntime = serve();
     const embedded: EmbeddedTerminal = await openAsync(runtime);
-    await vi.waitFor(() => expect(runtime.attachCount).toBe(1));
+    await vi.waitFor(() => expect(runtime.attachCount).toBe(1), { timeout: SpecWait.milliseconds });
 
     opened.splice(0);
     embedded.dispose();
