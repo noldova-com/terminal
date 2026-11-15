@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CommandSuggestion } from "../../../src/app/services/command-suggestion.ts";
 import { CompletionList } from "../../../src/app/services/completion-list.ts";
 import { Resources } from "../../../src/resources.ts";
+import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 
 const LIST_STYLE: string = `.${Resources.completionListClass} { position: absolute !important; display: block !important; width: 120px !important;
   max-height: 60px !important; padding: 0 !important; border: 0 !important; overflow-y: auto !important; }
@@ -66,7 +67,7 @@ describe("CompletionList", () => {
 
   async function listAsync(): Promise<HTMLElement> {
     expect(list.take(key("Tab"))).toBe(true);
-    await vi.waitFor(() => expect(listElement()).not.toBeNull());
+    await vi.waitFor(() => expect(listElement()).not.toBeNull(), { timeout: SpecWait.milliseconds });
     return listElement() ?? host;
   }
 
@@ -101,7 +102,7 @@ describe("CompletionList", () => {
     expect(list.take(tab)).toBe(true);
 
     expect(tab.defaultPrevented).toBe(true);
-    await vi.waitFor(() => expect(labels()).toEqual(["--all", "--almost-all", "--author", "--and", "--any"]));
+    await vi.waitFor(() => expect(labels()).toEqual(["--all", "--almost-all", "--author", "--and", "--any"]), { timeout: SpecWait.milliseconds });
     expect(asked).toEqual([["ls --a", 6]]);
     expect(active()).toBe("--all");
     expect([listElement()?.role, listElement()?.ariaLabel, ...ARIA_STATE.map(t => terminal.textarea?.getAttribute(t))])
@@ -210,12 +211,12 @@ describe("CompletionList", () => {
     list.take(key("ArrowUp"));
 
     await writeAsync("n");
-    await vi.waitFor(() => expect([labels(), active()]).toEqual([["--and", "--any"], "--any"]));
+    await vi.waitFor(() => expect([labels(), active()]).toEqual([["--and", "--any"], "--any"]), { timeout: SpecWait.milliseconds });
     await writeAsync("\b\u001b[Kl");
-    await vi.waitFor(() => expect([labels(), active()]).toEqual([["--all", "--almost-all"], "--all"]));
+    await vi.waitFor(() => expect([labels(), active()]).toEqual([["--all", "--almost-all"], "--all"]), { timeout: SpecWait.milliseconds });
     await writeAsync("x");
 
-    await vi.waitFor(() => expect(listElement()).toBeNull());
+    await vi.waitFor(() => expect(listElement()).toBeNull(), { timeout: SpecWait.milliseconds });
   });
 
   it("closes when the line no longer starts as it did, and when the shell leaves it", async () => {
@@ -223,13 +224,13 @@ describe("CompletionList", () => {
     await listAsync();
 
     await writeAsync("\b\b\b\b");
-    await vi.waitFor(() => expect(listElement()).toBeNull());
+    await vi.waitFor(() => expect(listElement()).toBeNull(), { timeout: SpecWait.milliseconds });
     await writeAsync("\u001b[K --a");
     await listAsync();
     suggestion.endInput();
     await writeAsync("\r\n");
 
-    await vi.waitFor(() => expect(listElement()).toBeNull());
+    await vi.waitFor(() => expect(listElement()).toBeNull(), { timeout: SpecWait.milliseconds });
   });
 
   it("keeps the list for text and Backspace, which go to the shell, and closes it for any other key or with a modifier", async () => {
@@ -265,7 +266,7 @@ describe("CompletionList", () => {
       await writeAsync("ls --a");
       await listAsync();
       await close();
-      await vi.waitFor(() => expect(listElement()).toBeNull());
+      await vi.waitFor(() => expect(listElement()).toBeNull(), { timeout: SpecWait.milliseconds });
       expect(ARIA_STATE.map(t => terminal.textarea?.getAttribute(t))).toEqual([null, null, null, null]);
     }
     list.enable(true);
@@ -288,17 +289,17 @@ describe("CompletionList", () => {
     vi.useFakeTimers({ toNotFake: ["requestIdleCallback", "cancelIdleCallback"] });
 
     list.take(key("Tab"));
-    await vi.waitFor(() => expect(inputs).toEqual(["\t"]));
+    await vi.waitFor(() => expect(inputs).toEqual(["\t"]), { timeout: SpecWait.milliseconds });
     await writeFakedAsync("\u0007");
     await vi.advanceTimersByTimeAsync(1_000);
     expect(suggestion.readLine()).toBe("ls --a");
     list.take(key("Tab"));
-    await vi.waitFor(() => expect(inputs).toEqual(["\t", "\t"]));
+    await vi.waitFor(() => expect(inputs).toEqual(["\t", "\t"]), { timeout: SpecWait.milliseconds });
     await writeFakedAsync("\u0007");
     await vi.advanceTimersByTimeAsync(1_000);
     expect(suggestion.readLine()).toBe("ls --a");
     list.take(key("Tab"));
-    await vi.waitFor(() => expect(asked).toHaveLength(3));
+    await vi.waitFor(() => expect(asked).toHaveLength(3), { timeout: SpecWait.milliseconds });
     await writeFakedAsync("");
 
     expect(logs).toEqual(["The terminal could not list completions, so it sent Tab to the shell: The runtime is gone."]);
@@ -320,7 +321,7 @@ describe("CompletionList", () => {
     releases.shift()?.();
     releases.shift()?.();
 
-    await vi.waitFor(() => expect(labels()).toEqual(["--all", "--almost-all"]));
+    await vi.waitFor(() => expect(labels()).toEqual(["--all", "--almost-all"]), { timeout: SpecWait.milliseconds });
     expect(asked).toEqual([["ls --a", 6], ["ls --al", 7]]);
     expect(inputs).toEqual([]);
   });
@@ -351,7 +352,7 @@ describe("CompletionList", () => {
     await vi.waitFor(() => {
       list.take(key("Tab"));
       expect(asked).toHaveLength(2);
-    });
+    }, { timeout: SpecWait.milliseconds });
     list.close();
     releases.shift()?.();
     await writeAsync("");

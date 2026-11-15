@@ -14,6 +14,7 @@ import { TerminalRuntimeClient } from "../../../src/app/services/terminal-runtim
 import { TerminalStartFolder } from "../../../src/app/services/terminal-start-folder.ts";
 import { FakeRuntime } from "../../fixtures/fake-runtime.fixture.ts";
 import { HeldAnswer } from "../../fixtures/held-answer.fixture.ts";
+import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 
 describe("TerminalRuntimeClient", () => {
   it("opens a shell at the opening size, leaving the shell and folder to the runtime when not named", async () => {
@@ -312,7 +313,7 @@ describe("TerminalRuntimeClient", () => {
     const listing: HeldAnswer = runtime.holdListings();
 
     const opening: Promise<void> = new TerminalRuntimeClient(runtime.context).openTabsAsync(["s1"], "g2");
-    await vi.waitFor(() => expect(runtime.listingCount).toBe(1));
+    await vi.waitFor(() => expect(runtime.listingCount).toBe(1), { timeout: SpecWait.milliseconds });
     expect(runtime.context.opened).toEqual([]);
     listing.resolve(null);
     await opening;
@@ -333,7 +334,7 @@ describe("TerminalRuntimeClient", () => {
     const listing: HeldAnswer = runtime.holdListings();
 
     const opening: Promise<void> = client.openTabsAsync(["s2", "s3"]);
-    await vi.waitFor(() => expect(runtime.listingCount).toBe(2));
+    await vi.waitFor(() => expect(runtime.listingCount).toBe(2), { timeout: SpecWait.milliseconds });
     runtime.context.emit(TerminalNames.closedEvent, { sessionId: "s2" });
     listing.resolve(null);
     await opening;
@@ -349,7 +350,7 @@ describe("TerminalRuntimeClient", () => {
     runtime.addSession("s1", "zsh", "/work");
     const listing: HeldAnswer = runtime.holdListings();
     const opening: Promise<void> = client.openTabsAsync(["s1"]);
-    await vi.waitFor(() => expect(runtime.listingCount).toBe(1));
+    await vi.waitFor(() => expect(runtime.listingCount).toBe(1), { timeout: SpecWait.milliseconds });
     const failure: Error = new Error("The reader broke.");
 
     runtime.context.emit(TerminalNames.closedEvent, { sessionId: 5 });

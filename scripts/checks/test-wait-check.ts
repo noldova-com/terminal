@@ -24,11 +24,14 @@ export class TestWaitCheck {
     const pausing: Set<string> = new Set<string>();
     const findings: string[] = [];
     for (const file of testFiles) {
-      const lines: readonly number[] = TestWaitCheck.findPauses(readFileSync(path.join(this.root, file), Resources.textEncoding));
+      const text: string = readFileSync(path.join(this.root, file), Resources.textEncoding);
+      const lines: readonly number[] = TestWaitCheck.findPauses(text);
       if (lines.length > 0)
         pausing.add(file);
       if (!listed.has(file))
         findings.push(...lines.map(t => Resources.formatTestWaitPause(file, t)));
+      if (file.startsWith(Resources.testWaitWindowFolder))
+        findings.push(...TestWaitCheck.findDefaultLimits(text).map(t => Resources.formatTestWaitDefaultLimit(file, t)));
     }
     for (const [file, line] of listed)
       if (!pausing.has(file))
@@ -64,6 +67,69 @@ export class TestWaitCheck {
         if (!TestWaitCheck.isInString(text, match.index))
           lines.add(text.slice(0, match.index).split(Resources.lineEnd).length);
     return [...lines].sort((a, b) => a - b);
+  }
+
+  private static findDefaultLimits(text: string): readonly number[] {
+    const lines: number[] = [];
+    for (const match of text.matchAll(Resources.testWaitLimitedCalls))
+      if (!TestWaitCheck.isInString(text, match.index) && !TestWaitCheck.hasLimit(text, match.index + match[0].length))
+        lines.push(text.slice(0, match.index).split(Resources.lineEnd).length);
+    return lines;
+  }
+
+  private static hasLimit(text: string, start: number): boolean {
+    const options: string | undefined = TestWaitCheck.readItems(text, start)[1]?.trim();
+    if (options === undefined || options === "")
+      return false;
+    if (!options.startsWith(Resources.testWaitObjectStart))
+      return true;
+    return TestWaitCheck.readItems(options, 1).some(t => Resources.testWaitTimeoutProperty.test(t));
+  }
+
+  private static readItems(text: string, start: number): readonly string[] {
+    const items: string[] = [];
+    let itemStart: number = start;
+    let depth: number = 1;
+    let quote: string | null = null;
+    let isInClass: boolean = false;
+    let previous: string = Resources.testWaitOpenings.charAt(0);
+    for (let position = start; position < text.length && depth > 0; position++) {
+      const character: string = text.charAt(position);
+      if (quote === Resources.testWaitRegexDelimiter) {
+        if (character === Resources.testWaitEscape)
+          position++;
+        else if (character === Resources.testWaitClassStart)
+          isInClass = true;
+        else if (character === Resources.testWaitClassEnd)
+          isInClass = false;
+        else if (character === quote && !isInClass)
+          quote = null;
+      }
+      else if (quote !== null) {
+        if (character === Resources.testWaitEscape)
+          position++;
+        else if (character === quote)
+          quote = null;
+      }
+      else if (Resources.testWaitQuotes.includes(character))
+        quote = character;
+      else if (character === Resources.testWaitRegexDelimiter && Resources.testWaitRegexStarts.includes(previous))
+        quote = character;
+      else if (Resources.testWaitOpenings.includes(character))
+        depth++;
+      else if (Resources.testWaitClosings.includes(character)) {
+        depth--;
+        if (depth === 0)
+          items.push(text.slice(itemStart, position));
+      }
+      else if (depth === 1 && character === Resources.testWaitArgumentSeparator) {
+        items.push(text.slice(itemStart, position));
+        itemStart = position + 1;
+      }
+      if (character.trim() !== "")
+        previous = character;
+    }
+    return items;
   }
 
   private static isInString(text: string, index: number): boolean {

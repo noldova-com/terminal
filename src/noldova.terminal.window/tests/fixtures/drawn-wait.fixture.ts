@@ -8,8 +8,10 @@
 
 import { expect, vi } from "vitest";
 
+import { SpecWait } from "./spec-wait.fixture.ts";
+
 export class DrawnWait {
-  public static readonly milliseconds: number = 10_000;
+  public static readonly milliseconds: number = SpecWait.milliseconds;
 
   public static async untilAsync<TDrawn>(what: string, read: () => Promise<TDrawn>, expected: TDrawn): Promise<void> {
     let drawn: TDrawn | undefined;
