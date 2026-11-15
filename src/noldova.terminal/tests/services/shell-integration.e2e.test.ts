@@ -303,6 +303,29 @@ describe("shell integration with real shells", () => {
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
+  for (const shellId of POSIX_SHELLS.filter(t => t !== "zsh"))
+    it(`[${shellId}] sends no end mark again after a subshell's once the person's PROMPT_COMMAND replaces the integration's hooks`, async context => {
+      context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
+      const sessionId: string = await fixture.openAsync(shellId, workFolder);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForQuietAsync(sessionId);
+      const promptsAfter = (count: number): (() => boolean) => () => fixture.kinds(sessionId).split("B").length > count;
+
+      await fixture.typeAsync(sessionId, "(exit 3)\r");
+      await fixture.waitForAsync(sessionId, () => /D.*B/u.test(fixture.kinds(sessionId)), "No prompt followed the subshell's end.", 2 * WAIT_MS);
+      const ended: string = fixture.kinds(sessionId);
+      const prompts: number = ended.split("B").length;
+      await fixture.typeAsync(sessionId, "unset PROMPT_COMMAND; PROMPT_COMMAND=:\r");
+      await fixture.waitForAsync(sessionId, promptsAfter(prompts), "No prompt followed the line that replaces PROMPT_COMMAND.", 2 * WAIT_MS);
+      await fixture.typeAsync(sessionId, "true\r");
+      await fixture.waitForAsync(sessionId, promptsAfter(prompts + 1), "No prompt followed true.", 2 * WAIT_MS);
+      await fixture.waitForQuietAsync(sessionId);
+
+      const ends: readonly ShellMarkView[] = fixture.marks(sessionId).filter(t => t.kind === "D");
+      assert.deepEqual(ends.map(t => t.value), ["3"], `A later prompt sent an end mark again. Marks: ${fixture.kinds(sessionId)}.`);
+      await fixture.callAsync("terminal.close", { sessionId });
+    });
+
   for (const shellId of POSIX_SHELLS)
     it(`[${shellId}] marks the end of ${shellId}'s continuation prompt, once for each line a command goes on to`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
