@@ -677,12 +677,15 @@ describe("shell integration with real shells", () => {
         await fixture.waitForQuietAsync(sessionId);
         const after: string = await screen("p2");
         const answeredMarks: string = fixture.kinds(sessionId).slice(marked.length);
+        const answer: string = `The completion answered ${JSON.stringify(completion.toJson())}, with marks ${answeredMarks === "" ? "none" : answeredMarks} after `
+          + `it asked and the last options mark ${JSON.stringify(fixture.marks(sessionId).findLast(t => t.kind === "O")?.value ?? null)}. `
+          + `Marks: ${fixture.kinds(sessionId)}. Output ends with: ${JSON.stringify(fixture.text(sessionId).slice(-OUTPUT_TAIL))}`;
         await fixture.typeAsync(sessionId, "\u007f".repeat(14));
         await promptAsync(historyLine);
         const counts: readonly string[] = [...fixture.text(sessionId).matchAll(/\[history-(\d+)\]/gu)].map(t => t[1] ?? "");
 
         assert.deepEqual([completion.isShellTab, completion.items.map(t => [t.label, t.kind])],
-          [false, isPowerShell ? [["-Alpha", "Option"], ["-Beta", "Option"]] : [["--alpha", "Option"], ["--beta", "Option"]]]);
+          [false, isPowerShell ? [["-Alpha", "Option"], ["-Beta", "Option"]] : [["--alpha", "Option"], ["--beta", "Option"]]], answer);
         assert.equal(after, before, "The binding changed the screen.");
         assert.equal(answeredMarks, "O", "The binding sent marks other than its answer, such as a prompt or a command's.");
         assert.equal(Number(counts.at(-1)) - Number(counts.at(-2)), 1, `The history grew by more than the line that counts it: ${counts.join(", ")}.`);
