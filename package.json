@@ -16,6 +16,7 @@
     "peers:newest": "node scripts/move-peers.ts",
     "test": "node scripts/test.ts",
     "probe:runtime": "bash probe/runtime-dir.sh",
+    "probe:mutex": "bash probe/mutex-race.sh",
     "test:timing": "node scripts/timing/timing-check.ts"
   },
   "devDependencies": {
