@@ -691,6 +691,12 @@ describe("shell integration with real shells", () => {
         const screen = async (paneId: string): Promise<string> =>
           TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId })).snapshot;
         const before: string = await screen("p1");
+        if (!isPowerShell) {
+          const attached: number = fixture.kinds(sessionId).length;
+          await fixture.callAsync("terminal.complete", { sessionId, line: "noldovaprobe -", cursor: 14, asksShell: true });
+          await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).slice(attached).includes("O"),
+            `${shellId} did not answer the ask after the attach.`, OPTIONS_WAIT_MS);
+        }
         await fixture.waitForQuietAsync(sessionId);
         const marked: string = fixture.kinds(sessionId);
 
