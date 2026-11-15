@@ -952,7 +952,8 @@ describe("shell integration with real shells", () => {
 
         assert.deepEqual(fixture.marks(sessionId).filter(t => t.value?.startsWith(Resources.temporaryFolderProperty) === true), []);
         assert.deepEqual(completion.items.map(t => t.label), [probe], `The completion answered in ${answeredIn} ms with ${JSON.stringify(completion.toJson())}. `
-          + `Listing ${startTemp} after it took ${listedIn} ms and found ${entries.length} entries, the probe ${entries.includes(probe) ? "among them" : "not among them"}.`);
+          + `Listing ${startTemp} after it took ${listedIn} ms and found ${entries.length} entries, the probe ${entries.includes(probe) ? "among them" : "not among them"}. `
+          + `The runtime logged ${JSON.stringify(fixture.context.log.callsOf("write"))}.`);
         await fixture.callAsync("terminal.close", { sessionId });
       }
       finally {

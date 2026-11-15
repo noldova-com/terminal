@@ -14,11 +14,13 @@ export class StartedShell {
   public readonly nonce: string | null;
   public readonly printsNote: boolean;
   public readonly deferred: DeferredPtyProcess | null;
+  public readonly temporaryFolder: string | null;
 
-  public constructor(process: IPtyProcess, nonce: string | null, printsNote: boolean, deferred: DeferredPtyProcess | null) {
+  public constructor(process: IPtyProcess, nonce: string | null, printsNote: boolean, deferred: DeferredPtyProcess | null, temporaryFolder: string | null) {
     this.process = process;
     this.nonce = nonce;
     this.printsNote = printsNote;
     this.deferred = deferred;
+    this.temporaryFolder = temporaryFolder;
   }
 }
