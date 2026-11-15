@@ -4049,11 +4049,11 @@ describe("TerminalHost", () => {
         });
 
       it("types a run into a new shell whose integration loaded but never ended its first prompt 60 seconds after its loaded mark, not before, and answers it as ended at once", async () => {
-        const fixture: HostFixture = await HostFixture.createAsync();
-        const { result, process } = await startNewAsync(fixture);
-        const nonce: string = nonceOf(fixture, process);
-        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        vi.useFakeTimers();
         try {
+          const fixture: HostFixture = await HostFixture.createAsync();
+          const { result, process } = await startNewAsync(fixture);
+          const nonce: string = nonceOf(fixture, process);
           process.emitData(`\u001b]6973;L;${nonce}\u0007\u001b]6973;P;${nonce};Cwd=/work\u0007\u001b]6973;A;${nonce}\u0007PS /work> `);
 
           await vi.advanceTimersByTimeAsync(59_999);
@@ -4063,11 +4063,12 @@ describe("TerminalHost", () => {
 
           assert.deepEqual([beforeLimit, process.writes, outcome], [[], ["npm test\r"], "Typed"]);
           assert.deepEqual([endedRuns.map(t => t.toJson()), fixture.runEnded.published], [[{ sessionId, runId, endedBy: "NoIntegration", exitCode: null }], []]);
+          vi.useRealTimers();
+          await fixture.endAllAsync();
         }
         finally {
           vi.useRealTimers();
         }
-        await fixture.endAllAsync();
       });
 
       it("answers a run into a new shell without the integration as ended at once, since its end can't be told", async () => {
