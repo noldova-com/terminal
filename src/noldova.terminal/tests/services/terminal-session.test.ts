@@ -1011,18 +1011,35 @@ describe("TerminalSession marking the shell's line", () => {
       await session.disposeAsync();
     });
 
-    it("ends the requests waiting when a new prompt or a command starts, and drops an answer no request waits for", async () => {
+    it("keeps a request waiting while the shell redraws its prompt in place, as zsh can before it answers, and takes the answer", async () => {
+      const process: FakePtyProcess = new FakePtyProcess();
+      const session: TerminalSession = createBoundSession(process);
+      process.emitData("git -");
+      const redraw: string = "\r\r\u001b[J\u001b]6973;A;n1\u0007$ \u001b]6973;B;n1\u0007git -";
+
+      const reply: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
+      process.emitData(`${redraw}${redraw}\u001b]6973;O;n1;--all\u0007`);
+
+      assert.deepEqual((await reply).options, ["--all"]);
+      await session.disposeAsync();
+    });
+
+    it("ends the requests waiting at a new prompt after a command's end or when a command starts, and drops an answer no request waits for", async () => {
       const process: FakePtyProcess = new FakePtyProcess();
       const session: TerminalSession = createBoundSession(process);
 
       process.emitData("\u001b]6973;O;n1;--unasked\u0007");
-      const promptedOver: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
-      process.emitData("\u001b]6973;A;n1\u0007$ \u001b]6973;B;n1\u0007");
-      const reprompted: ShellOptionsReply = await promptedOver;
+      const endedOver: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
+      process.emitData("\r\n\u001b]6973;D;n1;0\u0007\u001b]6973;A;n1\u0007$ \u001b]6973;B;n1\u0007");
+      const reprompted: ShellOptionsReply = await endedOver;
+      const startedOver: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
+      process.emitData("\r\n\u001b]6973;C;n1\u0007");
+      const started: ShellOptionsReply = await startedOver;
+      process.emitData("\u001b]6973;D;n1;0\u0007\u001b]6973;A;n1\u0007$ \u001b]6973;B;n1\u0007");
       const answered: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
       process.emitData("\u001b]6973;O;n1;--all\u0007");
 
-      assert.deepEqual([reprompted, (await answered).options], [ShellOptionsReply.none, ["--all"]]);
+      assert.deepEqual([reprompted, started, (await answered).options], [ShellOptionsReply.none, ShellOptionsReply.none, ["--all"]]);
       await session.disposeAsync();
     });
 
