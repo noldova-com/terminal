@@ -6,7 +6,9 @@ Each version's section is written by the pull request that changes the version, 
 
 ## 0.0.2
 
-- The packages are published through npm's trusted publishing, with provenance, so the release stores no token. They hold what 0.0.1 holds.
+- The packages are published through npm's trusted publishing, with provenance, so the release stores no token.
+- On Linux, before the first pwsh starts, the runtime makes `$XDG_RUNTIME_DIR/.dotnet/shm`, mode 0700, when it is missing, since .NET 10's race in making that folder (dotnet/runtime#136236) can keep PSReadLine from starting when several pwsh start at once, as after a reboot.
+- After a shell's integration says it loaded, a Run, a launch's command and an agent's new terminal wait at most 60 seconds for its first prompt, then type the command.
 
 ## 0.0.1
 
