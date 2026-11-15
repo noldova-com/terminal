@@ -380,24 +380,28 @@ describe("the runtime part with real shells", () => {
     await fixture.part.deactivateAsync();
   });
 
-  it("tells a launched subshell's end with its exit code, 3 from bash and zsh alike, never the person's next command's", async context => {
-    context.skip(IS_WINDOWS, "The launch's command is a POSIX subshell, (exit 3), which PowerShell, Windows' default shell, has no syntax for.");
-    const fixture: RuntimeFixture = new RuntimeFixture();
-    await fixture.part.activateAsync(fixture.context);
+  const subshellShells: readonly (readonly [string, string])[] = [["bash", process.platform === "darwin" ? "/bin/bash" : "bash"], ["zsh", "zsh"]];
+  for (const [shellId, file] of subshellShells)
+    it(`[${shellId}] tells a launched subshell's end with its exit code, 3, never the person's next command's, in macOS's /bin/bash 3.2 too`, async context => {
+      context.skip(IS_WINDOWS, "Windows has no shell with the id bash or zsh; Git Bash goes by its own id there.");
+      const fixture: RuntimeFixture = new RuntimeFixture();
+      await fixture.part.activateAsync(fixture.context);
+      const shells: readonly string[] = TerminalShells.fromJson(await fixture.callAsync("terminal.shells", null)).shells.map(t => t.id);
+      context.skip(!shells.includes(shellId), `${shellId} is not installed.`);
 
-    const launched: TerminalLaunched = TerminalLaunched.fromJson(await fixture.callAsync("terminal.launch", { shellId: null, folder,
-      size: { cols: 400, rows: 30 }, storedLimit: 104_857_600, environment: {}, notice: null, command: "(exit 3)", opensTab: true }));
-    const sessionId: string = launched.sessionId ?? "";
-    await fixture.waitForEventsAsync("terminal.launchCommandEnded", 1);
-    await fixture.typeAsync(sessionId, "echo \"after=$((1+1)).\"\r");
-    await fixture.waitForTextAsync(sessionId, "after=2.");
+      const launched: TerminalLaunched = TerminalLaunched.fromJson(await fixture.callAsync("terminal.launch", { shellId, folder,
+        size: { cols: 400, rows: 30 }, storedLimit: 104_857_600, environment: {}, notice: null, command: "(exit 3)", opensTab: true }));
+      const sessionId: string = launched.sessionId ?? "";
+      await fixture.waitForEventsAsync("terminal.launchCommandEnded", 1);
+      await fixture.typeAsync(sessionId, file.startsWith("/") ? `echo "after=$((1+1)) in $BASH."\r` : `echo "after=$((1+1)) in ${file}."\r`);
+      await fixture.waitForTextAsync(sessionId, `after=2 in ${file}.`);
 
-    const ended: readonly JsonValue[] = fixture.published("terminal.launchCommandEnded");
-    assert.equal(ended.length, 1);
-    assert.equal(TerminalCommandEnded.fromJson(ended[0]).exitCode, 3);
-    await fixture.callAsync("terminal.close", { sessionId });
-    await fixture.part.deactivateAsync();
-  });
+      const ended: readonly JsonValue[] = fixture.published("terminal.launchCommandEnded");
+      assert.equal(ended.length, 1);
+      assert.equal(TerminalCommandEnded.fromJson(ended[0]).exitCode, 3);
+      await fixture.callAsync("terminal.close", { sessionId });
+      await fixture.part.deactivateAsync();
+    });
 
   const wrappedPrompt: string = "wrapped-prompt-wider-than-twenty-columns> ";
   const wrappedShells: readonly (readonly [string, string | null, string, (name: string, left: number, right: number) => string])[] = [

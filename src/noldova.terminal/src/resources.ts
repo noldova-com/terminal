@@ -1074,6 +1074,11 @@ if [ -n "\${__noldova_nonce_read-}" ] && [ -z "\${__noldova_nonce-}" ]; then
   builtin unset __noldova_path __noldova_names
   __noldova_ready=0
   __noldova_has_preexec=0
+  __noldova_idle=0
+  __noldova_number=0
+  __noldova_prepared=0
+  __noldova_untrapped=("" "")
+  __noldova_untrapped_end=""
 
   __noldova_mark() {
     builtin printf '\\033]6973;%s;%s%s\\007' "$1" "$__noldova_nonce" "\${2+;$2}"
@@ -1208,6 +1213,16 @@ if [ -n "\${__noldova_nonce_read-}" ] && [ -z "\${__noldova_nonce-}" ]; then
     if [ "$__noldova_in_command" = 1 ] || { [ "$__noldova_has_preexec" = 0 ] && [ "$__noldova_ready" = 1 ]; }; then
       __noldova_mark D "$__noldova_status"
     fi
+    # Bash before 4.4 runs no DEBUG trap for a subshell such as (exit 3), so when no trap fired since the last prompt, PS1 sends the end mark
+    # with the status, and only once the shell's command number grew, so an empty line ends nothing. PS1 sends it only for the prompt this hook
+    # prepared, so a PROMPT_COMMAND that no longer runs the hook gets no stale end mark.
+    __noldova_prepared=1
+    if [ "$__noldova_idle" = 1 ]; then
+      __noldova_untrapped[1]="$__noldova_end_open$__noldova_status$__noldova_end_close"
+    else
+      __noldova_untrapped[1]=""
+    fi
+    __noldova_idle=0
     __noldova_in_command=0
     # With promptvars on, PS1 and PS0 name the marks' variables instead of holding the marks, so a PS1 or PS0 that is exported, as a virtual
     # environment's activate script exports PS1, hands no nonce on. Without it, PS1 holds the marks. Either form counts as marked, so a later
@@ -1217,7 +1232,7 @@ if [ -n "\${__noldova_nonce_read-}" ] && [ -z "\${__noldova_nonce-}" ]; then
       *'\${__noldova_prompt_end-}'* | *"$__noldova_prompt_end"*) ;;
       *)
         if builtin shopt -q promptvars; then
-          PS1='\\[\${__noldova_prompt_start-}\\]'"$PS1"'\\[\${__noldova_prompt_end-}\\]'
+          PS1="$__noldova_untrapped_end"'\\[\${__noldova_prompt_start-}\\]'"$PS1"'\\[\${__noldova_prompt_end-}\\]'
         else
           PS1="\\[$__noldova_prompt_start\\]$PS1\\[$__noldova_prompt_end\\]"
         fi ;;
@@ -1256,7 +1271,7 @@ if [ -n "\${__noldova_nonce_read-}" ] && [ -z "\${__noldova_nonce-}" ]; then
     builtin set +x
     if [ "$__noldova_ready" = 1 ] && [ -z "\${COMP_LINE-}" ]; then
       case "$BASH_COMMAND" in
-        __noldova_capture*) __noldova_ready=0 ;;
+        __noldova_capture*) __noldova_ready=0; __noldova_idle=1 ;;
         *) __noldova_ready=0; __noldova_in_command=1; __noldova_mark C ;;
       esac
     fi
@@ -1267,13 +1282,18 @@ if [ -n "\${__noldova_nonce_read-}" ] && [ -z "\${__noldova_nonce-}" ]; then
 
   # Bash 4.4 and later expand PS0 for each command line they run, a subshell such as (exit 3) included, which the DEBUG trap misses: the
   # arithmetic marks the command in this shell, and the mark goes out before the command's output. Older bash, or prompts without expansion,
-  # keep the DEBUG trap.
+  # keep the DEBUG trap. With the trap, PS1 compares the shell's command number, \\#, which grows only when a command line runs, with the
+  # last prompt's, and sends the end mark the prompt's hook left when no trap fired, as for a subshell, once, at the prompt the hook prepared.
   if (( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )) && builtin shopt -q promptvars; then
     __noldova_has_preexec=1
     __noldova_output_start="\\\${__noldova_nonce:0:\\$((__noldova_in_command = 1, 0))}\\\${__noldova_command_start-}"
   elif [ -z "$(builtin trap -p DEBUG)" ]; then
     __noldova_has_preexec=1
     builtin trap '__noldova_preexec' DEBUG
+    builtin printf -v __noldova_end_open '\\033]6973;D;%s;' "$__noldova_nonce"
+    builtin printf -v __noldova_end_close '\\007'
+    builtin export -n __noldova_end_open __noldova_end_close __noldova_untrapped
+    __noldova_untrapped_end='\\[\${__noldova_untrapped[(\\# > __noldova_number) * __noldova_prepared]-}\${__noldova_nonce:0:$((__noldova_number = \\#, __noldova_prepared = 0, 0))}\\]'
   fi
   # Bash 5.1 runs every element of an array PROMPT_COMMAND, so the hooks go first and last, or the DEBUG trap takes a later element for a command.
   if [[ "$(builtin declare -p PROMPT_COMMAND 2>/dev/null)" == "declare -a"* ]] && (( BASH_VERSINFO[0] > 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] >= 1) )); then
