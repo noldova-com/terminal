@@ -14,3 +14,5 @@ Each version's section is written by the pull request that changes the version, 
 - Each package has one base exception, which extends context's `Exception`: `TerminalProtocolException`, the runtime's `TerminalException`, and the window's `TerminalWindowException`, which `@noldova/terminal/window` re-exports.
 - Each window tells the runtime which owner's terminals it shows, through `terminal.showOwner`, so a run's new terminal starts its shell at its pane's first fit, or at once when no window shows its owner.
 - `TerminalSummary` carries `shellName` and `shellKind`, so a window names and marks a new tab from the terminal list.
+- On Linux, before the first pwsh starts, the runtime makes `$XDG_RUNTIME_DIR/.dotnet/shm`, mode 0700, when it is missing, since .NET 10's race in making that folder (dotnet/runtime#136236) can keep PSReadLine from starting when several pwsh start at once, as after a reboot.
+- After a shell's integration says it loaded, a Run, a launch's command and an agent's new terminal wait at most 60 seconds for its first prompt, then type the command.
