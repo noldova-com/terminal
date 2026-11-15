@@ -35,6 +35,7 @@ import { PrivateFolder } from "../fixtures/private-folder.fixture.ts";
 import { SupervisedTerminals } from "../fixtures/supervised-terminals.fixture.ts";
 
 const WAIT_MS: number = 20_000;
+const SHELL_COLD_START_MS: number = 55_000;
 const TEXT_POLL_MS: number = 100;
 const OUTPUT_TAIL: number = 1_500;
 const QUIET_MS: number = 1_000;
@@ -221,7 +222,7 @@ describe("shell integration with real shells", () => {
     it(`[${shellId}] marks ${shellId}'s prompts and commands after the person's startup files`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
       const nonce: string = fixture.marks(sessionId)[0]?.nonce ?? "";
       assert.deepEqual(await nonceFilesAsync(nonce), [], "The shell's nonce file stayed.");
@@ -253,7 +254,7 @@ describe("shell integration with real shells", () => {
       await writeFile(join(home, ".bashrc"), `shopt -u promptvars\n${BASH_STARTUP}`, "utf8");
       try {
         const sessionId: string = await fixture.openAsync(shellId, workFolder);
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
         await fixture.waitForQuietAsync(sessionId);
         const nonce: string = fixture.marks(sessionId)[0]?.nonce ?? "";
 
@@ -281,7 +282,7 @@ describe("shell integration with real shells", () => {
     it(`[${shellId}] marks the end of a ${shellId} command line that starts with a subshell with its code, its start where the shell runs a hook for it, and no end for an empty line`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
       const hasStart: boolean = shellId === "zsh" || await hasPs0Async(join(home, "bash-version"));
 
@@ -307,7 +308,7 @@ describe("shell integration with real shells", () => {
     it(`[${shellId}] sends no end mark again after a subshell's once the person's PROMPT_COMMAND replaces the integration's hooks`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
       const promptsAfter = (count: number): (() => boolean) => () => fixture.kinds(sessionId).split("B").length > count;
 
@@ -330,7 +331,7 @@ describe("shell integration with real shells", () => {
     it(`[${shellId}] marks the end of ${shellId}'s continuation prompt, once for each line a command goes on to`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
       const marked: number = fixture.kinds(sessionId).length;
 
@@ -348,7 +349,7 @@ describe("shell integration with real shells", () => {
     it(`[${shellId}] marks ${shellId}'s prompts and commands after the person's profiles`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
       assert.deepEqual(await nonceFilesAsync(fixture.marks(sessionId)[0]?.nonce ?? ""), [], "The shell's nonce file stayed.");
 
@@ -366,7 +367,7 @@ describe("shell integration with real shells", () => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       await withProfilesAsync(context, shellId, PROFILES, async () => {
         const sessionId: string = await fixture.openAsync(shellId, workFolder);
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
         await fixture.waitForQuietAsync(sessionId);
 
         await fixture.typeAsync(sessionId, "\"[runs-$(Get-NoldovaProfileRuns)]\"; gi nx\r");
@@ -389,7 +390,7 @@ describe("shell integration with real shells", () => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       await mkdir(join(workFolder, C1_FOLDER), { recursive: true });
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
 
       await fixture.typeAsync(sessionId, POWERSHELLS.includes(shellId) ? "cd \"c1-$([char] 0x9c)-folder\"\r" : "cd \"$(printf 'c1-\\302\\234-folder')\"\r");
@@ -404,7 +405,7 @@ describe("shell integration with real shells", () => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
         await mkdir(join(workFolder, ESCAPED_FOLDER), { recursive: true });
         const sessionId: string = await fixture.openAsync(shellId, workFolder);
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
         await fixture.waitForQuietAsync(sessionId);
 
         await fixture.typeAsync(sessionId, "cd escaped-*-folder\r");
@@ -421,7 +422,7 @@ describe("shell integration with real shells", () => {
       const sessionId: string = await fixture.openAsync(shellId, missing);
       const word: string = `after-note-${randomUUID().slice(0, 8)}`;
 
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.typeAsync(sessionId, `echo ${word.slice(0, -1)}'${word.slice(-1)}'\r`);
       await fixture.waitForAsync(sessionId, t => t.includes(word), "The shell did not echo.");
       const attachment: TerminalAttachment = TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId: "p1" }));
@@ -505,7 +506,7 @@ describe("shell integration with real shells", () => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
         const sessionId: string = await fixture.openAsync(shellId, workFolder);
         const other: string = await fixture.openAsync(shellId, workFolder);
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
         await fixture.waitForQuietAsync(sessionId);
 
         await fixture.typeAsync(sessionId, "echo noldova-317\r");
@@ -540,7 +541,7 @@ describe("shell integration with real shells", () => {
         const prompted: () => boolean = () => /C[^B]*B[^C]*$/u.test(fixture.kinds(sessionId));
         const waitForCommandAsync: (command: string) => Promise<void> = command => vi.waitFor(() => assert.ok(fixture.commandsAdded(sessionId).includes(command),
           `The commands kept were ${JSON.stringify(fixture.commandsAdded(sessionId))}.`), { timeout: WAIT_MS, interval: TEXT_POLL_MS });
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
         await fixture.waitForQuietAsync(sessionId);
         await fixture.typeAsync(sessionId, `${REDRAW_BINDINGS.get(shellId) ?? ""}\r`);
         await fixture.waitForAsync(sessionId, prompted, "No prompt after the key binding.");
@@ -575,7 +576,7 @@ describe("shell integration with real shells", () => {
         await writeFile(join(names, name), "", "utf8");
       const isPowerShell: boolean = POWERSHELLS.includes(shellId);
       const sessionId: string = await fixture.openAsync(shellId, names);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
 
       for (const name of COMPLETED_NAMES) {
@@ -621,7 +622,7 @@ describe("shell integration with real shells", () => {
       await writeFile(join(bin, process.platform === "win32" ? "noldovaprobe.cmd" : "noldovaprobe"), process.platform === "win32" ? "@echo off\r\n" : "#!/bin/sh\n",
         { encoding: "utf8", mode: 0o755 });
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
       const completeAsync = async (): Promise<readonly string[]> =>
         TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line: "noldovapro", cursor: 10 })).items.map(t => t.label);
@@ -650,7 +651,7 @@ describe("shell integration with real shells", () => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
         const isPowerShell: boolean = POWERSHELLS.includes(shellId);
         const sessionId: string = await fixture.openAsync(shellId, workFolder);
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
         await fixture.waitForQuietAsync(sessionId);
         const promptAsync = async (line: string): Promise<void> => {
           const marked: number = fixture.kinds(sessionId).length;
@@ -692,7 +693,7 @@ describe("shell integration with real shells", () => {
     it(`[${shellId}] registers no completion binding in ${shellId}, whose request for options sends it nothing`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
       await fixture.typeAsync(sessionId, "echo \"[bound-$(bind -X | grep -c noldova)]\"\r");
       await fixture.waitForAsync(sessionId, t => t.includes("[bound-0]"), `${shellId} has a binding of the module's.`);
@@ -717,7 +718,7 @@ describe("shell integration with real shells", () => {
       const isPowerShell: boolean = POWERSHELLS.includes(shellId);
       const checkAsync = async (): Promise<void> => {
         const sessionId: string = await fixture.openAsync(shellId, workFolder);
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
         await fixture.waitForQuietAsync(sessionId);
         await fixture.typeAsync(sessionId, isPowerShell ? "\"[bound-$((Get-PSReadLineKeyHandler -Bound | Where-Object Key -like 'F12*').Key -join ',')]\"\r"
           : "echo \"[bound-$(bindkey '^[[24;7~' | cut -d' ' -f2)]\"\r");
@@ -751,7 +752,7 @@ describe("shell integration with real shells", () => {
     it(`[${shellId}] finds the names ${shellId} would run, its keywords, aliases and functions too, once a prompt reports them`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
       const findAsync = async (): Promise<readonly string[]> => TerminalMissingCommands.fromJson(await fixture.callAsync("terminal.findCommands",
         { sessionId, names: ["if", "cd", "ls", "noldovaalias", "noldovafunction", "noldovanone"] })).names;
@@ -794,7 +795,7 @@ describe("shell integration with real shells", () => {
         await writeFile(join(modules, "NoldovaBare", "NoldovaBare.psm1"), `${marking}function Invoke-NoldovaBare { }\n`, "utf8");
         await withProfilesAsync(context, shellId, PROFILES, async () => {
           const sessionId: string = await fixture.openAsync(shellId, workFolder);
-          await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+          await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
           await fixture.waitForQuietAsync(sessionId);
           const marked: number = fixture.kinds(sessionId).length;
 
@@ -820,7 +821,7 @@ describe("shell integration with real shells", () => {
       const folder: string = join(dirname(workFolder), `autocd-${shellId}`);
       await mkdir(join(folder, "noldovafolder"), { recursive: true });
       const sessionId: string = await fixture.openAsync(shellId, folder);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
       if (shellId === "git-bash" && !fixture.marks(sessionId).some(t => t.value?.startsWith("Names=") === true)) {
         await fixture.callAsync("terminal.close", { sessionId });
@@ -850,7 +851,7 @@ describe("shell integration with real shells", () => {
       async context => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
         const sessionId: string = await fixture.openAsync(shellId, workFolder);
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
         await fixture.waitForQuietAsync(sessionId);
         const marked: number = fixture.kinds(sessionId).length;
         const start: number = fixture.text(sessionId).length;
@@ -877,7 +878,7 @@ describe("shell integration with real shells", () => {
     await writeFile(join(bin, "noldovaprobe.cmd"), "@echo off\r\n", "utf8");
     await writeFile(join(failing, "cygpath"), "#!/bin/sh\nexit 1\n", { encoding: "utf8", mode: 0o755 });
     const sessionId: string = await fixture.openAsync("git-bash", workFolder);
-    await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+    await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
     await fixture.waitForQuietAsync(sessionId);
     const changePathAsync = async (added: string): Promise<readonly string[]> => {
       const marked: number = fixture.kinds(sessionId).length;
@@ -908,7 +909,7 @@ describe("shell integration with real shells", () => {
       await writeFile(join(home, ".bashrc"), `${BASH_STARTUP}export PATH="$(cygpath -u '${failing}'):$PATH"\n`, "utf8");
       try {
         const sessionId: string = await fixture.openAsync("git-bash", workFolder);
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
         await fixture.waitForQuietAsync(sessionId);
 
         const line: string = `printf '[%s]\\n' /tmp/${probe.slice(0, -2)}`;
@@ -927,7 +928,7 @@ describe("shell integration with real shells", () => {
   it("[git-bash] sends Git Bash's /tmp as cygpath -w /tmp prints it, and completes /tmp/ in that folder", async context => {
     context.skip(!shellIds.includes("git-bash"), "Git Bash is not installed.");
     const sessionId: string = await fixture.openAsync("git-bash", workFolder);
-    await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+    await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
     await fixture.waitForQuietAsync(sessionId);
     const sent: readonly string[] = fixture.marks(sessionId)
       .map(t => t.value ?? "")
@@ -958,7 +959,7 @@ describe("shell integration with real shells", () => {
       const sessionId: string = await fixture.openAsync("zsh", workFolder);
       const prompted: () => boolean = () => /C[^B]*B[^C]*$/u.test(fixture.kinds(sessionId));
       const right: string = "[right-317]";
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
       await fixture.typeAsync(sessionId, "RPROMPT=\"[right-$((300 + 17))]\"; bindkey '^G' reset-prompt\r");
       await fixture.waitForAsync(sessionId, t => prompted() && fixture.kinds(sessionId).endsWith("BR") && t.slice(t.lastIndexOf("\u0007")).includes(right),
@@ -1037,7 +1038,7 @@ describe("the Store install of PowerShell 7", () => {
       const shells: TerminalShells = TerminalShells.fromJson(await fixture.callAsync("terminal.shells", null));
       assert.equal(shells.shells.find(t => t.isDefault)?.id, "pwsh");
       const sessionId: string = await fixture.openAsync("pwsh", workFolder);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
 
       await fixture.typeAsync(sessionId, "\"[version-$($PSVersionTable.PSVersion.Major)] [home-$PSHOME]\"; gi nx\r");
@@ -1070,7 +1071,7 @@ describe("a PowerShell under the Restricted execution policy", () => {
         context.skip(!(await fixture.shellIdsAsync()).includes(shellId), `${shellId} is not installed.`);
         await withProfilesAsync(context, shellId, [POLICY_PROFILE], async () => {
           const sessionId: string = await fixture.openAsync(shellId, workFolder);
-          await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", 2 * WAIT_MS);
+          await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
           await fixture.waitForQuietAsync(sessionId);
 
           await fixture.typeAsync(sessionId, "\"[runs-$($NoldovaProfileRuns -join ',')]\"; gi nx\r");

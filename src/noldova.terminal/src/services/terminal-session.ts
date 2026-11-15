@@ -178,6 +178,16 @@ export class TerminalSession {
     return line;
   }
 
+  public async waitForStartAsync(isStarted: () => boolean, signal: AbortSignal): Promise<boolean> {
+    const startedAt: number = Date.now();
+    await this.changes.waitUntilAsync(isStarted, Resources.integrationWaitMilliseconds, signal);
+    if (!this.hasIntegration || isStarted() || this.text.endOffset > 0)
+      return false;
+    await this.changes.waitUntilAsync(() => isStarted() || this.text.endOffset > 0,
+      Math.max(0, Resources.shellStartMilliseconds - (Date.now() - startedAt)), signal);
+    return true;
+  }
+
   public async askOptionsAsync(keys: string): Promise<ShellOptionsReply> {
     if (!this.hasIntegration || !this.commands.hasOptionsBinding || !this.commands.isWaitingAtPrompt || this.commands.runningCommand !== null
       || this.exit !== null)

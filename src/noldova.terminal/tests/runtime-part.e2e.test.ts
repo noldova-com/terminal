@@ -271,8 +271,7 @@ describe("the runtime part with real shells", () => {
       const names: string[] = (await readdir(parent)).filter(t => PRIVATE_FOLDER.test(t));
 
       assert.equal(names.length, 2, `The part's folders: ${names.join(", ")}`);
-      for (const name of names)
-        PrivateFolder.assertPrivate(join(parent, name));
+      PrivateFolder.assertPrivate(...names.map(t => join(parent, t)));
       await fixture.callAsync("terminal.close", { sessionId });
     }
     finally {
