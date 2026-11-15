@@ -423,6 +423,12 @@ describe("the runtime part with real shells", () => {
         TerminalRunResult.fromJson(await fixture.callAsync("terminal.run", { owner: OWNER, command, folder, shellKinds: [], shellId,
           size: { cols: 20, rows: 10 }, storedLimit: 104_857_600, sessionId: null, whenBusy: "Refuse", opensTab: true }));
 
+      const probe = setTimeout(() => {
+        for (const id of new Set(fixture.outputs.map(t => t.sessionId)))
+          console.log("PROBE", shellId, id, JSON.stringify(fixture.text(id).slice(-4000)));
+        console.log("PROBE LOG", JSON.stringify(fixture.logged).slice(-4000));
+      }, 50_000);
+      context.onTestFinished(() => clearTimeout(probe));
       const first: TerminalRunResult = await run(`${setPrompt}; ${sum("first", 1, 1)}`);
       const sessionId: string = first.sessionId ?? "";
       await fixture.waitForTextAsync(sessionId, "columns> ");

@@ -14,6 +14,7 @@
   "scripts": {
     "build": "node scripts/build.ts",
     "peers:newest": "node scripts/move-peers.ts",
+    "probe:shells": "sh -c \"command -v pwsh | sudo tee -a /etc/shells\"",
     "test": "node scripts/test.ts",
     "test:timing": "node scripts/timing/timing-check.ts"
   },
