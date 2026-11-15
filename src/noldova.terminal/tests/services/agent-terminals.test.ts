@@ -363,6 +363,23 @@ describe("AgentTerminals", () => {
     }
   });
 
+  it("reads the prompt as idle after a focus report within the settle of keys the shell already read at a new prompt", async () => {
+    const fixture: TerminalsFixture = new TerminalsFixture();
+    fixture.host.bindAgentSession("session-1", "example.chat/42");
+    const terminal: IAgentTerminal = await fixture.openBashAsync();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      await fixture.host.handleAsync("terminal.input", { sessionId: terminal.id, data: "make\r" }, APP);
+      fixture.process.emitData(`make\r\n${fixture.mark("C")}${fixture.mark("D", "0")}${fixture.mark("A")}$ ${fixture.mark("B")}`);
+      await fixture.host.handleAsync("terminal.input", { sessionId: terminal.id, data: "\u001b[I" }, APP);
+
+      assert.equal(terminal.readPrompt().isIdle, true);
+    }
+    finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("reads the prompt as idle a settle after a key the shell swallows, and busy again at the next key", async () => {
     const fixture: TerminalsFixture = new TerminalsFixture();
     fixture.host.bindAgentSession("session-1", "example.chat/42");
