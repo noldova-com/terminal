@@ -49,6 +49,10 @@ export class BoundedReads {
     return this.boundAsync(() => this.reader.isProgramAsync(path), false);
   }
 
+  public readRealPathOrNullAsync(path: string): Promise<string | null> {
+    return this.boundAsync(() => this.reader.readRealPathOrNullAsync(path), null);
+  }
+
   private async boundAsync<T>(read: () => Promise<T>, late: T): Promise<T> {
     if (this.hasExpired) {
       this.hasCutShort = true;
