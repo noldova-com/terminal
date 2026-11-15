@@ -35,7 +35,7 @@ import { PrivateFolder } from "../fixtures/private-folder.fixture.ts";
 import { SupervisedTerminals } from "../fixtures/supervised-terminals.fixture.ts";
 
 const WAIT_MS: number = 20_000;
-const SHELL_COLD_START_MS: number = 60_000;
+const SHELL_COLD_START_MS: number = 55_000;
 const TEXT_POLL_MS: number = 100;
 const OUTPUT_TAIL: number = 1_500;
 const QUIET_MS: number = 1_000;
