@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess, type SpawnSyncReturns } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -830,6 +831,18 @@ describe("shell integration with real shells", () => {
               "nöldovanone"] })).names;
           const names: readonly string[] = (fixture.marks(sessionId).findLast(t => t.value?.startsWith("Names=") === true)?.value ?? "").split(" ");
           const isImported: boolean = await stat(imported).then(() => true, () => false);
+          const lookScript: string = "Get-Command -Name '[I]nvoke-NoldovaProbe' | ForEach-Object { $_.Source }";
+          const shellModulePath: string = fixture.marks(sessionId).findLast(t => t.value?.startsWith("ModulePath=") === true)?.value ?? "none";
+          console.log(`[probe-28] ${shellId} tmpdir ${tmpdir()}, modules ${modules}, long ${realpathSync.native(modules)}, shell reported ${shellModulePath}`);
+          for (const [label, folder, isBare] of [["as made", modules, false], ["long", realpathSync.native(modules), false], ["as made, bare env", modules, true],
+            ["long, bare env", realpathSync.native(modules), true]] as const) {
+            const env: Record<string, string> = isBare ? { PATH: process.env["PATH"] ?? "", PATHEXT: process.env["PATHEXT"] ?? "" }
+              : Object.fromEntries(Object.entries(process.env).flatMap(([k, v]) => v === undefined ? [] : [[k, v]]));
+            env["PSModulePath"] = `${folder};${process.env["PSModulePath"] ?? ""}`;
+            const looked: SpawnSyncReturns<string> = spawnSync(executableOf(shellId), ["-NoProfile", "-NonInteractive", "-Command", lookScript],
+              { encoding: "utf8", env, timeout: WAIT_MS });
+            console.log(`[probe-28] ${shellId} ${label}: found ${JSON.stringify(looked.stdout.trim())}, errors ${JSON.stringify(looked.stderr.trim().slice(0, 300))}`);
+          }
           assert.deepEqual([missing, names.includes("Get-NoldovaProfileRuns"), names.includes("Invoke-NoldovaProbe"), isImported],
             [["noldovanone", "nöldovanone"], true, false, false]);
           await fixture.callAsync("terminal.close", { sessionId });
