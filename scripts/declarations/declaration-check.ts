@@ -25,8 +25,10 @@ class DeclarationCheck {
   public run(): readonly string[] {
     const packageRoot: string = join(this.root, Resources.moduleFolder);
     const declaration: JsonObject | null = this.readObject(join(packageRoot, Resources.moduleFile));
-    const packageManifest: JsonObject | null = this.readObject(join(packageRoot, Resources.manifestFile));
-    const windowManifest: JsonObject | null = this.readObject(join(this.root, Resources.windowFolder, Resources.manifestFile));
+    const manifests: ReadonlyMap<string, JsonObject | null> = new Map<string, JsonObject | null>(
+      Resources.packageFolders.map(t => [t, this.readObject(join(this.root, t, Resources.manifestFile))]));
+    const packageManifest: JsonObject | null = manifests.get(Resources.moduleFolder) ?? null;
+    const windowManifest: JsonObject | null = manifests.get(Resources.windowFolder) ?? null;
     const rootManifest: JsonObject | null = this.readObject(join(this.root, Resources.manifestFile));
     if (declaration !== null)
       this.checkDeclaration(declaration);
@@ -35,6 +37,9 @@ class DeclarationCheck {
     const desktopCore: VersionRange | null = declaration === null ? null : this.readDesktopCore(declaration);
     if (packageManifest !== null && windowManifest !== null && rootManifest !== null)
       this.checkPins(packageManifest, windowManifest, rootManifest, desktopCore);
+    for (const [folder, manifest] of manifests)
+      if (manifest !== null)
+        this.checkPartPins(manifest, folder);
     return this.problems;
   }
 
@@ -146,6 +151,16 @@ class DeclarationCheck {
         this.problems.push(Resources.formatCoreBuildOutsideRange(name, pin, desktopCore.toString()));
     for (const name of Object.keys(this.readPins(rootManifest, Resources.dependenciesField, Resources.rootManifest)))
       this.problems.push(Resources.formatRootDependencyPinned(name));
+  }
+
+  private checkPartPins(manifest: JsonObject, folder: string): void {
+    for (const field of Resources.partPinFields) {
+      const pins: unknown = manifest[field];
+      if (DeclarationCheck.isObject(pins))
+        for (const name of Object.keys(pins))
+          if (name.startsWith(Resources.noldovaScope) && !name.startsWith(Resources.ownPackagePrefix))
+            this.problems.push(Resources.formatPartNoldovaPinned(folder, name, field));
+    }
   }
 
   private checkPeers(packageManifest: JsonObject, desktopCore: VersionRange | null): void {

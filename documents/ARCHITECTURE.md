@@ -144,7 +144,7 @@ Any other option beside `--list-copies` fails the build.
 
 Each is pinned exactly, as the organization's TypeScript standard says, by the package whose part uses it: the module package lists the runtime's, `@xterm/headless`, `@xterm/addon-serialize` and `node-pty`, and the window package the pane's.
 The packages are the root's npm workspaces, so the root's install holds them all, and the root manifest pins no runtime dependency, which the declaration check requires.
-The root manifest pins only the development tools exactly: TypeScript, Node.js's type declarations, Vitest and its V8 coverage, and the Noldova Desktop packages the runtime part's tests run against.
+The root manifest pins only the development tools exactly: TypeScript, Node.js's type declarations, Vitest and its V8 coverage, and every `@noldova` package the parts build and test against, once for all of them: context's, Noldova Desktop's and the kit's. A part's manifest pins none of them, so moving one to its newest version, as Module range does at the root, leaves no older copy under a part's folder.
 `@xterm/headless` 6.0.0's manifest names an ES module entry that its package lacks and has no exports map, so the runtime loads it through its CommonJS entry, in `XtermHeadlessLoader`, `src/noldova.terminal/src/services/xterm-headless-loader.ts`.
 That file's test fails once a published version ships the entry, which tells us the loader can go.
 
@@ -504,7 +504,7 @@ A terminal of bash, zsh or PowerShell shows one list of what can follow at the c
 ## The window part
 
 The window part is an Angular project in `src/noldova.terminal.window`, with its own exact pins in its manifest, which the root's lockfile records.
-It takes Angular and its CDK, Noldova Desktop's `@noldova/desktop.window` and its peers, and the kit at the version Noldova Desktop's window workspace holds as peers, pinned exactly among its development dependencies, and pins the three `@xterm` packages the pane draws with.
+It takes Angular and its CDK, pinned exactly among its development dependencies, Noldova Desktop's `@noldova/desktop.window` and its peers, and the kit at the version Noldova Desktop's window workspace holds as peers, which the root manifest pins, and pins the three `@xterm` packages the pane draws with.
 Angular's compiler builds with the root's TypeScript, 6.0.3, the one version in the repository.
 The part takes `IWindowPart`, its context, the view, document and command contributions and `WindowPartTokens` from `@noldova/desktop.window`, so a host provides its tokens.
 
