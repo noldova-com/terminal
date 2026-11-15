@@ -13,6 +13,8 @@ import { join } from "node:path";
 
 export class PrivateFolder {
   private static readonly waitMilliseconds: number = 20_000;
+  private static readonly windowsPowerShellColdStartMilliseconds: number = 60_000;
+  private static readonly pathSeparator: string = "--noldova-path--";
   private static readonly windowsReaders: readonly string[] = ["S-1-3-4", "S-1-5-18", "S-1-5-32-544"];
   private static readonly windowsOwners: readonly string[] = ["S-1-5-32-544"];
   private static readonly macEntry: RegExp = /^\s*\d+: /mu;
@@ -30,15 +32,17 @@ export class PrivateFolder {
     PrivateFolder.run("setfacl", ["-d", "-m", "u:nobody:rx,o::rx", folder]);
   }
 
-  public static assertPrivate(path: string): void {
+  public static assertPrivate(...paths: readonly string[]): void {
     if (process.platform === "win32") {
-      PrivateFolder.assertWindowsReaders(path);
+      PrivateFolder.assertWindowsReaders(paths);
       return;
     }
-    assert.equal(statSync(path).mode & 0o077, 0, `Others can read ${path} by its mode.`);
-    if (process.platform === "darwin") {
-      const listing: string = PrivateFolder.run("/bin/ls", ["-lde", path]);
-      assert.doesNotMatch(listing, PrivateFolder.macEntry, `${path} has an ACL: ${listing}`);
+    for (const path of paths) {
+      assert.equal(statSync(path).mode & 0o077, 0, `Others can read ${path} by its mode.`);
+      if (process.platform === "darwin") {
+        const listing: string = PrivateFolder.run("/bin/ls", ["-lde", path]);
+        assert.doesNotMatch(listing, PrivateFolder.macEntry, `${path} has an ACL: ${listing}`);
+      }
     }
   }
 
@@ -56,21 +60,30 @@ export class PrivateFolder {
     return spawnSync(program, ["--version"], { encoding: "utf8", timeout: PrivateFolder.waitMilliseconds }).error === undefined;
   }
 
-  private static assertWindowsReaders(path: string): void {
-    const script: string = `$acl = Get-Acl -LiteralPath '${path.replaceAll("'", "''")}'; [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-      $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
-      $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | Where-Object AccessControlType -eq Allow |
-      ForEach-Object { $_.IdentityReference.Value }`;
-    const output: string = PrivateFolder.run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script]);
-    const [account = "", owner = "", ...readers]: string[] = output.split(/\r?\n/u).filter(t => t !== "");
-    assert.ok([account, ...PrivateFolder.windowsOwners].includes(owner), `${path} is owned by ${owner}, not ${account}.`);
-    assert.ok(readers.includes(account) || readers.includes("S-1-3-4"), `${account} can't read ${path}: ${readers.join(", ")}.`);
-    assert.deepEqual([...new Set(readers)].filter(t => t !== account && !PrivateFolder.windowsReaders.includes(t)), [], `Others can read ${path}.`);
+  private static assertWindowsReaders(paths: readonly string[]): void {
+    const literals: string = paths.map(t => `'${t.replaceAll("'", "''")}'`).join(", ");
+    const script: string = `$account = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+      foreach ($path in @(${literals})) {
+        $acl = Get-Acl -LiteralPath $path; '${PrivateFolder.pathSeparator}'; $account
+        $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+        $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | Where-Object AccessControlType -eq Allow |
+        ForEach-Object { $_.IdentityReference.Value }
+      }`;
+    const output: string = PrivateFolder.run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script],
+      PrivateFolder.windowsPowerShellColdStartMilliseconds);
+    const blocks: readonly string[] = output.split(PrivateFolder.pathSeparator).slice(1);
+    assert.equal(blocks.length, paths.length, `Get-Acl answered for ${blocks.length} of ${paths.length} folders: ${output}`);
+    paths.forEach((path, index) => {
+      const [account = "", owner = "", ...readers]: string[] = (blocks[index] ?? "").split(/\r?\n/u).filter(t => t !== "");
+      assert.ok([account, ...PrivateFolder.windowsOwners].includes(owner), `${path} is owned by ${owner}, not ${account}.`);
+      assert.ok(readers.includes(account) || readers.includes("S-1-3-4"), `${account} can't read ${path}: ${readers.join(", ")}.`);
+      assert.deepEqual([...new Set(readers)].filter(t => t !== account && !PrivateFolder.windowsReaders.includes(t)), [], `Others can read ${path}.`);
+    });
   }
 
-  private static run(file: string, args: readonly string[]): string {
+  private static run(file: string, args: readonly string[], timeoutMilliseconds: number = PrivateFolder.waitMilliseconds): string {
     const environment: Record<string, string | undefined> = Object.fromEntries(Object.entries(process.env).filter(t => t[0].toLowerCase() !== "psmodulepath"));
-    const result: SpawnSyncReturns<string> = spawnSync(file, args, { encoding: "utf8", timeout: PrivateFolder.waitMilliseconds, env: environment });
+    const result: SpawnSyncReturns<string> = spawnSync(file, args, { encoding: "utf8", timeout: timeoutMilliseconds, env: environment });
     assert.equal(result.status, 0, `${file} ${args.join(" ")} failed: ${result.stdout}${result.stderr}`);
     return result.stdout;
   }
