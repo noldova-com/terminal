@@ -468,12 +468,22 @@ describe("the runtime part with real shells", () => {
           return result;
         };
 
+        const t0: number = Date.now();
+        let probeId: string = "";
+        const stamp = (label: string): void => console.log(`PROBE ${shellId} +${Date.now() - t0}ms ${label} marks=${probeId === "" ? "" : (fixture.text(probeId).match(/\u001b\]6973;([A-Z])/gu) ?? []).map(t => t.slice(-1)).join("")}`);
+        const ticker: NodeJS.Timeout = setInterval(() => stamp(`tick tail=${JSON.stringify(probeId === "" ? "" : fixture.text(probeId).slice(-300))}`), 5_000);
+        context.onTestFinished(() => clearInterval(ticker));
         const failed: TerminalRunResult = await run(exit(3), null);
+        probeId = failed.sessionId ?? "";
+        stamp(`run 1 answered ${failed.outcome}`);
         const sessionId: string | null = failed.sessionId;
         assert.ok(sessionId !== null, "The first run opened no terminal.");
         const failedEnd: readonly unknown[] = await codeOf(failed);
+        stamp("end 1");
         const passedEnd: readonly unknown[] = await codeOf(await runAfterEndAsync(exit(0), sessionId, 3));
+        stamp("end 2");
         const twoLinesEnd: readonly unknown[] = await codeOf(await runAfterEndAsync(`${exit(0)}\n${exit(4)}`, sessionId, 0));
+        stamp("end 3");
         const sleeping: TerminalRunResult = await runAfterEndAsync(isPowerShell ? "Start-Sleep -Seconds 30" : "sleep 30", sessionId, 4, "Interrupt");
         await fixture.callAsync("terminal.close", { sessionId });
 
