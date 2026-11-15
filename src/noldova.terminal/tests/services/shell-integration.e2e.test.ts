@@ -835,20 +835,30 @@ describe("shell integration with real shells", () => {
             + "$c = @(Get-Module -ListAvailable -Name NoldovaProbe).Count; \"wild=$a exact=$b list=$c cache=$env:PSModuleAnalysisCachePath\"";
           const shellModulePath: string = fixture.marks(sessionId).findLast(t => t.value?.startsWith("ModulePath=") === true)?.value ?? "none";
           console.log(`[probe-28] ${shellId} tmpdir ${tmpdir()}, shell reported ${shellModulePath.slice(0, 120)}`);
-          let probeRun: number = 0;
+          const readVariable = (name: string): string | undefined => Object.entries(process.env).find(([key]) => key.toUpperCase() === name.toUpperCase())?.[1];
+          const inherited: Record<string, string> = Object.fromEntries(["PATH", "TEMP", "TMP", "TMPDIR", "SystemRoot", "windir", "PATHEXT", "ComSpec", "USERPROFILE",
+            "SystemDrive", "LOCALAPPDATA", "APPDATA", "ProgramData", "ProgramFiles"].flatMap(name => {
+            const value: string | undefined = readVariable(name);
+            return value === undefined ? [] : [[name, value]];
+          }));
+          const rest: string = readVariable("PSModulePath") ?? "";
+          const productScript: string = Buffer.from(Resources.formatPowerShellLookupScript(["Invoke-NoldovaProbe", "NoldovaProbe", "noldovanone"]), "utf16le").toString("base64");
           for (const isLong of [false, true])
-            for (const kind of ["full", "fresh cache", "bare"] as const) {
-              probeRun++;
+            for (const withRest of [true, false]) {
               const folder: string = isLong ? realpathSync.native(modules) : modules;
-              const env: Record<string, string> = kind === "bare" ? { PATH: process.env["PATH"] ?? "", PATHEXT: process.env["PATHEXT"] ?? "" }
-                : Object.fromEntries(Object.entries(process.env).flatMap(([k, v]) => v === undefined ? [] : [[k, v]]));
-              if (kind === "fresh cache")
-                env["PSModuleAnalysisCachePath"] = join(dirname(modules), `analysis-${shellId}-${probeRun}`);
-              env["PSModulePath"] = `${folder};${process.env["PSModulePath"] ?? ""}`;
+              const env: Record<string, string> = { ...inherited, PSModulePath: withRest ? `${folder};${rest}` : folder };
+              const product: SpawnSyncReturns<string> = spawnSync(executableOf(shellId), ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", productScript],
+                { encoding: "utf8", env, timeout: WAIT_MS });
               const looked: SpawnSyncReturns<string> = spawnSync(executableOf(shellId), ["-NoProfile", "-NonInteractive", "-Command", lookScript],
                 { encoding: "utf8", env, timeout: WAIT_MS });
-              console.log(`[probe-28] ${shellId} ${isLong ? "long" : "short"} ${kind}: ${JSON.stringify(looked.stdout.trim())} ${JSON.stringify(looked.stderr.trim().slice(0, 200))}`);
+              console.log(`[probe-28] ${shellId} ${isLong ? "long" : "short"} ${withRest ? "with rest" : "alone"}: product missing ${JSON.stringify(product.stdout.trim())} `
+                + `status ${product.status}; look ${JSON.stringify(looked.stdout.trim())} status ${looked.status} ${JSON.stringify(looked.stderr.trim().slice(0, 200))}`);
             }
+          const importedBefore: boolean = await stat(imported).then(() => true, () => false);
+          spawnSync(executableOf(shellId), ["-NoProfile", "-NonInteractive", "-Command", "Get-Command -Name Invoke-NoldovaProbe -ErrorAction SilentlyContinue | Out-Null"],
+            { encoding: "utf8", env: { ...inherited, PSModulePath: `${realpathSync.native(modules)};${rest}` }, timeout: WAIT_MS });
+          console.log(`[probe-28] ${shellId} imported before an exact Get-Command ${importedBefore}, after it ${await stat(imported).then(() => true, () => false)}; `
+            + `short ${modules}, long ${realpathSync.native(modules)}`);
           assert.deepEqual([missing, names.includes("Get-NoldovaProfileRuns"), names.includes("Invoke-NoldovaProbe"), isImported],
             [["noldovanone", "nöldovanone"], true, false, false]);
           await fixture.callAsync("terminal.close", { sessionId });
