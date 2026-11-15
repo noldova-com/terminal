@@ -1,0 +1,31 @@
+# @license
+# Copyright (c) Noldova.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+name: Module range
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  module-range:
+    name: Module range
+    uses: noldova-com/desktop/.github/workflows/module-range.yml@dc51f4a5af54de4a1177da6e91aaf9d07cb3f86f # v0.0.1
+    permissions:
+      contents: read
+      issues: write
+    with:
+      module: src/noldova.terminal
+      build: npm run peers:newest && npm run build

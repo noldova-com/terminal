@@ -1,0 +1,26 @@
+{
+  "groups": [
+    {
+      "name": "chats.tabRowEntries",
+      "place": "terminal.tabRow",
+      "items": [
+        {
+          "command": "chats.newChatTerminal",
+          "arguments": { "chat": "42" },
+          "label": "New chat terminal"
+        }
+      ]
+    },
+    {
+      "name": "chats.shellMenuEntries",
+      "place": "terminal.shellMenu",
+      "items": [
+        {
+          "command": "chats.newChatShell",
+          "arguments": { "chat": "42", "shellId": "zsh" },
+          "label": "Zsh for this chat"
+        }
+      ]
+    }
+  ]
+}

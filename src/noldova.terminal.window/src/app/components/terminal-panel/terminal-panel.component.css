@@ -1,0 +1,39 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+:host {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+@media (forced-colors: active) {
+  :host {
+    background: Canvas;
+  }
+}
+
+.ended {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nol-space-2);
+  padding-block: var(--nol-space-1);
+  padding-inline: var(--nol-content-padding-inline);
+  color: var(--nol-text-muted);
+  font-size: var(--nol-text-panel);
+  line-height: var(--nol-line-panel);
+}
+
+.ended-text {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}

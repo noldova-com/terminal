@@ -1,0 +1,28 @@
+{
+  "id": "terminal",
+  "version": "0.0.1",
+  "displayName": "Terminal",
+  "description": "Runs shells in terminal panes, and lets AI agents run commands in them through permission requests.",
+  "parts": ["runtime", "window"],
+  "pseudoTerminals": true,
+  "dependencies": {},
+  "noldovaDesktop": ">=0.0.1 <0.1.0",
+  "contributes": {
+    "methods": [
+      "terminal.shells", "terminal.open", "terminal.close", "terminal.restart", "terminal.sessions", "terminal.attach", "terminal.input", "terminal.resize",
+      "terminal.ack", "terminal.visibility", "terminal.detach", "terminal.lines", "terminal.restore", "terminal.closeOwner", "terminal.launch",
+      "terminal.run", "terminal.runOutput", "terminal.windowStarted", "terminal.showOwner", "terminal.rename",
+      "terminal.complete", "terminal.findCommands"
+    ],
+    "events": [
+      "terminal.output", "terminal.exited", "terminal.restarted", "terminal.titleChanged", "terminal.cwdChanged", "terminal.detached",
+      "terminal.closed", "terminal.opened", "terminal.launchCommandEnded", "terminal.runOpened", "terminal.runEnded",
+      "terminal.renamed", "terminal.commandAdded"
+    ],
+    "commands": ["terminal.new", "terminal.newWithShell", "terminal.toggle", "terminal.restartShell"],
+    "menus": ["terminal.tabRow", "terminal.shellMenu"],
+    "settings": ["terminal.defaultShell", "terminal.outputLimit", "terminal.fontSize", "terminal.suggestions", "terminal.commandColors", "terminal.completionList"],
+    "views": ["terminal.panel", "terminal.session"],
+    "tools": ["terminal_list", "terminal_read", "terminal_open", "terminal_run", "terminal_write", "terminal_interrupt", "terminal_close"]
+  }
+}

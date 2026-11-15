@@ -1,0 +1,32 @@
+# @license
+# Copyright (c) Noldova.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+name: Relock
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: The full hash of the commit to relock
+        required: true
+        type: string
+      request:
+        description: The release, as the dependents step sends it
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  relock:
+    name: Relock
+    uses: noldova-com/.github/.github/workflows/relock-dependent.yml@5328d6b67990d5c1dd955f55e666d72de05a0b2a # v2.32.0
+    permissions:
+      contents: read
+      packages: read
+    with:
+      commit: ${{ inputs.commit }}
+      request: ${{ inputs.request }}

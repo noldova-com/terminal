@@ -1,0 +1,19 @@
+<!--
+@license
+Copyright (c) Noldova.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
+<div class="nol-terminal-pane-screen" #screen nolKeepsCtrlKeys>
+  <div class="nol-terminal-pane-scrollbar" #scrollbar tabindex="-1" aria-hidden="true"></div>
+</div>
+@if (ended(); as pane) {
+  <div class="nol-terminal-pane-ended">
+    <span class="nol-terminal-pane-ended-text">{{ pane.text }}</span>
+    @if (isRestartable()) {
+      <button nol-button type="button" [variant]="buttonVariant.Text" (click)="restartRequested.emit(pane.size)">{{ resources.restart }}</button>
+    }
+  </div>
+}

@@ -1,0 +1,12 @@
+{
+  "id": "chats",
+  "version": "0.0.1",
+  "displayName": "Chats",
+  "description": "A fixture module that depends on Terminal and adds its own entries to Terminal's new-terminal menus.",
+  "parts": ["window"],
+  "dependencies": { "terminal": "0.0.1" },
+  "contributes": {
+    "commands": ["chats.newChatTerminal", "chats.newChatShell"],
+    "menus": []
+  }
+}

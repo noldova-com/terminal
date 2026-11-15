@@ -1,0 +1,83 @@
+{
+  "settings": [
+    {
+      "name": "terminal.defaultShell",
+      "title": "Default shell",
+      "description": "What a new terminal runs. The menu beside + in a terminal tab row opens any other shell.",
+      "type": {
+        "kind": "Choice",
+        "dynamic": true
+      },
+      "default": "",
+      "locality": "Device",
+      "scopes": [],
+      "page": "Terminal",
+      "group": "Terminal"
+    },
+    {
+      "name": "terminal.outputLimit",
+      "title": "Output kept per terminal (MB)",
+      "description": "How much of a terminal's output you can scroll back through. Beyond it the oldest lines are dropped. Applies to terminals opened afterwards.",
+      "type": {
+        "kind": "Number",
+        "minimum": 10,
+        "maximum": 10000,
+        "step": 1
+      },
+      "default": 100,
+      "locality": "Shared",
+      "scopes": [],
+      "page": "Terminal",
+      "group": "Terminal"
+    },
+    {
+      "name": "terminal.fontSize",
+      "title": "Font size",
+      "description": "The size of the text in every terminal, in pixels. No text size under Appearance changes it.",
+      "type": {
+        "kind": "Number",
+        "minimum": 8,
+        "maximum": 32,
+        "step": 1
+      },
+      "default": 13,
+      "locality": "Device",
+      "scopes": [],
+      "page": "Terminal",
+      "group": "Terminal"
+    },
+    {
+      "name": "terminal.suggestions",
+      "title": "Suggest earlier commands",
+      "description": "Whether a terminal shows the rest of an earlier command in grey as you type at a bash, zsh or PowerShell prompt. → or End at the line's end takes it.",
+      "type": { "kind": "Boolean" },
+      "default": true,
+      "locality": "Shared",
+      "scopes": [],
+      "page": "Terminal",
+      "group": "Terminal"
+    },
+    {
+      "name": "terminal.commandColors",
+      "title": "Color typed commands",
+      "description": "Whether a terminal colors the command you type at a bash, zsh or PowerShell prompt: its name, options, strings, paths, variables, operators, keywords and comments. Text the shell colors itself keeps its own colors.",
+      "type": { "kind": "Boolean" },
+      "default": false,
+      "locality": "Shared",
+      "scopes": [],
+      "page": "Terminal",
+      "group": "Terminal"
+    },
+    {
+      "name": "terminal.completionList",
+      "title": "Complete with a list",
+      "description": "Whether Tab at a bash, zsh or PowerShell prompt opens a list of what can follow: files, folders, commands, branches, scripts and a command's options. Turned off, Tab goes to the shell, which completes as it does on its own.",
+      "type": { "kind": "Boolean" },
+      "default": true,
+      "locality": "Shared",
+      "scopes": [],
+      "page": "Terminal",
+      "group": "Terminal"
+    }
+  ]
+}

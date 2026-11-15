@@ -1,0 +1,45 @@
+{
+  "name": "@noldova/terminal",
+  "version": "__VERSION__",
+  "description": "The terminal module for apps on Noldova Desktop: terminal panes over real shells, and agent tools that run commands through permission requests.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noldova-com/terminal.git",
+    "directory": "src/noldova.terminal"
+  },
+  "homepage": "https://github.com/noldova-com/terminal#readme",
+  "bugs": {
+    "url": "https://github.com/noldova-com/terminal/issues"
+  },
+  "exports": {
+    "./runtime": "./src/api/index.ts",
+    "./window": "./src/api/window.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "module.json",
+    "settings.json",
+    "menus.json",
+    "src/**/*.js",
+    "src/**/*.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@noldova/terminal.protocol": "*",
+    "@noldova/terminal.window": "*",
+    "@xterm/addon-serialize": "0.14.0",
+    "@xterm/headless": "6.0.0",
+    "node-pty": "1.2.0-beta.15"
+  },
+  "peerDependencies": {
+    "@noldova/desktop.protocol": ">=0.0.1 <0.1.0",
+    "@noldova/desktop.runtime": ">=0.0.1 <0.1.0",
+    "@noldova/context.exceptions": ">=0.0.7 <0.1.0",
+    "@noldova/context.json": ">=0.0.7 <0.1.0"
+  }
+}

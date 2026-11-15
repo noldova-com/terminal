@@ -1,0 +1,80 @@
+{
+  "name": "@noldova/terminal.window",
+  "version": "__VERSION__",
+  "description": "The terminal module's window part: terminal panes over the module's shells, in the bottom panel and as documents.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noldova-com/terminal.git",
+    "directory": "src/noldova.terminal.window"
+  },
+  "homepage": "https://github.com/noldova-com/terminal#readme",
+  "bugs": {
+    "url": "https://github.com/noldova-com/terminal/issues"
+  },
+  "exports": {
+    ".": "./src/api/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/**/*.js",
+    "src/**/*.js.map",
+    "src/**/*.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/addon-webgl": "0.19.0",
+    "@xterm/xterm": "6.0.0",
+    "rxjs": "7.8.2",
+    "tslib": "2.8.1"
+  },
+  "peerDependencies": {
+    "@angular/cdk": ">=22.2.7 <23.0.0",
+    "@angular/common": ">=22.2.6 <23.0.0",
+    "@angular/core": ">=22.2.6 <23.0.0",
+    "@angular/forms": ">=22.2.6 <23.0.0",
+    "@angular/platform-browser": ">=22.2.6 <23.0.0",
+    "@noldova/context.exceptions": ">=0.0.7 <0.1.0",
+    "@noldova/context.json": ">=0.0.7 <0.1.0",
+    "@noldova/ui.components.angular": ">=0.0.9 <0.1.0",
+    "@noldova/desktop.protocol": ">=0.0.1 <0.1.0",
+    "@noldova/desktop.window": ">=0.0.1 <0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@angular/cdk": { "optional": true },
+    "@angular/common": { "optional": true },
+    "@angular/core": { "optional": true },
+    "@angular/forms": { "optional": true },
+    "@angular/platform-browser": { "optional": true },
+    "@noldova/context.exceptions": { "optional": true },
+    "@noldova/context.json": { "optional": true },
+    "@noldova/ui.components.angular": { "optional": true },
+    "@noldova/desktop.protocol": { "optional": true },
+    "@noldova/desktop.window": { "optional": true }
+  },
+  "devDependencies": {
+    "@angular/build": "22.2.6",
+    "@angular/cdk": "22.2.7",
+    "@angular/cli": "22.2.6",
+    "@angular/common": "22.2.6",
+    "@angular/compiler": "22.2.6",
+    "@angular/compiler-cli": "22.2.6",
+    "@angular/core": "22.2.6",
+    "@angular/forms": "22.2.6",
+    "@angular/platform-browser": "22.2.6",
+    "@noldova/context.exceptions": "0.0.7",
+    "@noldova/context.json": "0.0.7",
+    "@noldova/ui.components.angular": "0.0.9",
+    "@noldova/desktop.protocol": "0.0.1",
+    "@noldova/desktop.window": "0.0.1",
+    "@vitest/browser-playwright": "5.0.3",
+    "@vitest/coverage-v8": "5.0.3",
+    "playwright": "1.63.0",
+    "vitest": "5.0.3"
+  }
+}

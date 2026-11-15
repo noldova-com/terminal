@@ -1,0 +1,42 @@
+{
+  "name": "@noldova/terminal",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": "24.21.0",
+    "npm": "11.19.0"
+  },
+  "workspaces": [
+    "src/*"
+  ],
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "peers:newest": "node scripts/move-peers.ts",
+    "test": "node scripts/test.ts",
+    "test:timing": "node scripts/timing/timing-check.ts"
+  },
+  "devDependencies": {
+    "@noldova/desktop.protocol": "0.0.1",
+    "@noldova/desktop.runtime": "0.0.1",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.0.3",
+    "typescript": "6.0.3",
+    "vitest": "5.0.3"
+  },
+  "overrides": {
+    "@inquirer/confirm": "6.3.2",
+    "magic-string": "1.4.1",
+    "rolldown": "1.2.16",
+    "vite": "8.3.5"
+  },
+  "allowScripts": {
+    "@parcel/watcher": false,
+    "esbuild": false,
+    "fsevents": false,
+    "lmdb": false,
+    "msgpackr-extract": false,
+    "node-pty": false
+  }
+}

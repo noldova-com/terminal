@@ -1,0 +1,200 @@
+/**
+ * @license
+ * Copyright (c) Noldova.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import path from "node:path";
+
+import type { IModuleLog } from "@noldova/desktop.runtime";
+
+import { CommandExitedException } from "../exceptions/command-exited.exception.ts";
+import { EnvironmentExportInvalidException } from "../exceptions/environment-export-invalid.exception.ts";
+import { SystemRootMissingException } from "../exceptions/system-root-missing.exception.ts";
+import type { IEnvironmentSource } from "../interfaces/i-environment-source.ts";
+import type { EnvironmentTools } from "../models/environment-tools.ts";
+import { EnvironmentVariable } from "../models/environment-variable.ts";
+import type { RegistryValue } from "../models/registry-value.ts";
+import { Resources } from "../resources.ts";
+import { FailureText } from "./failure-text.ts";
+import { RegistryExport } from "./registry-export.ts";
+
+export class WindowsEnvironment implements IEnvironmentSource {
+  private readonly environment: Readonly<Record<string, string | undefined>>;
+  private readonly tools: EnvironmentTools;
+  private readonly log: IModuleLog;
+  private readonly reg: string | null;
+  private readonly ending: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+  private reading: Promise<Readonly<Record<string, string | undefined>>> | null = null;
+  private folder: Promise<string> | null = null;
+  private readCount: number = 0;
+  private ended: boolean = false;
+
+  public constructor(environment: Readonly<Record<string, string | undefined>>, tools: EnvironmentTools, log: IModuleLog) {
+    const systemRoot: string | undefined = environment[Resources.systemRootVariable];
+    this.environment = environment;
+    this.tools = tools;
+    this.log = log;
+    this.reg = systemRoot === undefined || systemRoot.length === 0 ? null : path.win32.join(systemRoot, ...Resources.regPath);
+  }
+
+  public start(): void {
+    void this.readAsync();
+  }
+
+  public readAsync(): Promise<Readonly<Record<string, string | undefined>>> {
+    if (this.ended)
+      return Promise.resolve(this.environment);
+    if (this.reading === null) {
+      const reading: Promise<Readonly<Record<string, string | undefined>>> = Promise.race([this.readNowAsync(), this.ending.promise.then(() => this.environment)]);
+      this.reading = reading;
+      void reading.then(() => {
+        this.reading = null;
+      });
+    }
+    return this.reading;
+  }
+
+  public end(): void {
+    this.ended = true;
+    this.ending.resolve();
+    const folder: Promise<string> | null = this.folder;
+    this.folder = null;
+    void folder?.then(t => this.tools.writer.removeFolderAsync(t)).catch((error: unknown) => this.logCleanupFailure(error));
+  }
+
+  private async readNowAsync(): Promise<Readonly<Record<string, string | undefined>>> {
+    try {
+      const reg: string | null = this.reg;
+      if (reg === null)
+        throw new SystemRootMissingException();
+      const folder: string | null = await this.prepareFolderAsync();
+      if (folder === null || this.ended)
+        return this.environment;
+      const read: number = ++this.readCount;
+      try {
+        const [machine, user]: [ReadonlyMap<string, RegistryValue>, ReadonlyMap<string, RegistryValue>] = await Promise.all([
+          this.readScopeAsync(reg, Resources.machineEnvironmentKey, path.win32.join(folder, `${Resources.windowsEnvironmentMachineFilePrefix}${read}${Resources.windowsEnvironmentExportExtension}`)),
+          this.readScopeAsync(reg, Resources.userEnvironmentKey, path.win32.join(folder, `${Resources.windowsEnvironmentUserFilePrefix}${read}${Resources.windowsEnvironmentExportExtension}`))
+        ]);
+        return WindowsEnvironment.build(this.environment, machine, user);
+      }
+      finally {
+        if (this.ended)
+          await this.tools.writer.removeFolderAsync(folder).catch((error: unknown) => this.logCleanupFailure(error));
+      }
+    }
+    catch (error: unknown) {
+      this.log.write(Resources.formatEnvironmentUnread(FailureText.read(error)));
+      return this.environment;
+    }
+  }
+
+  private async prepareFolderAsync(): Promise<string | null> {
+    const folder: string | null = await this.ensureFolderAsync();
+    if (folder === null || await this.tools.reader.isFolderAsync(folder))
+      return folder;
+    this.folder = null;
+    return await this.ensureFolderAsync();
+  }
+
+  private async ensureFolderAsync(): Promise<string | null> {
+    if (this.ended)
+      return null;
+    this.folder ??= this.createFolderAsync();
+    try {
+      return await this.folder;
+    }
+    catch (error: unknown) {
+      this.folder = null;
+      throw error;
+    }
+  }
+
+  private async createFolderAsync(): Promise<string> {
+    const folder: string = await this.tools.writer.createPrivateFolderAsync(path.join(this.tools.temporaryFolder, Resources.environmentFolderPrefix));
+    try {
+      await this.tools.access?.restrictAsync(folder);
+    }
+    catch (error: unknown) {
+      await this.tools.writer.removeFolderAsync(folder).catch((removalError: unknown) => this.logCleanupFailure(removalError));
+      throw error;
+    }
+    return folder;
+  }
+
+  private async readScopeAsync(reg: string, key: string, file: string): Promise<ReadonlyMap<string, RegistryValue>> {
+    try {
+      try {
+        await this.tools.runner.runAsync(reg, [Resources.regExportArgument, key, file, Resources.regOverwriteArgument], Resources.environmentReadMilliseconds);
+      }
+      catch (error: unknown) {
+        if (error instanceof CommandExitedException && error.exitCode !== null && key === Resources.userEnvironmentKey)
+          return new Map<string, RegistryValue>();
+        throw error;
+      }
+      const bytes: Uint8Array | null = await this.tools.reader.readBytesOrNullAsync(file);
+      if (bytes === null)
+        throw new EnvironmentExportInvalidException();
+      return RegistryExport.parse(new TextDecoder(Resources.registryExportUtf16Label).decode(bytes));
+    }
+    finally {
+      await this.tools.writer.removeFileAsync(file).catch((error: unknown) => this.logCleanupFailure(error));
+    }
+  }
+
+  private logCleanupFailure(error: unknown): void {
+    this.log.write(Resources.formatEnvironmentCleanupFailed(FailureText.read(error)));
+  }
+
+  private static build(environment: Readonly<Record<string, string | undefined>>, machine: ReadonlyMap<string, RegistryValue>,
+    user: ReadonlyMap<string, RegistryValue>): Readonly<Record<string, string>> {
+    const variables: Map<string, EnvironmentVariable> = new Map<string, EnvironmentVariable>();
+    for (const [name, value] of Object.entries(environment)) {
+      if (value !== undefined)
+        variables.set(name.toUpperCase(), new EnvironmentVariable(name, value));
+    }
+    const machinePath: EnvironmentVariable | undefined = WindowsEnvironment.apply(variables, machine);
+    const userPath: EnvironmentVariable | undefined = WindowsEnvironment.apply(variables, user);
+    if (machinePath !== undefined && userPath !== undefined)
+      variables.set(Resources.pathVariable, new EnvironmentVariable(machinePath.name, `${machinePath.value}${path.win32.delimiter}${userPath.value}`));
+    return Object.fromEntries([...variables.values()].map(t => [t.name, t.value]));
+  }
+
+  private static apply(variables: Map<string, EnvironmentVariable>, scope: ReadonlyMap<string, RegistryValue>): EnvironmentVariable | undefined {
+    let scopePath: EnvironmentVariable | undefined;
+    for (const isExpandedPass of [false, true]) {
+      for (const [name, value] of scope) {
+        if (value.isExpandable !== isExpandedPass)
+          continue;
+        const variable: EnvironmentVariable = new EnvironmentVariable(name, value.isExpandable ? WindowsEnvironment.expand(value.text, variables) : value.text);
+        variables.set(name.toUpperCase(), variable);
+        if (name.toUpperCase() === Resources.pathVariable)
+          scopePath = variable;
+      }
+    }
+    return scopePath;
+  }
+
+  private static expand(value: string, variables: ReadonlyMap<string, EnvironmentVariable>): string {
+    let text: string = "";
+    let index: number = 0;
+    for (;;) {
+      const start: number = value.indexOf(Resources.windowsEnvironmentVariableDelimiter, index);
+      const end: number = start === -1 ? -1 : value.indexOf(Resources.windowsEnvironmentVariableDelimiter, start + 1);
+      if (end === -1)
+        return text + value.slice(index);
+      const variable: EnvironmentVariable | undefined = variables.get(value.slice(start + 1, end).toUpperCase());
+      if (variable === undefined) {
+        text += value.slice(index, end);
+        index = end;
+      }
+      else {
+        text += value.slice(index, start) + variable.value;
+        index = end + 1;
+      }
+    }
+  }
+}

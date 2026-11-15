@@ -1,0 +1,108 @@
+# @license
+# Copyright (c) Noldova.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+name: Build and test
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-test:
+    name: Build and test
+    uses: noldova-com/.github/.github/workflows/build-and-test.yml@5328d6b67990d5c1dd955f55e666d72de05a0b2a # v2.32.0
+    permissions:
+      contents: read
+      packages: read
+    with:
+      targets: ${{ github.event_name != 'pull_request' && 'linux-x64 linux-arm64 windows-x64 windows-arm64 macos-x64 macos-arm64' || 'linux-x64 windows-x64 macos-arm64' }}
+      publishes: true
+      timeout-minutes: 20
+
+  shells:
+    name: Shells (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(github.event_name != 'pull_request' && '[{"target":"linux-x64","runner":"ubuntu-24.04","shells":"bash pwsh zsh fish"},{"target":"linux-arm64","runner":"ubuntu-24.04-arm","shells":"bash pwsh zsh fish"},{"target":"macos-x64","runner":"macos-15-intel","shells":"bash pwsh zsh"},{"target":"macos-arm64","runner":"macos-15","shells":"bash pwsh zsh"}]' || '[{"target":"linux-x64","runner":"ubuntu-24.04","shells":"bash pwsh zsh fish"},{"target":"macos-arm64","runner":"macos-15","shells":"bash pwsh zsh"}]') }}
+    steps:
+      - name: Check out the revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+
+      - name: Install zsh and fish on Linux
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y --no-install-recommends zsh fish
+
+      - name: List the shells
+        env:
+          SHELLS: ${{ matrix.shells }}
+        run: |
+          for shell in $SHELLS; do
+            if ! command -v "$shell" >/dev/null; then
+              echo "::error::This runner has no $shell, which this job tests."
+              exit 1
+            fi
+            echo "$shell: $(command -v "$shell")"
+          done
+
+      - name: Install the packages
+        run: npm ci --ignore-scripts
+
+      - name: Run the shell tests
+        run: >-
+          node node_modules/vitest/vitest.mjs run --reporter=default --reporter=json --outputFile.json="$RUNNER_TEMP/shells.json"
+          src/noldova.terminal/tests/runtime-part.e2e.test.ts
+          src/noldova.terminal/tests/services/shell-integration.e2e.test.ts
+          src/noldova.terminal/tests/services/pseudo-terminal.e2e.test.ts
+          src/noldova.terminal/tests/services/shell-locator.e2e.test.ts
+
+      - name: Check that no test of an installed shell skipped
+        env:
+          SHELLS: ${{ matrix.shells }}
+        run: node scripts/checks/shell-run-check.ts "$RUNNER_TEMP/shells.json" $SHELLS
+
+  all-shells:
+    name: All shells
+    if: always()
+    needs: shells
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check that every shell job passed
+        env:
+          RESULT: ${{ needs.shells.result }}
+        run: |
+          if [ "$RESULT" != "success" ]; then
+            echo "::error::The Shells jobs ended with $RESULT, not success."
+            exit 1
+          fi

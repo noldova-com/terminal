@@ -1,0 +1,53 @@
+{
+  "places": [
+    {
+      "name": "terminal.tabRow",
+      "title": "Terminal"
+    },
+    {
+      "name": "terminal.shellMenu",
+      "title": "Choose a shell"
+    }
+  ],
+  "groups": [
+    {
+      "name": "terminal.tabRowActions",
+      "place": "terminal.tabRow",
+      "items": [
+        {
+          "command": "terminal.new",
+          "arguments": { "takesNewOwner": true },
+          "label": "New terminal"
+        },
+        {
+          "submenu": "terminal.shellMenu"
+        }
+      ]
+    },
+    {
+      "name": "terminal.shellList",
+      "place": "terminal.shellMenu",
+      "dynamic": true
+    },
+    {
+      "name": "terminal.tabActions",
+      "place": "desktop.tab",
+      "items": [
+        {
+          "command": "terminal.restartShell",
+          "label": "Restart"
+        }
+      ]
+    },
+    {
+      "name": "terminal.viewActions",
+      "place": "desktop.view",
+      "items": [
+        {
+          "command": "terminal.new",
+          "label": "New Terminal"
+        }
+      ]
+    }
+  ]
+}

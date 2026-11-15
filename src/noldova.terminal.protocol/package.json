@@ -1,0 +1,33 @@
+{
+  "name": "@noldova/terminal.protocol",
+  "version": "__VERSION__",
+  "description": "The terminal module's messages that its runtime and window parts exchange: terminal sessions, their sizes, lines and output, and the protocol's failures; and RuntimeTerminalOwners, the contract of the runtime service terminal.owners that an app's runtime part reads.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noldova-com/terminal.git",
+    "directory": "src/noldova.terminal.protocol"
+  },
+  "homepage": "https://github.com/noldova-com/terminal#readme",
+  "bugs": {
+    "url": "https://github.com/noldova-com/terminal/issues"
+  },
+  "exports": {
+    ".": "./src/api/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/**/*.js",
+    "src/**/*.js.map",
+    "src/**/*.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "peerDependencies": {
+    "@noldova/context.exceptions": ">=0.0.7 <0.1.0",
+    "@noldova/context.json": ">=0.0.7 <0.1.0"
+  }
+}

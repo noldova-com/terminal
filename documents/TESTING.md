@@ -1,0 +1,115 @@
+# Testing
+
+**Scope:** What the pull request checks verify in this repository, and what the module's tests cover on which targets.
+
+The organization's testing standard, `https://github.com/noldova-com/.github/blob/main/standards/TESTING.md`, applies here in full.
+
+## The pull request checks
+
+Every pull request into `main` must pass these three checks before it merges.
+They run in GitHub Actions, where the organization's variables say, as the `.github` repository's README explains under "Shared settings".
+
+| Check | What it verifies |
+|---|---|
+| Check / Linked issue | The organization's shared check, `linked-issue.yml` in the `.github` repository, which `.github/workflows/require-linked-issue.yml` calls from its `check` job, named "Check": the PR description has a standalone `Issue: #N`, `Issue #N` or closing reference, such as `Closes #N`, that names an issue in this repository. |
+| Build and test / All targets | Every target's job passed. |
+| Build and test / All shells | Every Shells job, which [The targets](#the-targets) describes, passed; the shared workflow's "All targets" doesn't wait for them, so this job of the caller's does. |
+
+`.github/workflows/build-and-test.yml` calls the organization's shared `build-and-test.yml`, v2.32.0, with `publishes: true`, as the `.github` repository's README describes it.
+Each target's job builds, checks the toolchain, Node.js 24.21.0 with npm 11.19.0, and the line endings, `* text=auto eol=lf` in `.gitattributes` and LF only with exactly one final newline in every tracked text file, with the shared pipelines tool, then runs `npm run test -- --skip-test-details --skip-coverage-details` and checks that the build and the tests changed no tracked file.
+On Linux x64 it also builds a second time in a clean worktree and checks that the archives are the same, byte for byte, and on every target it checks the archives as the release does, with `pipelines archive`: each archive's name, version, `gitHead`, scope and licence, and a byte-for-byte copy of every file `npm run build --silent -- --list-copies` lists, at its path.
+`npm run build` first installs the dependencies of the root and its three workspaces with `npm ci --ignore-scripts` when `node_modules` is missing, so node-pty loads from its prebuilds, as an app's install takes it.
+A full `npm test` ends by installing the packed packages from `_packages` into a fixture app with install scripts off, where the runtime part opens a terminal, runs a command whose answer the typed line doesn't hold and closes it at the next prompt, failing when the part logs that the shell didn't end in time, with `scripts/tests/installed-package/install-and-open.ts`, so it needs `npm run build` first. npm installs it with its peer checks on, so a peer the installed packages don't meet stops the install. The fixture app also installs Noldova Desktop's runtime, the module package's peer, and the six packages it depends on, packed from the repository's own install, so every context package is the version the repository installs and none comes from the registry at another one, and the `@types/node` version the root pins. It first compiles, with the library checks on, a module's call for the owners service and its own script against the installed declarations. Its context is Noldova Desktop's `FakeRuntimePartContext`, typed as `IRuntimePartContext`, which starts the part's programs and pseudo-terminals through Noldova Desktop's own `ProcessSupervisor` over a database in a temporary folder; it sends each request as the app's connection, waits for the `terminal.output` event that carries the answer and the next prompt, and checks that the part registers its agent tools and withdraws them when it deactivates. Off CI, it removes its temporary folder when it ends.
+`--skip-test-details` gives the root suite Vitest's dot reporter, and `--skip-coverage-details` leaves fully covered files out of its coverage table; `npm test` refuses any other option.
+`npm run build` first fails when `npm ls @angular/cdk --all` in `src/noldova.terminal.window` lists more than one copy, naming each copy's version and path, or none, with `scripts/checks/cdk-copy-check.ts`; a second copy, which npm nests under the UI kit without a warning when the window part pins another version, would run the kit's overlays and focus handling apart from the window part's. It then compiles the protocol and the runtime part with the TypeScript compiler into `_build/compiled`, compiles the window part with Angular's compiler in partial compilation mode, packs the three packages into `_packages`, and checks the archives, failing on any finding ([ARCHITECTURE.md](ARCHITECTURE.md#the-package)).
+`npm test` runs `scripts/test.ts`, which stops at the first step that fails.
+It first runs the declaration check, `scripts/declarations/declaration-check.ts`, which fails on any problem in the repository's own `module.json` and the two manifests: the declaration's fields and names, `pseudoTerminals` as `true`, with the tools' names as Noldova Desktop takes them, snake_case after `terminal_`, that its `dependencies` is an object from module ids to exact versions, the package's name, its version written `__VERSION__`, which packing sets to `version.json`'s, and its private flag, that every entry of `dependencies`, `devDependencies` and `optionalDependencies` is pinned exactly, but the module's own packages, which the module package names at `*` and packing sets to the module's version, that `noldovaDesktop` runs from a version to the next minor below 1.0, or the next major from 1.0, that the package's `peerDependencies` on Noldova Desktop's packages name it and its others an exact version or, on context's and the kit's packages, a range of the same form, that the root's and the window project's development pins of Noldova Desktop are inside it, and that the root's manifest pins no runtime `dependencies`, which the packages, its workspaces, pin for themselves.
+Then the test-wait check, `scripts/checks/test-wait-check.ts`, which Noldova Desktop's own check is the source of, refuses a fixed pause in any test file under `src` and `scripts`, a file in a `tests`, `e2e` or `fixtures` folder or a `*.spec.ts`, that README.md's Fixed pauses table doesn't list with its reason, and a listed file that no longer pauses: an import from `timers/promises`, `scheduler.wait`, `Atomics.wait`, `waitForTimeout`, or a `setTimeout` with a named callback or a number delay, or `requestAnimationFrame`; a test waits for the code's own event or promise instead.
+The API declaration check, `scripts/checks/api-declaration-check.ts` with `scripts/api`, ported from Noldova Desktop's, compares each package's exported surface with its `src/api/index.d.ts`, member by member, and fails on a member the code has and the declarations miss, or the other way, and on the declarations' own compile errors.
+The example check, `scripts/checks/api-example-check.ts`, compiles the code of every `@example` in those declarations against them, in memory, and fails on each compile error, with its file and line.
+The build reads only the window part's one copy, so no run shows the copy check failing.
+It then type-checks the repository automation under `scripts` and the window part's under `src/noldova.terminal.window/scripts`, and each package's source and tests by its `tsconfig.spec.json`, with the TypeScript compiler, and runs every `*.test.ts` file under the `tests` folders of the module's and the protocol's packages with Vitest, one project for each package. A full run writes Vitest's JSON report to `_build/test-times.json`, and `scripts/checks/test-time-check.ts` then names each test file that took over 1 second in that run, and whether README.md's Test files over 1 second table accepts it; it fails only when the report names no test file with its times, since a gate's pass condition is never a time.
+`npm run test:timing`, `scripts/timing/timing-check.ts`, is the timing check, apart from `npm test` and run on a quiet test machine: it runs the root's test files, the window part's specs and its look specs, `ng run window:test-look`, three times each, takes each file's time, and each spec's tests' times, as the median of the three runs, so one run slowed by a busy machine doesn't decide it, and fails on a unit test file over 1 second that README.md doesn't accept, or a spec file whose median test is over 100 milliseconds that README.md doesn't accept, each only past its bar plus 20% for the jitter a quiet machine still has; it also names each component test over 1 second, whose spec README.md lists with its cause, and fails when a run's report names no file with its times or README.md lacks either table.
+Last it runs the window part's tests itself, with `src/noldova.terminal.window` as the working folder and each tool's script from the root's `node_modules`, in three steps: the preparing step, where `ngc --project tsconfig.json` type-checks the part and `playwright install --only-shell chromium` installs the browser, then `ng test`, where Angular's unit-test builder runs every `*.spec.ts` under `src/noldova.terminal.window/tests` with Vitest in headless Chromium through Playwright, with real xterm, real layout and WebGL through SwiftShader, against a fake window context and a fake runtime. The part's `vitest.config.ts` has Vite pre-bundle context's three packages before the first spec loads, so the test page holds one copy of each, which the specs and the protocol both import, since `@noldova/context.core` refuses to install its extensions twice.
+The same config sets Vite's cache folder to `_build/window/vite` from a plugin's `config` hook rather than its top-level `cacheDir`, since Angular's unit-test builder passes its own cache folder in the server config, which overrides the config file's, and Vite merges a `config` hook's result after both; the root's `vitest.config.ts` keeps its cache in `_build/vite`. Nothing empties them: Vite pre-bundles again when the lockfile or the config changes, and a last `config` hook takes `@noldova/terminal.protocol` out of the packages Angular's builder has Vite pre-bundle, so the specs load the protocol's source as it is; a pre-bundle of it would keep its old code, since neither the lockfile nor the config changes with it.
+Then `ng run window:test-look` runs the look specs, every `*-look.spec.ts` under `src/noldova.terminal.window/tests`, which the unit target leaves out, as their own target on a build with the kit's stylesheet, since the builder links a build's stylesheet on every test page, and saves their screenshots under `_build/window/screenshots`, outside the repository.
+`terminal-panel-look.spec.ts` draws the panel in the kit's light and dark looks, and turns forced colors on and off while the shell runs, checking that the panel, the pane and the cells xterm draws take the system's Canvas, and then that the panel and the pane paint nothing again and xterm draws on the window's background. It places the panel on the kit's window and panel colors in light and dark mode and checks that xterm's empty cells draw in that color and that each of the 16 ANSI colors, drawn as a glyph at 40 pixels, has a pixel at a contrast of at least 4.5 with it. In light and dark mode, under the kit's default theme and its test theme, it also checks that the pane's text, and the cursor, selection and selection text color it gives xterm, are the theme's terminal tokens, and that the focused cursor draws in the cursor color; in forced colors the same check finds the system colors the kit's kit.css gives those tokens, and HighlightText as the selection text color. Two red squares, selected in forced colors under each theme, then draw in HighlightText instead of their own color, on Highlight laid over Canvas as xterm lays a focused selection. Selected with forced colors off, they take those colors once forced colors turn on, and the colors they had once they turn off; squares, since xterm half blends a selected box or block glyph's own color with the selection instead. In light and dark mode under each theme, the same squares, once drawn, hold none of the theme's terminal selection text color, and selected they draw in it as xterm draws it on the theme's selection, which a reference line of squares drawn in that pair shows: the color itself where it meets 4.5:1 there, as the default theme's does, and raised to 4.5:1 where it falls short, as the test theme's does. The selection then runs from the selected line's top edge to its bottom edge and to its last cell, and stops at the line below.
+`terminal-pane-appearance-look.spec.ts` changes the code font and Code text size, the panel text size, the mode and the theme through the kit's appearance service while the pane is out of the page, as a tab behind another is, and compares the pixels the pane draws with the terminal background and the theme's colors, its background with the window's, which the panel and the pane don't paint over, and its text size with the Font size setting's default 13 pixels before and after each change, and its cell size and the shell's columns with the new font at 13 pixels after the panel and Code text sizes change.
+A look spec that waits for the screen to show a color reads it through `DrawnWait` in `src/noldova.terminal.window/tests/fixtures/drawn-wait.fixture.ts`, one wait with one generous limit, 10 seconds. One screenshot takes over a second on a loaded machine, and the two look files take theirs in one page at the same time, so the limit only bounds a hang. Every other wait in a look spec, such as for a pane's size, an acknowledgement or a list, passes `{ timeout: DrawnWait.milliseconds }` to `vi.waitFor` too, since `vi.waitFor`'s own limit of 1 second ran out on a slow Linux machine before the pane had drawn. A wait that runs out names what it waited for and the colors it last read. `terminal-pager.spec.ts`, which pages thousands of stored lines into a real xterm as the pane scrolls, waits the same way: its waits for the pager's lines pass `{ timeout: DrawnWait.milliseconds }`, since the lines arrive only after the page's request is answered and xterm has parsed them.
+`terminal-session.component.spec.ts` checks its waits every millisecond, `{ interval: 1 }`, rather than at `vi.waitFor`'s 50: each of its tests attaches a pane, which sends its size a frame later, and a 50 millisecond check took half of each test's time on the Linux test machine.
+
+Each suite has one hang limit, for each test and each hook, and no test or `describe` sets its own; each is at least three times the suite's slowest test on any target, measured on the test machines from full runs of `npm test`, and is never raised to make a slow run pass: a test that reaches it is a bug to fix, and Vitest names it and the limit it reached.
+
+| Suite | Limit | Where | Slowest test |
+|---|---|---|---|
+| The module's tests | 70 seconds | `src/noldova.terminal/vitest.config.ts` | 22.1 seconds on the Windows test machine: `one-shot-command.e2e.test.ts` runs a command after each developer shell's start and in each WSL distribution. |
+| The protocol's tests | Vitest's default, 5 seconds | `src/noldova.terminal.protocol/vitest.config.ts` | 18 milliseconds. |
+| The window part's specs, the unit and the look specs | 30 seconds | `src/noldova.terminal.window/vitest.config.ts` | 3.5 seconds on the Linux test machine in a full run, a `terminal-pager.spec.ts` test, which took 2.2 seconds on mac-01 and 1.5 on the Windows test machine in the timing check's runs, where the slowest look test took 1.5 seconds on each; it is also above `DrawnWait`'s 10 seconds, so a wait that runs out reports what it waited for before the test's limit ends it. |
+
+The automation under `scripts` has no tests of its own, as the organization decided for every repository: the packages it builds are tested, and nothing measures it.
+Arguments make a filtered run, as `npm test -- <test file>` does.
+A window spec, named from the repository root with forward slashes, such as `src/noldova.terminal.window/tests/app/components/terminal-panel/terminal-panel-look.spec.ts`, runs alone in the window part after the preparing step: a look spec through `ng run window:test-look --include <spec>`, any other through `ng test --coverage=false --include <spec>`.
+Vitest takes the other arguments as the root suite's filters and still measures coverage, so a test runs as slowly as in the whole suite, but the coverage gates are off, since only the whole suite can meet them; the root suite runs only when such an argument is given, and a filtered run is not the gate.
+
+## Coverage
+
+`npm test` without arguments measures coverage with Vitest's V8 coverage and fails below 100% of the statements, lines, branches and functions.
+
+| Scope | Requirement |
+|---|---|
+| The package's production code under `src/noldova.terminal` | 100% of lines, branches and functions. |
+| Repository automation under `scripts/` and `src/noldova.terminal.window/scripts/` | Not measured: it has no tests of its own; the packages it builds are tested. |
+| Test files, the files under each `tests` folder | Not measured: they are the tests, not the code under test. |
+| Third-party packages under `node_modules` | Not measured. |
+| JSON declarations and manifests, and YAML workflows | No coverage percentage; the declaration check under `npm test` checks `module.json` and the manifests, and the workflows' own runs check the YAML. |
+
+The coverage leaves out only what the README's [Checks](../README.md#checks) section grants, each with its reason: the window part and each package's `vitest.config.ts` in the root's coverage, and the window part's enum files and the compiler's class-metadata calls in the window part's.
+The root's coverage includes every other `.ts` file under `src` outside the `tests` folders, so a file that no test loads counts as uncovered and fails the gate.
+The window part's specs measure `src/noldova.terminal.window/src` the same way, through the unit-test builder's V8 coverage, without the files under `src/app/enums` and the compiler's development-mode class-metadata calls, which `src/noldova.terminal.window/tests/coverage/class-metadata-coverage.ts` marks and counts.
+
+"Build and test / All targets" also runs on every push to `main`.
+
+## The targets
+
+The module's tests run on Linux x64, Windows x64 and macOS arm64 for every pull request, draft or ready, and on all six targets, Linux, Windows and macOS on x64 and arm64, for every push to `main` and every run started by hand, on GitHub-hosted runners; the jobs check the toolchain, not the runner's platform and architecture.
+Pull requests skip Linux arm64, Windows arm64 and macOS x64.
+The workflow's first job, `build-and-test`, named "Build and test", calls the shared workflow, which runs one job per target, named for its target, such as "Linux x64", which GitHub lists as "Build and test / Linux x64", and its "All targets" fails unless every one of them passed.
+The caller follows context's, `.github/workflows/build-and-test.yml` in the context repository, except in two ways: a pull request runs only the three targets above instead of context's six, and it sets `timeout-minutes: 20`, so a job that hangs fails after 20 minutes.
+Each target's job builds, checks the toolchain and the line endings, tests, opens a terminal from the packages installed into a fixture app, and checks the archives.
+
+The shared workflow has no step that installs a program, and GitHub's Linux image doesn't promise zsh or fish, so the workflow's second job, `shells`, named "Shells", tests them on Linux x64 and macOS arm64, and on Linux arm64 and macOS x64 too for a push to `main` or a run started by hand, in its own steps: on Linux its step "Install zsh and fish on Linux" installs both with apt, and on macOS the image's zsh is used. It fails when the runner lacks one of the job's shells, bash, PowerShell 7 and zsh, with fish on Linux, then runs the module's end-to-end files that open shells, `runtime-part.e2e.test.ts`, `shell-integration.e2e.test.ts`, `pseudo-terminal.e2e.test.ts` and `shell-locator.e2e.test.ts`, and `scripts/checks/shell-run-check.ts` fails when a test tagged for one of those shells didn't pass, a skip included, or none did.
+A test's title carries a shell's tag, such as `[zsh]`, when that shell's being installed is the only condition it runs on, so a test that skips on a platform by design, such as PowerShell's execution policies off Windows, carries none.
+The job "All shells" fails unless every Shells job passed.
+
+| Target | Runner |
+|---|---|
+| Linux x64 | `ubuntu-24.04` |
+| Linux arm64 | `ubuntu-24.04-arm` |
+| Windows x64 | `windows-2025` |
+| Windows arm64 | `windows-11-arm` |
+| macOS x64 | `macos-15-intel` |
+| macOS arm64 | `macos-15` |
+
+Each macOS target has one short job, and pull requests repeat nothing.
+The node-pty check runs bash on Linux and macOS, and PowerShell 7 through the conpty.dll that node-pty ships on Windows.
+Every night, the "Module range" workflow builds and tests the module against the newest Noldova Desktop inside its range, as README.md's [Module range](../README.md#module-range) says.
+
+## What the tests cover
+
+On every pull request, on every target:
+
+- Unit tests, with named fakes for the pseudo-terminal that record writes, sizes, kills, pauses and resumes, for the fit and WebGL addons, and for the browser APIs the pane uses: resize observation, media queries, fonts and the clipboard.
+- The window part's specs in headless Chromium: attach and replay, acknowledgements, detach and reattach, fit, the WebGL renderer and its fallback after a lost context, key routing, copy, paste, links, the ended strip, the theme, the cursor accent, and the fallback palette's approved colors in both modes.
+- Integration tests of node-pty in a real shell: an echo round trip, a resize, the exit code, a polite end followed by a forced kill, no child process left behind, and 4 MiB of output, four times the 1 MiB high watermark, under flow control.
+- The shells: bash and PowerShell 7 everywhere and cmd on Windows, in each target's job; zsh on macOS and Linux, and fish on Linux, in the Shells job above.
+
+By hand, on native machines:
+
+- IME composition in Japanese, Chinese and Korean on Windows and macOS.
+- Paste through the operating system's clipboard: bracketed, large and multi-line.
+- The signed and notarized build loads the native addon under the hardened runtime and its entitlements, after Gatekeeper's quarantine and SmartScreen.
+- Install, update and quit, after which no shell, conhost or OpenConsole process is left, also after the installed app crashes.
+- The WebGL fallback on virtual machines.
+- Resizing while large output streams, at display scaling from 100 to 200%.
+- GNOME and KDE desktop sessions on Linux.
+- Windows, elevated and not elevated.
