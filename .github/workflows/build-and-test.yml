@@ -111,8 +111,6 @@ jobs:
           done
 
       - name: Install the packages
-        env:
-          npm_config_registry: ${{ matrix.target == 'linux-x64' && 'http://127.0.0.1:9/' || 'https://registry.npmjs.org/-/noldova-missing/' }}
         run: |
           log="$RUNNER_TEMP/npm-ci.log"
           set +e
