@@ -15,7 +15,7 @@ They run in GitHub Actions, where the organization's variables say, as the `.git
 | Build and test / All targets | Every target's job passed. |
 | Build and test / All shells | Every Shells job, which [The targets](#the-targets) describes, passed; the shared workflow's "All targets" doesn't wait for them, so this job of the caller's does. |
 
-`.github/workflows/build-and-test.yml` calls the organization's shared `build-and-test.yml`, v2.32.0, with `publishes: true`, as the `.github` repository's README describes it.
+`.github/workflows/build-and-test.yml` calls the organization's shared `build-and-test.yml`, v2.33.0, with `publishes: true`, as the `.github` repository's README describes it.
 Each target's job builds, checks the toolchain, Node.js 24.21.0 with npm 11.19.0, and the line endings, `* text=auto eol=lf` in `.gitattributes` and LF only with exactly one final newline in every tracked text file, with the shared pipelines tool, then runs `npm run test -- --skip-test-details --skip-coverage-details` and checks that the build and the tests changed no tracked file.
 On Linux x64 it also builds a second time in a clean worktree and checks that the archives are the same, byte for byte, and on every target it checks the archives as the release does, with `pipelines archive`: each archive's name, version, `gitHead`, scope and licence, and a byte-for-byte copy of every file `npm run build --silent -- --list-copies` lists, at its path.
 `npm run build` first installs the dependencies of the root and its three workspaces with `npm ci --ignore-scripts` when `node_modules` is missing, so node-pty loads from its prebuilds, as an app's install takes it.
