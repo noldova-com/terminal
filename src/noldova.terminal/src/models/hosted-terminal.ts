@@ -43,6 +43,7 @@ export class HostedTerminal {
   public launcher: RequestClient | null = null;
   public fitWindow: RequestClient | null = null;
   public deferredShell: DeferredPtyProcess | null = null;
+  public startTemporaryFolder: string | null = null;
   public pendingCommand: AbortController | null = null;
   public launchCommandOffset: number | null = null;
   public readonly runs: Map<string, Promise<MirrorLine>> = new Map<string, Promise<MirrorLine>>();

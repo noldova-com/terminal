@@ -855,6 +855,28 @@ describe("TerminalHost", () => {
     assert.deepEqual([started, await completeAsync()], [["started.txt"], ["reported.txt"]]);
   });
 
+  it("completes in Git Bash's /tmp as the TEMP it started with while it reports none, though the environment reads another since, as the app's own when the Windows environment can't be read, and as the TEMP a restart started with", async () => {
+    let read: Readonly<Record<string, string | undefined>> = { SystemRoot: "C:\\Windows", ProgramFiles: "C:\\Program Files", TEMP: "C:\\Temp" };
+    const source: IEnvironmentSource = { start: () => undefined, readAsync: () => Promise.resolve(read), end: () => undefined };
+    const fixture: HostFixture = await HostFixture.createAsync("win32", "10.0.26100", read, source);
+    fixture.fileSystem.files.set("C:\\Program Files\\Git\\bin\\bash.exe", "");
+    fixture.fileSystem.folders.add("C:\\work");
+    fixture.fileSystem.files.set("C:\\Temp\\names\\started.txt", "");
+    fixture.fileSystem.files.set("C:\\App\\Temp\\names\\app.txt", "");
+    const sessionId: string = await fixture.openAsync({ shellId: "git-bash", folder: "C:\\work", size: SIZE, storedLimit: 104_857_600 });
+    fixture.reportCwd(fixture.process, "/tmp/names");
+    const completeAsync = async (): Promise<readonly string[]> =>
+      TerminalCompletion.fromJson(await fixture.host.handleAsync("terminal.complete", { sessionId, line: "cat ", cursor: 4 }, APP)).items.map(t => t.label);
+    read = { ...read, TEMP: "C:\\App\\Temp" };
+    const started: readonly string[] = await completeAsync();
+    fixture.process.exit(0);
+    await fixture.host.handleAsync("terminal.restart", { sessionId, size: SIZE }, APP);
+    fixture.reportCwd(fixture.process, "/tmp/names");
+
+    assert.deepEqual([started, await completeAsync()], [["started.txt"], ["app.txt"]]);
+    await fixture.endAllAsync();
+  });
+
   it("finds no PowerShell name missing while its PSModulePath is reset, and looks up again once the shell reports one", async () => {
     const powerShell: string = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
     const fixture: HostFixture = await HostFixture.createAsync("win32", "10.0.26100", { SystemRoot: "C:\\Windows", Path: "C:\\Windows", PATHEXT: ".EXE", PSModulePath: "C:\\Modules" });

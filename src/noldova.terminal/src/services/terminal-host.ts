@@ -342,6 +342,7 @@ export class TerminalHost {
       onFailed: (id, message) => this.log.write(Resources.formatStartedCommandUnread(id, message))
     }, Resources.maximumAgentTextLength, shell.kind, ownerSessionId === null), shell, folder, ownerSessionId, isPanelTerminal, owner, client?.connection ?? null, environment);
     terminal.deferredShell = started.deferred;
+    terminal.startTemporaryFolder = started.temporaryFolder;
     for (const line of started.printsNote ? [] : note?.split(Resources.lineBreaks) ?? [])
       terminal.session.writeNote(line);
     terminal.opensTab = opensTab;
@@ -807,8 +808,9 @@ export class TerminalHost {
       replaced[Resources.pathVariable] = terminal.session.shellPath;
     if (terminal.session.shellModulePath !== null)
       replaced[Resources.modulePathVariable] = terminal.session.shellModulePath;
-    if (terminal.session.shellTemporaryFolder !== null)
-      replaced[Resources.temporaryFolderVariable] = terminal.session.shellTemporaryFolder;
+    const temporaryFolder: string | null = terminal.session.shellTemporaryFolder ?? terminal.startTemporaryFolder;
+    if (temporaryFolder !== null)
+      replaced[Resources.temporaryFolderVariable] = temporaryFolder;
     const keys: ReadonlySet<string> = new Set(Object.keys(replaced).map(t => this.toVariableKey(t)));
     return this.readShellEnvironmentAsync({
       ...Object.fromEntries(Object.entries(terminal.environment ?? {}).filter(([t]) => !keys.has(this.toVariableKey(t)))),
@@ -844,6 +846,7 @@ export class TerminalHost {
         throw new SessionNotFoundException(sessionId);
       }
       session.restart(started.process, started.nonce, size);
+      terminal.startTemporaryFolder = started.temporaryFolder;
       terminal.clearRuns();
       terminal.heldExit = null;
     }
@@ -1032,7 +1035,9 @@ export class TerminalHost {
       throw error;
     }
     this.integration.watch(process, launch);
-    return new StartedShell(process, launch.nonce, launch.printsNote, deferred);
+    const temporaryKey: string = this.toVariableKey(Resources.temporaryFolderVariable);
+    return new StartedShell(process, launch.nonce, launch.printsNote, deferred,
+      Object.entries(environment).find(([t]) => this.toVariableKey(t) === temporaryKey)?.[1] ?? null);
   }
 
   private async readShellEnvironmentAsync(variables: Readonly<Record<string, string>>): Promise<Readonly<Record<string, string>>> {
