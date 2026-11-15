@@ -30,6 +30,7 @@ import { Contrast } from "../../../fixtures/contrast.fixture.ts";
 import { ErrorRecorder } from "../../../fixtures/error-recorder.fixture.ts";
 import { FakeRuntime } from "../../../fixtures/fake-runtime.fixture.ts";
 import { PaneHost } from "../../../fixtures/pane-host.fixture.ts";
+import { SpecWait } from "../../../fixtures/spec-wait.fixture.ts";
 
 const COPY: KeyboardEventInit = PaneHost.isMac ? { key: "c", metaKey: true } : { key: "C", ctrlKey: true, shiftKey: true };
 const OPEN: MouseEventInit = PaneHost.isMac ? { metaKey: true } : { ctrlKey: true };
@@ -40,7 +41,7 @@ function createPane(isShown: boolean = false, runtime: FakeRuntime = new FakeRun
 
 async function refontAsync(host: PaneHost<TerminalPaneComponent>, family: string): Promise<void> {
   document.documentElement.style.setProperty("--nol-font-mono", family);
-  await vi.waitFor(() => expect(getComputedStyle(host.element.querySelector(".xterm-rows") ?? host.element).fontFamily).toBe(family));
+  await vi.waitFor(() => expect(getComputedStyle(host.element.querySelector(".xterm-rows") ?? host.element).fontFamily).toBe(family), { timeout: SpecWait.milliseconds });
 }
 
 async function emulateAsync(query: string, name: string, value: string): Promise<void> {
@@ -82,12 +83,12 @@ function storeLines(host: PaneHost<TerminalPaneComponent>): void {
 }
 
 async function pageStoredInAsync(host: PaneHost<TerminalPaneComponent>): Promise<void> {
-  await vi.waitFor(() => expect(host.text).toContain("row 40"));
-  await vi.waitFor(() => expect(scrolled(host)).toEqual([40 - rowsOf(host), 40]));
+  await vi.waitFor(() => expect(host.text).toContain("row 40"), { timeout: SpecWait.milliseconds });
+  await vi.waitFor(() => expect(scrolled(host)).toEqual([40 - rowsOf(host), 40]), { timeout: SpecWait.milliseconds });
   host.runtime.size = TerminalResizeParams.fromJson(host.runtime.context.sent(TerminalNames.resizeMethod).at(-1) ?? null).size;
   const [bottom] = scrolled(host);
   pageUp(host, Math.ceil(bottom / (rowsOf(host) - 1)));
-  await vi.waitFor(() => expect(scrolled(host)).toEqual([300, 340]));
+  await vi.waitFor(() => expect(scrolled(host)).toEqual([300, 340]), { timeout: SpecWait.milliseconds });
 }
 
 async function openTypedAsync(host: PaneHost<TerminalPaneComponent>): Promise<void> {
@@ -96,7 +97,7 @@ async function openTypedAsync(host: PaneHost<TerminalPaneComponent>): Promise<vo
   host.runtime.offset = 8;
   host.runtime.input = new TerminalInputStart(0, 2);
   await host.attachedAsync();
-  await vi.waitFor(() => expect(host.text).toContain("$ git st"));
+  await vi.waitFor(() => expect(host.text).toContain("$ git st"), { timeout: SpecWait.milliseconds });
 }
 
 function addField(): HTMLInputElement {
@@ -120,11 +121,12 @@ describe("TerminalPaneComponent", () => {
     host.runtime.offset = 5;
 
     await host.startAsync();
-    await vi.waitFor(() => expect(host.text).toContain("hello"));
+    await vi.waitFor(() => expect(host.text).toContain("hello"), { timeout: SpecWait.milliseconds });
     host.runtime.output("s1", 5, " world");
 
-    await vi.waitFor(() => expect(host.text).toContain("hello world"));
-    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.ackMethod)).toEqual([{ sessionId: "s1", paneId: expect.any(String), offset: 11 }]));
+    await vi.waitFor(() => expect(host.text).toContain("hello world"), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.ackMethod)).toEqual([{ sessionId: "s1", paneId: expect.any(String), offset: 11 }]),
+      { timeout: SpecWait.milliseconds });
   });
 
   it("draws with WebGL and reports itself visible while shown, and gives both up while hidden", async () => {
@@ -132,12 +134,13 @@ describe("TerminalPaneComponent", () => {
     host.runtime.windowsPty = new WindowsPty(19_045);
 
     await host.attachedAsync();
-    await vi.waitFor(() => expect(host.element.querySelector(".xterm-screen canvas")).not.toBeNull());
+    await vi.waitFor(() => expect(host.element.querySelector(".xterm-screen canvas")).not.toBeNull(), { timeout: SpecWait.milliseconds });
     host.shown.set(false);
     await host.settleAsync();
 
     expect(host.element.querySelector(".xterm-screen canvas")).toBeNull();
-    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.visibilityMethod).map(t => TerminalVisibilityParams.fromJson(t).isVisible)).toEqual([true, false]));
+    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.visibilityMethod).map(t => TerminalVisibilityParams.fromJson(t).isVisible)).toEqual([true, false]),
+      { timeout: SpecWait.milliseconds });
   });
 
   it("draws with the DOM renderer and logs why when WebGL can't load", async () => {
@@ -150,7 +153,7 @@ describe("TerminalPaneComponent", () => {
 
     await host.attachedAsync();
 
-    await vi.waitFor(() => expect(host.text).toContain("still drawn"));
+    await vi.waitFor(() => expect(host.text).toContain("still drawn"), { timeout: SpecWait.milliseconds });
     expect(host.runtime.context.logs.filter(t => t.startsWith("The terminal draws with the DOM renderer, since WebGL failed: "))).toHaveLength(1);
   });
 
@@ -159,12 +162,12 @@ describe("TerminalPaneComponent", () => {
     host.element.style.display = "none";
 
     await host.attachedAsync();
-    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).toBe("80x24"));
+    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).toBe("80x24"), { timeout: SpecWait.milliseconds });
     host.element.style.display = "block";
     host.shown.set(true);
     await host.settleAsync();
 
-    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toBe("80x24"));
+    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toBe("80x24"), { timeout: SpecWait.milliseconds });
     const size: TerminalSize | null = host.fixture.componentInstance.size;
     expect([PaneHost.lastSize(host.runtime), host.runtime.context.sent(TerminalNames.resizeMethod).length]).toEqual([`${size?.columns}x${size?.rows}`, 2]);
   });
@@ -178,7 +181,7 @@ describe("TerminalPaneComponent", () => {
     const hidden: readonly unknown[] = [...host.runtime.context.sent(TerminalNames.resizeMethod)];
     host.element.style.display = "block";
 
-    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.resizeMethod)).toHaveLength(1));
+    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.resizeMethod)).toHaveLength(1), { timeout: SpecWait.milliseconds });
     const size: TerminalSize | null = host.fixture.componentInstance.size;
     expect([hidden, PaneHost.lastSize(host.runtime)]).toEqual([[], `${size?.columns}x${size?.rows}`]);
     expect(PaneHost.lastSize(host.runtime)).not.toBe("80x24");
@@ -191,10 +194,10 @@ describe("TerminalPaneComponent", () => {
     PaneHost.fill(host.element);
 
     await host.attachedAsync();
-    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).toMatch(/^\d+x1$/u));
+    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).toMatch(/^\d+x1$/u), { timeout: SpecWait.milliseconds });
     host.element.style.blockSize = "20rem";
 
-    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toMatch(/x1$/u));
+    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toMatch(/x1$/u), { timeout: SpecWait.milliseconds });
     const size: TerminalSize | null = host.fixture.componentInstance.size;
     expect(PaneHost.lastSize(host.runtime)).toBe(`${size?.columns}x${size?.rows}`);
   });
@@ -204,7 +207,7 @@ describe("TerminalPaneComponent", () => {
 
     await host.startAsync();
 
-    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.resizeMethod).length).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.resizeMethod).length).toBeGreaterThan(0), { timeout: SpecWait.milliseconds });
     expect(host.runtime.context.sent(TerminalNames.resizeMethod).at(-1)).not.toEqual({ sessionId: "s1", size: { cols: 80, rows: 24 } });
   });
 
@@ -215,7 +218,7 @@ describe("TerminalPaneComponent", () => {
     wide.fixture.detectChanges();
     PaneHost.fill(wide.element);
     await wide.startAsync();
-    await vi.waitFor(() => expect(sent()).not.toBe(""));
+    await vi.waitFor(() => expect(sent()).not.toBe(""), { timeout: SpecWait.milliseconds });
     const wideSize: string = sent();
     const narrow: ComponentFixture<TerminalPaneComponent> = TestBed.createComponent(TerminalPaneComponent);
     document.body.append(wide.element);
@@ -226,23 +229,24 @@ describe("TerminalPaneComponent", () => {
     narrow.detectChanges();
     PaneHost.fill(element);
     await narrow.whenStable();
-    await vi.waitFor(() => expect(element.querySelector("textarea")).not.toBeNull());
+    await vi.waitFor(() => expect(element.querySelector("textarea")).not.toBeNull(), { timeout: SpecWait.milliseconds });
     wide.textarea.blur();
     PaneHost.find(element, "textarea", HTMLTextAreaElement).focus();
 
-    await vi.waitFor(() => expect([sent(), drawn(wide.fixture.componentInstance)]).toEqual([drawn(narrow.componentInstance), drawn(narrow.componentInstance)]));
+    await vi.waitFor(() => expect([sent(), drawn(wide.fixture.componentInstance)]).toEqual([drawn(narrow.componentInstance), drawn(narrow.componentInstance)]),
+      { timeout: SpecWait.milliseconds });
     const narrowSize: string = sent();
     expect(narrowSize).not.toBe(wideSize);
     wide.textarea.focus();
-    await vi.waitFor(() => expect([sent(), drawn(narrow.componentInstance)]).toEqual([wideSize, wideSize]));
+    await vi.waitFor(() => expect([sent(), drawn(narrow.componentInstance)]).toEqual([wideSize, wideSize]), { timeout: SpecWait.milliseconds });
     const resizes: number = wide.runtime.context.sent(TerminalNames.resizeMethod).length;
     const asked = vi.spyOn(SessionSizing, "isSizing");
     element.style.inlineSize = "15rem";
-    await vi.waitFor(() => expect(asked.mock.results.map(t => t.value)).toContain(false));
+    await vi.waitFor(() => expect(asked.mock.results.map(t => t.value)).toContain(false), { timeout: SpecWait.milliseconds });
     expect(wide.runtime.context.sent(TerminalNames.resizeMethod)).toHaveLength(resizes);
     wide.fixture.destroy();
 
-    await vi.waitFor(() => expect(narrow.componentInstance.size?.columns).toBeLessThan(Number(narrowSize.split("x")[0])));
+    await vi.waitFor(() => expect(narrow.componentInstance.size?.columns).toBeLessThan(Number(narrowSize.split("x")[0])), { timeout: SpecWait.milliseconds });
     expect(sent()).toBe(drawn(narrow.componentInstance));
     narrow.destroy();
   });
@@ -254,7 +258,7 @@ describe("TerminalPaneComponent", () => {
     host.press({ key: "k", code: "KeyK", ctrlKey: !PaneHost.isMac, shiftKey: !PaneHost.isMac, metaKey: PaneHost.isMac });
     host.press({ key: "Enter", code: "Enter", keyCode: 13 });
 
-    await vi.waitFor(() => expect(host.inputs).toEqual(["\r"]));
+    await vi.waitFor(() => expect(host.inputs).toEqual(["\r"]), { timeout: SpecWait.milliseconds });
   });
 
   it("leaves Toggle Terminal's and New Terminal's keys, Ctrl+` and Ctrl+Shift+`, to the window", async () => {
@@ -272,7 +276,7 @@ describe("TerminalPaneComponent", () => {
     host.press({ key: "Enter", code: "Enter", keyCode: 13 });
     document.removeEventListener("keydown", listener);
 
-    await vi.waitFor(() => expect(host.inputs).toEqual(["\r"]));
+    await vi.waitFor(() => expect(host.inputs).toEqual(["\r"]), { timeout: SpecWait.milliseconds });
     expect(reached.map(t => [t.key, t.defaultPrevented])).toEqual([["`", false], ["~", false]]);
   });
 
@@ -295,7 +299,7 @@ describe("TerminalPaneComponent", () => {
     host.press({ key: "k", code: "KeyK", keyCode: 75, ctrlKey: true });
     document.removeEventListener("keydown", listener);
 
-    await vi.waitFor(() => expect(host.inputs).toEqual(["\u000b"]));
+    await vi.waitFor(() => expect(host.inputs).toEqual(["\u000b"]), { timeout: SpecWait.milliseconds });
     expect(reached).toEqual([["j", false]]);
   });
 
@@ -309,19 +313,19 @@ describe("TerminalPaneComponent", () => {
     expect(host.inputs).toEqual([]);
     await cdp().send("Input.insertText", { text: "日本" });
 
-    await vi.waitFor(() => expect(host.inputs).toEqual(["日本"]));
+    await vi.waitFor(() => expect(host.inputs).toEqual(["日本"]), { timeout: SpecWait.milliseconds });
   });
 
   it("gives the shell the program's mouse reports", async () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.runtime.snapshot = "\u001b[?1000h";
     await host.attachedAsync();
-    await vi.waitFor(() => expect(host.element.querySelector(".xterm.enable-mouse-events")).not.toBeNull());
+    await vi.waitFor(() => expect(host.element.querySelector(".xterm.enable-mouse-events")).not.toBeNull(), { timeout: SpecWait.milliseconds });
 
     host.pointAt("mousedown", 2, 1, { button: 0 });
     host.pointAt("mouseup", 2, 1, { button: 0 });
 
-    await vi.waitFor(() => expect(host.inputs[0]).toMatch(/^\u001b\[M /u));
+    await vi.waitFor(() => expect(host.inputs[0]).toMatch(/^\u001b\[M /u), { timeout: SpecWait.milliseconds });
   });
 
   it("copies the selection with the copy keys through Noldova Desktop's clipboard writer, and logs a write it refuses or that fails", async () => {
@@ -329,20 +333,20 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.runtime.snapshot = "copy me";
     await host.startAsync();
-    await vi.waitFor(() => expect(host.text).toContain("copy me"));
+    await vi.waitFor(() => expect(host.text).toContain("copy me"), { timeout: SpecWait.milliseconds });
 
     host.press(COPY);
     host.pointAt("mousedown", 2, 1, { detail: 3, button: 0 });
     host.pointAt("mouseup", 2, 1, { detail: 3, button: 0 });
     host.press(COPY);
-    await vi.waitFor(() => expect(host.clipboard.texts).toEqual(["copy me"]));
+    await vi.waitFor(() => expect(host.clipboard.texts).toEqual(["copy me"]), { timeout: SpecWait.milliseconds });
     host.clipboard.answer = async () => false;
     host.press(COPY);
-    await vi.waitFor(() => expect(host.runtime.context.logs).toContain("Copying the selection failed: the clipboard refused the text."));
+    await vi.waitFor(() => expect(host.runtime.context.logs).toContain("Copying the selection failed: the clipboard refused the text."), { timeout: SpecWait.milliseconds });
     host.clipboard.answer = () => Promise.reject(new Error("The main process is gone."));
     host.press(COPY);
 
-    await vi.waitFor(() => expect(host.runtime.context.logs).toContain("Copying the selection failed: The main process is gone."));
+    await vi.waitFor(() => expect(host.runtime.context.logs).toContain("Copying the selection failed: The main process is gone."), { timeout: SpecWait.milliseconds });
     expect(host.clipboard.texts).toEqual(["copy me", "copy me", "copy me"]);
     expect(host.runtime.context.logs.some(t => t.includes("copy me"))).toBe(false);
     expect(writeText).not.toHaveBeenCalled();
@@ -353,7 +357,7 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.runtime.snapshot = "copy me";
     await host.startAsync();
-    await vi.waitFor(() => expect(host.text).toContain("copy me"));
+    await vi.waitFor(() => expect(host.text).toContain("copy me"), { timeout: SpecWait.milliseconds });
     const source: ISelectionSource | undefined = host.runtime.context.selectionSources.get(host.element);
     const unselected: readonly [boolean, string] | undefined = source === undefined ? undefined : [source.hasSelection(), source.readSelection()];
 
@@ -372,13 +376,13 @@ describe("TerminalPaneComponent", () => {
     host.runtime.snapshot = "y".repeat(4_000);
     host.clipboard.answer = async () => false;
     await host.startAsync();
-    await vi.waitFor(() => expect(host.text).toContain("yyy"));
+    await vi.waitFor(() => expect(host.text).toContain("yyy"), { timeout: SpecWait.milliseconds });
 
     host.pointAt("mousedown", 2, 1, { detail: 3, button: 0 });
     host.pointAt("mouseup", 2, 1, { detail: 3, button: 0 });
     host.press(COPY);
 
-    await vi.waitFor(() => expect(host.runtime.context.logs).toContain("Copying the selection failed: the clipboard refused the text."));
+    await vi.waitFor(() => expect(host.runtime.context.logs).toContain("Copying the selection failed: the clipboard refused the text."), { timeout: SpecWait.milliseconds });
     expect(host.clipboard.texts.map(t => t.length)).toEqual([4_000]);
     expect(host.runtime.context.logs.some(t => t.includes("yyy"))).toBe(false);
   });
@@ -387,14 +391,14 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.runtime.snapshot = "\u001b[?2004hready";
     await host.attachedAsync();
-    await vi.waitFor(() => expect(host.text).toContain("ready"));
+    await vi.waitFor(() => expect(host.text).toContain("ready"), { timeout: SpecWait.milliseconds });
     const data: DataTransfer = new DataTransfer();
     data.setData("text/plain", "echo hi\u001b[201~x");
 
     host.textarea.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
     host.textarea.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true }));
 
-    await vi.waitFor(() => expect(host.inputs[0]).toBe("\u001b[200~echo hi[201~x\u001b[201~"));
+    await vi.waitFor(() => expect(host.inputs[0]).toBe("\u001b[200~echo hi[201~x\u001b[201~"), { timeout: SpecWait.milliseconds });
     expect(host.inputs).toEqual(["\u001b[200~echo hi[201~x\u001b[201~"]);
   });
 
@@ -404,7 +408,7 @@ describe("TerminalPaneComponent", () => {
 
     host.runtime.output("s1", 0, "\u001b[6n\u001b[?6n\u001b[c\u001b[>c\u001b[=c\u001b[4$p\u001b[?1$p\u001bP$qm\u001b\\ready");
 
-    await vi.waitFor(() => expect(host.text).toContain("ready"));
+    await vi.waitFor(() => expect(host.text).toContain("ready"), { timeout: SpecWait.milliseconds });
     expect(host.inputs).toEqual([]);
   });
 
@@ -412,11 +416,11 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.runtime.snapshot = "https://noldova.com/docs";
     await host.startAsync();
-    await vi.waitFor(() => expect(host.text).toContain("noldova"));
-    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toBe(""));
+    await vi.waitFor(() => expect(host.text).toContain("noldova"), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toBe(""), { timeout: SpecWait.milliseconds });
 
     host.pointAt("mousemove", 3, 1);
-    await vi.waitFor(() => expect(host.element.getAttribute("title")).toBe("https://noldova.com/docs"));
+    await vi.waitFor(() => expect(host.element.getAttribute("title")).toBe("https://noldova.com/docs"), { timeout: SpecWait.milliseconds });
     host.pointAt("mousedown", 3, 1, { button: 0 });
     host.pointAt("mouseup", 3, 1, { button: 0 });
     host.pointAt("mousedown", 3, 1, { button: 1, ...OPEN });
@@ -425,11 +429,11 @@ describe("TerminalPaneComponent", () => {
     host.pointAt("mouseup", 3, 1, { button: 2, ...OPEN });
     host.pointAt("mousedown", 3, 1, { button: 0, ...OPEN });
     host.pointAt("mouseup", 3, 1, { button: 0, ...OPEN });
-    await vi.waitFor(() => expect(host.runtime.context.links).toEqual(["https://noldova.com/docs"]));
+    await vi.waitFor(() => expect(host.runtime.context.links).toEqual(["https://noldova.com/docs"]), { timeout: SpecWait.milliseconds });
     expect(host.runtime.context.linkGestures).toEqual([LinkGesture.Modified]);
     host.pointAt("mousemove", 60, 10);
 
-    await vi.waitFor(() => expect(host.element.getAttribute("title")).toBeNull());
+    await vi.waitFor(() => expect(host.element.getAttribute("title")).toBeNull(), { timeout: SpecWait.milliseconds });
   });
 
   it("opens an OSC 8 link only when its target is allowed, and logs a link the window can't open", async () => {
@@ -437,21 +441,21 @@ describe("TerminalPaneComponent", () => {
     host.runtime.snapshot = "\u001b]8;;https://a.example/\u0007alpha\u001b]8;;\u0007 \u001b]8;;file:///etc/passwd\u0007beta\u001b]8;;\u0007";
     host.runtime.context.linkFailure = new Error("no browser");
     await host.startAsync();
-    await vi.waitFor(() => expect(host.text).toContain("alpha beta"));
-    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toBe(""));
+    await vi.waitFor(() => expect(host.text).toContain("alpha beta"), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toBe(""), { timeout: SpecWait.milliseconds });
 
     host.pointAt("mousemove", 2, 1);
-    await vi.waitFor(() => expect(host.element.getAttribute("title")).toBe("https://a.example/"));
+    await vi.waitFor(() => expect(host.element.getAttribute("title")).toBe("https://a.example/"), { timeout: SpecWait.milliseconds });
     host.pointAt("mousedown", 2, 1, { button: 0, ...OPEN });
     host.pointAt("mouseup", 2, 1, { button: 0, ...OPEN });
     host.pointAt("mousemove", 8, 1);
-    await vi.waitFor(() => expect(host.element.getAttribute("title")).toBe("file:///etc/passwd"));
+    await vi.waitFor(() => expect(host.element.getAttribute("title")).toBe("file:///etc/passwd"), { timeout: SpecWait.milliseconds });
     host.pointAt("mousedown", 8, 1, { button: 0, ...OPEN });
     host.pointAt("mouseup", 8, 1, { button: 0, ...OPEN });
     host.pointAt("mousemove", 60, 10);
 
-    await vi.waitFor(() => expect(host.runtime.context.logs).toContain("Opening the link failed: no browser"));
-    await vi.waitFor(() => expect(host.element.getAttribute("title")).toBeNull());
+    await vi.waitFor(() => expect(host.runtime.context.logs).toContain("Opening the link failed: no browser"), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(host.element.getAttribute("title")).toBeNull(), { timeout: SpecWait.milliseconds });
     expect([host.runtime.context.links, host.runtime.context.linkGestures]).toEqual([["https://a.example/"], [LinkGesture.Modified]]);
   });
 
@@ -462,7 +466,7 @@ describe("TerminalPaneComponent", () => {
     host.runtime.offset = host.runtime.snapshot.length;
 
     await host.startAsync();
-    await vi.waitFor(() => expect(host.text).toContain("faint"));
+    await vi.waitFor(() => expect(host.text).toContain("faint"), { timeout: SpecWait.milliseconds });
     const faint: Element | undefined = [...host.element.querySelectorAll(".xterm-rows span")].find(t => t.textContent === "faint");
 
     expect(faint).not.toBeUndefined();
@@ -477,13 +481,14 @@ describe("TerminalPaneComponent", () => {
     host.fixture.componentInstance.restartRequested.subscribe(t => restarts.push(t));
     await host.startAsync();
     PaneHost.fill(host.element);
-    await vi.waitFor(() => expect(host.element.querySelector(".nol-terminal-pane-ended")?.textContent).toContain("The shell exited with code 2."));
+    await vi.waitFor(() => expect(host.element.querySelector(".nol-terminal-pane-ended")?.textContent).toContain("The shell exited with code 2."),
+      { timeout: SpecWait.milliseconds });
     const resizes: number = host.runtime.context.sent(TerminalNames.resizeMethod).length;
     const rows: number = host.fixture.componentInstance.size?.rows ?? 0;
 
     host.press({ key: "Enter", code: "Enter", keyCode: 13 });
     host.element.style.blockSize = "10rem";
-    await vi.waitFor(() => expect(host.fixture.componentInstance.size?.rows).toBeLessThan(rows));
+    await vi.waitFor(() => expect(host.fixture.componentInstance.size?.rows).toBeLessThan(rows), { timeout: SpecWait.milliseconds });
     host.element.querySelector<HTMLButtonElement>(".nol-terminal-pane-ended button")?.click();
 
     expect(host.element.querySelector(".nol-terminal-pane-ended button")?.textContent?.trim()).toBe("Restart");
@@ -501,11 +506,12 @@ describe("TerminalPaneComponent", () => {
     host.runtime.exit = new TerminalExit(0, EndedBy.Exit);
     await host.startAsync();
     PaneHost.fill(host.element);
-    await vi.waitFor(() => expect([host.element.querySelector(".nol-terminal-pane-ended") === null, host.text]).toEqual([false, expect.stringContaining("last words")]));
+    await vi.waitFor(() => expect([host.element.querySelector(".nol-terminal-pane-ended") === null, host.text]).toEqual([false, expect.stringContaining("last words")]),
+      { timeout: SpecWait.milliseconds });
     const resizes: number = host.runtime.context.sent(TerminalNames.resizeMethod).length;
     const rows: number = host.fixture.componentInstance.size?.rows ?? 0;
     host.element.style.blockSize = "10rem";
-    await vi.waitFor(() => expect(host.fixture.componentInstance.size?.rows).toBeLessThan(rows));
+    await vi.waitFor(() => expect(host.fixture.componentInstance.size?.rows).toBeLessThan(rows), { timeout: SpecWait.milliseconds });
     expect(host.runtime.context.sent(TerminalNames.resizeMethod)).toHaveLength(resizes);
 
     host.runtime.restartSession("s1");
@@ -526,9 +532,9 @@ describe("TerminalPaneComponent", () => {
     const restarts: TerminalSize[] = [];
     host.fixture.componentInstance.restartRequested.subscribe(t => restarts.push(t));
     await host.startAsync();
-    await vi.waitFor(() => expect(host.element.querySelector(".nol-terminal-pane-ended button")).not.toBeNull());
+    await vi.waitFor(() => expect(host.element.querySelector(".nol-terminal-pane-ended button")).not.toBeNull(), { timeout: SpecWait.milliseconds });
     host.element.querySelector<HTMLElement>(".nol-terminal-pane-screen")?.style.setProperty("block-size", "60rem");
-    await vi.waitFor(() => expect(host.element.querySelectorAll(".xterm-rows > div").length).toBeGreaterThan(host.runtime.size.rows + 3));
+    await vi.waitFor(() => expect(host.element.querySelectorAll(".xterm-rows > div").length).toBeGreaterThan(host.runtime.size.rows + 3), { timeout: SpecWait.milliseconds });
 
     host.element.querySelector<HTMLButtonElement>(".nol-terminal-pane-ended button")?.click();
     const size: TerminalSize = restarts[0] ?? host.runtime.size;
@@ -537,7 +543,7 @@ describe("TerminalPaneComponent", () => {
     await host.settleAsync();
 
     expect(size.rows).toBeGreaterThan(host.runtime.size.rows + 3);
-    await vi.waitFor(() => expect(host.text).toContain("new prompt$"));
+    await vi.waitFor(() => expect(host.text).toContain("new prompt$"), { timeout: SpecWait.milliseconds });
     expect(host.text).not.toContain("last words");
   });
 
@@ -550,10 +556,10 @@ describe("TerminalPaneComponent", () => {
 
     await pageStoredInAsync(host);
     expect(host.runtime.context.sent(TerminalNames.linesMethod)).toEqual([{ sessionId: "s1", start: 0, limit: 300 }]);
-    await vi.waitFor(() => expect(host.text).toMatch(/^row 1(?!\d)/u));
+    await vi.waitFor(() => expect(host.text).toMatch(/^row 1(?!\d)/u), { timeout: SpecWait.milliseconds });
     pageUp(host, Math.ceil(300 / (rowsOf(host) - 1)));
 
-    await vi.waitFor(() => expect(host.text).toMatch(/^stored 0(?!\d)/u));
+    await vi.waitFor(() => expect(host.text).toMatch(/^stored 0(?!\d)/u), { timeout: SpecWait.milliseconds });
     expect(scrolled(host)).toEqual([0, 340]);
     expect(host.runtime.context.sent(TerminalNames.linesMethod)).toHaveLength(1);
   });
@@ -564,7 +570,7 @@ describe("TerminalPaneComponent", () => {
 
     await host.startAsync();
 
-    await vi.waitFor(() => expect(host.element.querySelector(".nol-terminal-pane-ended")?.textContent).toContain("The terminal was closed."));
+    await vi.waitFor(() => expect(host.element.querySelector(".nol-terminal-pane-ended")?.textContent).toContain("The terminal was closed."), { timeout: SpecWait.milliseconds });
   });
 
   it("passes the program's title on, cut to the tab's length", async () => {
@@ -572,7 +578,7 @@ describe("TerminalPaneComponent", () => {
     const titles: string[] = [];
     host.fixture.componentInstance.titleChanged.subscribe(t => titles.push(t));
     await host.startAsync();
-    await vi.waitFor(() => expect(titles).toEqual([""]));
+    await vi.waitFor(() => expect(titles).toEqual([""]), { timeout: SpecWait.milliseconds });
 
     host.runtime.retitle("s1", "x".repeat(300));
 
@@ -585,7 +591,7 @@ describe("TerminalPaneComponent", () => {
     host.fixture.componentInstance.cwdChanged.subscribe(t => folders.push(t));
     host.runtime.cwd = "/work";
     await host.startAsync();
-    await vi.waitFor(() => expect(folders).toEqual(["/work"]));
+    await vi.waitFor(() => expect(folders).toEqual(["/work"]), { timeout: SpecWait.milliseconds });
 
     host.runtime.changeCwd("s1", "/work/src");
 
@@ -596,15 +602,15 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.runtime.exit = new TerminalExit(0, EndedBy.Exit);
     await host.startAsync();
-    await vi.waitFor(() => expect(host.element.querySelector(".nol-terminal-pane-ended")).not.toBeNull());
+    await vi.waitFor(() => expect(host.element.querySelector(".nol-terminal-pane-ended")).not.toBeNull(), { timeout: SpecWait.milliseconds });
 
     host.runtime.exit = null;
     host.fixture.componentRef.setInput("sessionId", "s2");
     await host.settleAsync();
 
-    await vi.waitFor(() => expect(sessionsOf(host.runtime.context.sent(TerminalNames.attachMethod))).toEqual(["s1", "s2"]));
+    await vi.waitFor(() => expect(sessionsOf(host.runtime.context.sent(TerminalNames.attachMethod))).toEqual(["s1", "s2"]), { timeout: SpecWait.milliseconds });
     expect(sessionsOf(host.runtime.context.sent(TerminalNames.detachMethod))).toEqual(["s1"]);
-    await vi.waitFor(() => expect(host.element.querySelector(".nol-terminal-pane-ended")).toBeNull());
+    await vi.waitFor(() => expect(host.element.querySelector(".nol-terminal-pane-ended")).toBeNull(), { timeout: SpecWait.milliseconds });
   });
 
   it("suggests an earlier command's rest from a prompt's input mark, sends it to the shell for →, and stops at the line's end mark", async () => {
@@ -614,14 +620,14 @@ describe("TerminalPaneComponent", () => {
 
     host.runtime.output("s1", 0, "$ ", [new TerminalInputMark(2, TerminalInputEdge.Start)]);
     host.runtime.output("s1", 2, "git st");
-    await vi.waitFor(() => expect(host.text).toContain("$ git st"));
+    await vi.waitFor(() => expect(host.text).toContain("$ git st"), { timeout: SpecWait.milliseconds });
     host.press({ key: "ArrowRight", code: "ArrowRight", keyCode: 39 });
 
     expect(host.inputs.at(-1)).toBe("atus");
     host.runtime.output("s1", 8, "a", [new TerminalInputMark(9, TerminalInputEdge.End)]);
-    await vi.waitFor(() => expect(host.text).toContain("$ git sta"));
+    await vi.waitFor(() => expect(host.text).toContain("$ git sta"), { timeout: SpecWait.milliseconds });
     host.press({ key: "End", code: "End", keyCode: 35 });
-    await vi.waitFor(() => expect(host.inputs.at(-1)).toBe("\u001b[F"));
+    await vi.waitFor(() => expect(host.inputs.at(-1)).toBe("\u001b[F"), { timeout: SpecWait.milliseconds });
   });
 
   it("follows no continuation prompt's mark while the pane shows stored pages instead of its live screen", async () => {
@@ -630,13 +636,14 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     await host.attachedAsync();
     host.runtime.output("s1", 0, "$ ", [new TerminalInputMark(2, TerminalInputEdge.Start)]);
-    await vi.waitFor(() => expect(host.text).toContain("$"));
+    await vi.waitFor(() => expect(host.text).toContain("$"), { timeout: SpecWait.milliseconds });
     vi.spyOn(TerminalPager.prototype, "isLive", "get").mockReturnValue(false);
     const endings: number = ended.mock.calls.length;
 
     host.runtime.output("s1", 2, "echo 'a\r\n> ", [new TerminalInputMark(13, TerminalInputEdge.Continuation)]);
 
-    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.ackMethod).at(-1)).toEqual({ sessionId: "s1", paneId: expect.any(String), offset: 13 }));
+    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.ackMethod).at(-1)).toEqual({ sessionId: "s1", paneId: expect.any(String), offset: 13 }),
+      { timeout: SpecWait.milliseconds });
     expect(continued).not.toHaveBeenCalled();
     expect(ended.mock.calls.length).toBe(endings);
   });
@@ -651,7 +658,7 @@ describe("TerminalPaneComponent", () => {
     host.runtime.output("s1", 2, "echo 'a\r\n> ", [new TerminalInputMark(13, TerminalInputEdge.Continuation)]);
     host.runtime.output("s1", 13, "b");
 
-    await vi.waitFor(() => expect(host.text).toContain("> b"));
+    await vi.waitFor(() => expect(host.text).toContain("> b"), { timeout: SpecWait.milliseconds });
     expect(continued).toHaveBeenCalledTimes(1);
     expect(host.element.querySelector(`.${Resources.suggestionClass}`)).toBeNull();
   });
@@ -663,14 +670,14 @@ describe("TerminalPaneComponent", () => {
     host.runtime.offset = 23;
     host.runtime.input = new TerminalInputStart(0, 2, 13);
     await host.attachedAsync();
-    await vi.waitFor(() => expect(host.text).toContain("$ git st     ~/work"));
+    await vi.waitFor(() => expect(host.text).toContain("$ git st     ~/work"), { timeout: SpecWait.milliseconds });
 
-    await vi.waitFor(() => expect(host.element.querySelector(`.${Resources.suggestionClass}`)?.textContent).toBe("atus"));
+    await vi.waitFor(() => expect(host.element.querySelector(`.${Resources.suggestionClass}`)?.textContent).toBe("atus"), { timeout: SpecWait.milliseconds });
     host.runtime.output("s1", 23, "\r\n$ ", [new TerminalInputMark(27, TerminalInputEdge.Start)]);
     host.runtime.output("s1", 27, "\u001b[14G", [new TerminalInputMark(32, TerminalInputEdge.RightPrompt)]);
     host.runtime.output("s1", 32, "~/work\u001b[3Ggit st");
-    await vi.waitFor(() => expect(host.text.split("git st")).toHaveLength(3));
-    await vi.waitFor(() => expect(host.element.querySelector(`.${Resources.suggestionClass}`)?.textContent).toBe("atus"));
+    await vi.waitFor(() => expect(host.text.split("git st")).toHaveLength(3), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(host.element.querySelector(`.${Resources.suggestionClass}`)?.textContent).toBe("atus"), { timeout: SpecWait.milliseconds });
     host.press({ key: "ArrowRight", code: "ArrowRight", keyCode: 39 });
 
     expect(host.inputs.at(-1)).toBe("atus");
@@ -683,7 +690,7 @@ describe("TerminalPaneComponent", () => {
     host.press({ key: "End", code: "End", keyCode: 35 });
     expect(host.inputs.at(-1)).toBe("atus");
     host.runtime.output("s1", 8, "atus");
-    await vi.waitFor(() => expect(host.text).toContain("$ git status"));
+    await vi.waitFor(() => expect(host.text).toContain("$ git status"), { timeout: SpecWait.milliseconds });
     host.runtime.addCommand("s1", "git status --short");
     host.press({ key: "End", code: "End", keyCode: 35 });
 
@@ -702,11 +709,11 @@ describe("TerminalPaneComponent", () => {
     paste("a");
     paste("t");
     host.runtime.output("s1", 8, "a");
-    await vi.waitFor(() => expect(host.text).toContain("$ git sta"));
+    await vi.waitFor(() => expect(host.text).toContain("$ git sta"), { timeout: SpecWait.milliseconds });
     host.press({ key: "ArrowRight", code: "ArrowRight", keyCode: 39 });
-    await vi.waitFor(() => expect(host.inputs.slice(-3)).toEqual(["a", "t", "\u001b[C"]));
+    await vi.waitFor(() => expect(host.inputs.slice(-3)).toEqual(["a", "t", "\u001b[C"]), { timeout: SpecWait.milliseconds });
     host.runtime.output("s1", 9, "t");
-    await vi.waitFor(() => expect(host.element.querySelector(`.${Resources.suggestionClass}`)?.textContent).toBe("us"));
+    await vi.waitFor(() => expect(host.element.querySelector(`.${Resources.suggestionClass}`)?.textContent).toBe("us"), { timeout: SpecWait.milliseconds });
     host.press({ key: "End", code: "End", keyCode: 35 });
 
     expect(host.inputs.at(-1)).toBe("us");
@@ -718,10 +725,10 @@ describe("TerminalPaneComponent", () => {
     await openTypedAsync(host);
 
     host.press({ key: "ArrowRight", code: "ArrowRight", keyCode: 39 });
-    await vi.waitFor(() => expect(host.inputs.at(-1)).toBe("\u001b[C"));
+    await vi.waitFor(() => expect(host.inputs.at(-1)).toBe("\u001b[C"), { timeout: SpecWait.milliseconds });
     host.runtime.output("s1", 8, "\u0007");
     host.runtime.context.changeSetting(ProtocolResources.suggestionsSetting, true);
-    await vi.waitFor(() => expect(host.element.querySelector(`.${Resources.suggestionClass}`)?.textContent).toBe("atus"));
+    await vi.waitFor(() => expect(host.element.querySelector(`.${Resources.suggestionClass}`)?.textContent).toBe("atus"), { timeout: SpecWait.milliseconds });
     host.press({ key: "ArrowRight", code: "ArrowRight", keyCode: 39 });
 
     expect(host.inputs.at(-1)).toBe("atus");
@@ -740,7 +747,7 @@ describe("TerminalPaneComponent", () => {
 
     host.press({ key: "ArrowRight", code: "ArrowRight", keyCode: 39 });
 
-    await vi.waitFor(() => expect(host.inputs.at(-1)).toBe("\u001b[C"));
+    await vi.waitFor(() => expect(host.inputs.at(-1)).toBe("\u001b[C"), { timeout: SpecWait.milliseconds });
   });
 
   it("turns typed command colors on and off with the Command colors setting", async () => {
@@ -749,7 +756,7 @@ describe("TerminalPaneComponent", () => {
     host.runtime.context.settings.set(Resources.commandColorsSetting, true);
     await openTypedAsync(host);
 
-    await vi.waitFor(() => expect(enabled.mock.calls.at(-1)).toEqual([true]));
+    await vi.waitFor(() => expect(enabled.mock.calls.at(-1)).toEqual([true]), { timeout: SpecWait.milliseconds });
     host.runtime.context.changeSetting(Resources.commandColorsSetting, false);
 
     expect(enabled.mock.calls.at(-1)).toEqual([false]);
@@ -765,7 +772,7 @@ describe("TerminalPaneComponent", () => {
     host.runtime.output("s1", 0, "$ ", [new TerminalInputMark(2, TerminalInputEdge.Start)]);
     host.runtime.output("s1", 2, "gti");
 
-    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.findCommandsMethod)).toEqual([{ sessionId: "s1", names: ["gti"] }]));
+    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.findCommandsMethod)).toEqual([{ sessionId: "s1", names: ["gti"] }]), { timeout: SpecWait.milliseconds });
   });
 
   it("logs a lookup of typed command names the runtime fails", async () => {
@@ -779,7 +786,7 @@ describe("TerminalPaneComponent", () => {
     host.runtime.output("s1", 0, "$ ", [new TerminalInputMark(2, TerminalInputEdge.Start)]);
     host.runtime.output("s1", 2, "gti");
 
-    await vi.waitFor(() => expect(host.runtime.context.logs).toContain(Resources.formatCommandLookupFailed(failure)));
+    await vi.waitFor(() => expect(host.runtime.context.logs).toContain(Resources.formatCommandLookupFailed(failure)), { timeout: SpecWait.milliseconds });
   });
 
   it("keeps a Command colors change that came before its setting was read over the read's older value", async () => {
@@ -794,7 +801,7 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane(false, runtime);
     await openTypedAsync(host);
 
-    await vi.waitFor(() => expect(enabled.mock.calls.at(-1)).toEqual([true]));
+    await vi.waitFor(() => expect(enabled.mock.calls.at(-1)).toEqual([true]), { timeout: SpecWait.milliseconds });
   });
 
   it("logs a Suggestions setting it can't read, and suggests", async () => {
@@ -803,7 +810,7 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane(false, runtime);
     await openTypedAsync(host);
 
-    await vi.waitFor(() => expect(host.runtime.context.logs).toContain(Resources.formatSuggestionsUnread(new Error("no settings"))));
+    await vi.waitFor(() => expect(host.runtime.context.logs).toContain(Resources.formatSuggestionsUnread(new Error("no settings"))), { timeout: SpecWait.milliseconds });
     host.press({ key: "End", code: "End", keyCode: 35 });
 
     expect(host.inputs.at(-1)).toBe("atus");
@@ -822,7 +829,7 @@ describe("TerminalPaneComponent", () => {
     await openTypedAsync(host);
 
     host.press({ key: "Tab", code: "Tab", keyCode: 9 });
-    await vi.waitFor(() => expect(host.element.querySelectorAll(`.${Resources.completionClass}`)).toHaveLength(2));
+    await vi.waitFor(() => expect(host.element.querySelectorAll(`.${Resources.completionClass}`)).toHaveLength(2), { timeout: SpecWait.milliseconds });
     host.press({ key: "ArrowDown", code: "ArrowDown", keyCode: 40 });
     host.press({ key: "Enter", code: "Enter", keyCode: 13 });
 
@@ -837,10 +844,10 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane(false, runtime);
     await openTypedAsync(host);
 
-    await vi.waitFor(() => expect(host.runtime.context.logs).toContain(Resources.formatCompletionListUnread(new Error("no settings"))));
+    await vi.waitFor(() => expect(host.runtime.context.logs).toContain(Resources.formatCompletionListUnread(new Error("no settings"))), { timeout: SpecWait.milliseconds });
     host.press({ key: "Tab", code: "Tab", keyCode: 9 });
 
-    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.completeMethod)).toHaveLength(1));
+    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.completeMethod)).toHaveLength(1), { timeout: SpecWait.milliseconds });
   });
 
   it("gives Tab to the shell while Complete with a list is off, keeping a change that came before its setting was read over the read's older value", async () => {
@@ -856,7 +863,7 @@ describe("TerminalPaneComponent", () => {
 
     host.press({ key: "Tab", code: "Tab", keyCode: 9 });
 
-    await vi.waitFor(() => expect(host.inputs.at(-1)).toBe("\t"));
+    await vi.waitFor(() => expect(host.inputs.at(-1)).toBe("\t"), { timeout: SpecWait.milliseconds });
     expect(host.runtime.context.sent(TerminalNames.completeMethod)).toEqual([]);
   });
 
@@ -867,7 +874,7 @@ describe("TerminalPaneComponent", () => {
     await host.startAsync();
     const size = (): string => getComputedStyle(host.element.querySelector(".xterm-rows") ?? host.element).fontSize;
 
-    await vi.waitFor(() => expect(size()).toBe("13px"));
+    await vi.waitFor(() => expect(size()).toBe("13px"), { timeout: SpecWait.milliseconds });
     document.documentElement.style.setProperty("--nol-text-terminal", "21px");
     await refontAsync(host, "\"Courier New\", monospace");
     expect(size()).toBe("13px");
@@ -879,14 +886,14 @@ describe("TerminalPaneComponent", () => {
     await host.startAsync();
     const size = (): string => getComputedStyle(host.element.querySelector(".xterm-rows") ?? host.element).fontSize;
 
-    await vi.waitFor(() => expect(size()).toBe("17px"));
+    await vi.waitFor(() => expect(size()).toBe("17px"), { timeout: SpecWait.milliseconds });
     host.runtime.context.changeSetting(Resources.fontSizeSetting, 19);
-    await vi.waitFor(() => expect(size()).toBe("19px"));
+    await vi.waitFor(() => expect(size()).toBe("19px"), { timeout: SpecWait.milliseconds });
     document.documentElement.style.setProperty("--nol-text-terminal", "21px");
     await refontAsync(host, "\"Courier New\", monospace");
     expect(size()).toBe("19px");
     host.runtime.context.changeSetting(Resources.fontSizeSetting, undefined);
-    await vi.waitFor(() => expect(size()).toBe("13px"));
+    await vi.waitFor(() => expect(size()).toBe("13px"), { timeout: SpecWait.milliseconds });
   });
 
   it("draws at its default 13 pixels when the Font size setting isn't a number", async () => {
@@ -894,11 +901,11 @@ describe("TerminalPaneComponent", () => {
     host.runtime.context.settings.set(Resources.fontSizeSetting, 17);
     await host.startAsync();
     const size = (): string => getComputedStyle(host.element.querySelector(".xterm-rows") ?? host.element).fontSize;
-    await vi.waitFor(() => expect(size()).toBe("17px"));
+    await vi.waitFor(() => expect(size()).toBe("17px"), { timeout: SpecWait.milliseconds });
 
     host.runtime.context.changeSetting(Resources.fontSizeSetting, "large");
 
-    await vi.waitFor(() => expect(size()).toBe("13px"));
+    await vi.waitFor(() => expect(size()).toBe("13px"), { timeout: SpecWait.milliseconds });
   });
 
   it("keeps a Font size change that came before its setting was read over the read's older size", async () => {
@@ -928,7 +935,7 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane(false, runtime);
     await host.startAsync();
 
-    await vi.waitFor(() => expect(host.runtime.context.logs).toContain(Resources.formatFontSizeUnread(new Error("no settings"))));
+    await vi.waitFor(() => expect(host.runtime.context.logs).toContain(Resources.formatFontSizeUnread(new Error("no settings"))), { timeout: SpecWait.milliseconds });
     expect(getComputedStyle(host.element.querySelector(".xterm-rows") ?? host.element).fontSize).toBe("13px");
   });
 
@@ -937,13 +944,14 @@ describe("TerminalPaneComponent", () => {
     vi.spyOn(document.fonts, "load").mockImplementation(() => new Promise<FontFace[]>(resolve => loads.push(resolve)));
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.fixture.detectChanges();
-    await vi.waitFor(() => expect(loads).toHaveLength(1));
+    await vi.waitFor(() => expect(loads).toHaveLength(1), { timeout: SpecWait.milliseconds });
 
     document.documentElement.style.setProperty("--nol-font-mono", "\"Courier New\", monospace");
     loads[0]?.([]);
     await host.startAsync();
 
-    await vi.waitFor(() => expect(getComputedStyle(host.element.querySelector(".xterm-rows") ?? host.element).fontFamily).toBe("\"Courier New\", monospace"));
+    await vi.waitFor(() => expect(getComputedStyle(host.element.querySelector(".xterm-rows") ?? host.element).fontFamily).toBe("\"Courier New\", monospace"),
+      { timeout: SpecWait.milliseconds });
   });
 
   it("takes the focus when it opens in view", async () => {
@@ -951,7 +959,7 @@ describe("TerminalPaneComponent", () => {
 
     await host.startAsync();
 
-    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea));
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea), { timeout: SpecWait.milliseconds });
   });
 
   it("leaves the focus where the person put it while its font was loading", async () => {
@@ -960,7 +968,7 @@ describe("TerminalPaneComponent", () => {
     const field: HTMLInputElement = addField();
     const host: PaneHost<TerminalPaneComponent> = createPane(true);
     host.fixture.detectChanges();
-    await vi.waitFor(() => expect(loads).toHaveLength(1));
+    await vi.waitFor(() => expect(loads).toHaveLength(1), { timeout: SpecWait.milliseconds });
 
     field.focus();
     loads[0]?.([]);
@@ -991,13 +999,13 @@ describe("TerminalPaneComponent", () => {
     field.focus();
     const host: PaneHost<TerminalPaneComponent> = createPane(true);
     host.fixture.detectChanges();
-    await vi.waitFor(() => expect(loads).toHaveLength(1));
+    await vi.waitFor(() => expect(loads).toHaveLength(1), { timeout: SpecWait.milliseconds });
 
     field.remove();
     loads[0]?.([]);
     await host.startAsync();
 
-    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea));
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea), { timeout: SpecWait.milliseconds });
   });
 
   it("takes the focus asked for while it is hidden once it shows, and at once while it shows", async () => {
@@ -1011,7 +1019,7 @@ describe("TerminalPaneComponent", () => {
     host.shown.set(true);
     await host.settleAsync();
 
-    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea));
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea), { timeout: SpecWait.milliseconds });
     field.focus();
     host.fixture.componentInstance.focusWhenShown();
     expect(document.activeElement).toBe(host.textarea);
@@ -1037,14 +1045,14 @@ describe("TerminalPaneComponent", () => {
     const field: HTMLInputElement = addField();
     const host: PaneHost<TerminalPaneComponent> = createPane(true);
     host.fixture.detectChanges();
-    await vi.waitFor(() => expect(loads).toHaveLength(1));
+    await vi.waitFor(() => expect(loads).toHaveLength(1), { timeout: SpecWait.milliseconds });
 
     field.focus();
     host.fixture.componentInstance.focusWhenShown();
     loads[0]?.([]);
     await host.startAsync();
 
-    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea));
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.textarea), { timeout: SpecWait.milliseconds });
   });
 
   it("draws a solid blinking cursor while it has focus and a hollow one without it, and keeps it still under reduced motion", async () => {
@@ -1054,11 +1062,11 @@ describe("TerminalPaneComponent", () => {
     host.runtime.output("s1", 0, "$ ");
 
     host.textarea.focus();
-    await vi.waitFor(() => expect(cursor()).toEqual(["xterm-cursor-blink", "xterm-cursor-block"]));
+    await vi.waitFor(() => expect(cursor()).toEqual(["xterm-cursor-blink", "xterm-cursor-block"]), { timeout: SpecWait.milliseconds });
     await emulateAsync(Resources.reducedMotionQuery, "prefers-reduced-motion", "reduce");
-    await vi.waitFor(() => expect(cursor()).toEqual(["xterm-cursor-block"]));
+    await vi.waitFor(() => expect(cursor()).toEqual(["xterm-cursor-block"]), { timeout: SpecWait.milliseconds });
     host.textarea.blur();
-    await vi.waitFor(() => expect(cursor()).toEqual(["xterm-cursor-outline"]));
+    await vi.waitFor(() => expect(cursor()).toEqual(["xterm-cursor-outline"]), { timeout: SpecWait.milliseconds });
   });
 
   it("reads its look again when it is shown after its Font size changed while it was hidden out of the page, and refits its shell", async () => {
@@ -1068,7 +1076,7 @@ describe("TerminalPaneComponent", () => {
       return sent === undefined ? 0 : TerminalResizeParams.fromJson(sent).size.columns;
     };
     await host.startAsync();
-    await vi.waitFor(() => expect(columns()).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(columns()).toBeGreaterThan(0), { timeout: SpecWait.milliseconds });
     const before: number = columns();
     const parent: HTMLElement | null = host.element.parentElement;
 
@@ -1080,7 +1088,7 @@ describe("TerminalPaneComponent", () => {
     host.shown.set(true);
     await host.settleAsync();
 
-    await vi.waitFor(() => expect(columns()).toBeLessThan(before));
+    await vi.waitFor(() => expect(columns()).toBeLessThan(before), { timeout: SpecWait.milliseconds });
   });
 
   it("draws on its host's background, and takes another host's when it moves there", async () => {
@@ -1101,11 +1109,11 @@ describe("TerminalPaneComponent", () => {
     };
 
     await host.startAsync();
-    await vi.waitFor(() => expect(Contrast.of(pale(), "rgb(255, 255, 255)")).toBeGreaterThanOrEqual(4.5));
+    await vi.waitFor(() => expect(Contrast.of(pale(), "rgb(255, 255, 255)")).toBeGreaterThanOrEqual(4.5), { timeout: SpecWait.milliseconds });
     await PaneHost.takeOutAsync(host.element);
     hosts[1]?.append(host.element);
 
-    await vi.waitFor(() => expect(pale()).toBe("rgb(200, 200, 200)"));
+    await vi.waitFor(() => expect(pale()).toBe("rgb(200, 200, 200)"), { timeout: SpecWait.milliseconds });
     host.fixture.destroy();
     for (const element of hosts)
       element.remove();
@@ -1130,7 +1138,7 @@ describe("TerminalPaneComponent", () => {
     expect(color()).not.toBe("rgb(1, 2, 3)");
     await emulateAsync(query, name, value);
 
-    await vi.waitFor(() => expect(color()).toBe("rgb(1, 2, 3)"));
+    await vi.waitFor(() => expect(color()).toBe("rgb(1, 2, 3)"), { timeout: SpecWait.milliseconds });
     host.fixture.destroy();
     expect(listenersOf(added).map(t => t[0])).toEqual([Resources.changeEvent]);
     expect(listenersOf(removed)).toEqual(listenersOf(added));
@@ -1150,18 +1158,18 @@ describe("TerminalPaneComponent", () => {
     vi.spyOn(document.fonts, "load").mockImplementation(() => new Promise<FontFace[]>(resolve => loads.push(resolve)));
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.fixture.detectChanges();
-    await vi.waitFor(() => expect(loads).toHaveLength(1));
+    await vi.waitFor(() => expect(loads).toHaveLength(1), { timeout: SpecWait.milliseconds });
     const later: ComponentFixture<TerminalPaneComponent> = TestBed.createComponent(TerminalPaneComponent);
     later.componentRef.setInput("sessionId", "s2");
     later.detectChanges();
-    await vi.waitFor(() => expect(loads).toHaveLength(2));
+    await vi.waitFor(() => expect(loads).toHaveLength(2), { timeout: SpecWait.milliseconds });
 
     host.fixture.destroy();
     for (const load of loads)
       load([]);
     await PaneHost.untilAsync(PaneHost.hostOf(later), ".xterm");
 
-    await vi.waitFor(() => expect(sessionsOf(host.runtime.context.sent(TerminalNames.attachMethod))).toEqual(["s2"]));
+    await vi.waitFor(() => expect(sessionsOf(host.runtime.context.sent(TerminalNames.attachMethod))).toEqual(["s2"]), { timeout: SpecWait.milliseconds });
     expect(host.element.querySelector(".xterm")).toBeNull();
     later.destroy();
   });
@@ -1172,7 +1180,7 @@ describe("TerminalPaneComponent", () => {
     host.runtime.exit = new TerminalExit(2, EndedBy.Exit);
 
     await host.startAsync();
-    await vi.waitFor(() => expect(announced.mock.calls.map(t => t[0])).toEqual(["The shell exited with code 2."]));
+    await vi.waitFor(() => expect(announced.mock.calls.map(t => t[0])).toEqual(["The shell exited with code 2."]), { timeout: SpecWait.milliseconds });
     await Promise.all(announced.mock.results.map(t => t.value));
 
     const strip: HTMLElement = PaneHost.find(host.element, ".nol-terminal-pane-ended", HTMLElement);
@@ -1191,7 +1199,7 @@ describe("TerminalPaneComponent", () => {
 
     host.fixture.detectChanges();
 
-    await vi.waitFor(() => expect(errors.errors).toEqual([failure]));
+    await vi.waitFor(() => expect(errors.errors).toEqual([failure]), { timeout: SpecWait.milliseconds });
     host.fixture.destroy();
   });
 });

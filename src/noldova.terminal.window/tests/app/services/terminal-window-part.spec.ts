@@ -35,6 +35,7 @@ import chatsMenus from "../../fixtures/chats-module/menus.json" with { type: "js
 import chatsModule from "../../fixtures/chats-module/module.json" with { type: "json" };
 import { FakeRuntime } from "../../fixtures/fake-runtime.fixture.ts";
 import { HeldAnswer } from "../../fixtures/held-answer.fixture.ts";
+import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 
 const PLUS_ROW = menus.groups[0]?.items?.[0];
 const PLUS_ARGUMENTS: Readonly<Record<string, JsonValue>> | undefined = PLUS_ROW !== undefined && "arguments" in PLUS_ROW ? PLUS_ROW.arguments : undefined;
@@ -137,7 +138,7 @@ describe("TerminalWindowPart", () => {
     const listing: HeldAnswer = runtime.holdListings();
 
     const activation: Promise<void> = createPart().activateAsync(runtime.context);
-    await vi.waitFor(() => expect(runtime.listingCount).toBe(1));
+    await vi.waitFor(() => expect(runtime.listingCount).toBe(1), { timeout: SpecWait.milliseconds });
     expect(runtime.context.opened).toEqual([]);
     listing.resolve(null);
     await activation;
@@ -170,7 +171,7 @@ describe("TerminalWindowPart", () => {
     });
 
     const activating: Promise<void> = createPart().activateAsync(runtime.context);
-    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.sessionsMethod)).toHaveLength(1));
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.sessionsMethod)).toHaveLength(1), { timeout: SpecWait.milliseconds });
     const before: readonly unknown[] = [TerminalPart.context, runtime.context.views.length, runtime.context.commands.length,
       runtime.context.sent(TerminalNames.windowStartedMethod)];
     answer.resolve(null);
@@ -190,7 +191,7 @@ describe("TerminalWindowPart", () => {
     const part: TerminalWindowPart = createPart();
 
     const activating: Promise<void> = part.activateAsync(runtime.context);
-    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.windowStartedMethod)).toEqual([null]));
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.windowStartedMethod)).toEqual([null]), { timeout: SpecWait.milliseconds });
     await part.deactivateAsync();
     answer.resolve(null);
     await activating;
@@ -212,7 +213,7 @@ describe("TerminalWindowPart", () => {
       const part: TerminalWindowPart = createPart();
 
       const activating: Promise<void> = part.activateAsync(runtime.context);
-      await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.sessionsMethod)).toHaveLength(1));
+      await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.sessionsMethod)).toHaveLength(1), { timeout: SpecWait.milliseconds });
       const before: readonly JsonValue[] = runtime.context.sent(TerminalNames.showOwnerMethod);
       answer.resolve(null);
       await activating;
@@ -304,7 +305,7 @@ describe("TerminalWindowPart", () => {
 
     runtime.context.closeTab("terminal.session", "opened-1");
 
-    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.closeMethod)).toEqual([{ sessionId: "opened-1" }]));
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.closeMethod)).toEqual([{ sessionId: "opened-1" }]), { timeout: SpecWait.milliseconds });
     expect(runtime.context.opened.map(t => t.instance)).toEqual(["opened-1"]);
   });
 
@@ -314,7 +315,7 @@ describe("TerminalWindowPart", () => {
 
     runtime.context.closeTab("terminal.session", "gone");
 
-    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.sessionsMethod)).toHaveLength(2));
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.sessionsMethod)).toHaveLength(2), { timeout: SpecWait.milliseconds });
     await Promise.resolve();
     expect([runtime.context.sent(TerminalNames.closeMethod), runtime.context.logs]).toEqual([[], []]);
   });
@@ -326,7 +327,7 @@ describe("TerminalWindowPart", () => {
 
     runtime.context.closeTab("terminal.session", "a1");
 
-    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.sessionsMethod)).toHaveLength(2));
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.sessionsMethod)).toHaveLength(2), { timeout: SpecWait.milliseconds });
     await Promise.resolve();
     expect(runtime.context.sent(TerminalNames.closeMethod)).toEqual([]);
   });
@@ -339,7 +340,8 @@ describe("TerminalWindowPart", () => {
 
     runtime.context.closeTab("terminal.session", "s9");
 
-    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["The terminal's shell could not be ended when its tab closed: No terminal s9."]));
+    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["The terminal's shell could not be ended when its tab closed: No terminal s9."]),
+      { timeout: SpecWait.milliseconds });
   });
 
   it("shows a terminal from Toggle Terminal, and opens a new one in its own tab when none can show", async () => {
@@ -376,7 +378,7 @@ describe("TerminalWindowPart", () => {
   it("opens a new terminal in the group whose tab row asks for it, with the shell its shell menu row gives", async () => {
     const runtime: FakeRuntime = new FakeRuntime();
     await createPart().activateAsync(runtime.context);
-    await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]));
+    await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]), { timeout: SpecWait.milliseconds });
     const rows: readonly MenuRowContribution[] = runtime.context.menuGroups.get("terminal.shellList")?.({ tabGroup: "g2" }) ?? [];
 
     await runRowAsync(runtime, rows[1], { tabGroup: "g2" });
@@ -393,7 +395,7 @@ describe("TerminalWindowPart", () => {
   it("shows New Terminal's key only on the default shell's row, which follows the Default shell setting", async () => {
     const runtime: FakeRuntime = new FakeRuntime();
     await createPart().activateAsync(runtime.context);
-    await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]));
+    await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]), { timeout: SpecWait.milliseconds });
     const keys: () => (readonly [string | null, string | null])[] = () => (runtime.context.menuGroups.get("terminal.shellList")?.({}) ?? [])
       .map(t => [t.label, runtime.context.commands.find(u => u.name === t.command)?.defaultKey?.label("win32") ?? null] as const);
 
@@ -409,7 +411,7 @@ describe("TerminalWindowPart", () => {
   it("opens the default shell from its row as New Terminal does, and keeps the other rows' command out of command search", async () => {
     const runtime: FakeRuntime = new FakeRuntime();
     await createPart().activateAsync(runtime.context);
-    await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]));
+    await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]), { timeout: SpecWait.milliseconds });
     const rows: readonly MenuRowContribution[] = runtime.context.menuGroups.get("terminal.shellList")?.({}) ?? [];
     const withShell: CommandContribution | undefined = runtime.context.commands.find(t => t.name === "terminal.newWithShell");
 
@@ -436,13 +438,13 @@ describe("TerminalWindowPart", () => {
   it("lists the shells again, and logs it, when a shell its shell menu row gives can't open, and not when the default shell can't", async () => {
     const runtime: FakeRuntime = new FakeRuntime();
     await createPart().activateAsync(runtime.context);
-    await vi.waitFor(() => expect(runtime.context.refreshedSettings).toHaveLength(1));
+    await vi.waitFor(() => expect(runtime.context.refreshedSettings).toHaveLength(1), { timeout: SpecWait.milliseconds });
     const rows: readonly MenuRowContribution[] = runtime.context.menuGroups.get("terminal.shellList")?.({ tabGroup: "g2" }) ?? [];
     runtime.shells.splice(1, 1);
     runtime.openFailure = new Error("No shell zsh.");
 
     await expect(runRowAsync(runtime, rows[1], { tabGroup: "g2" })).rejects.toThrow("No shell zsh.");
-    await vi.waitFor(() => expect(runtime.context.refreshedSettings).toHaveLength(2));
+    await vi.waitFor(() => expect(runtime.context.refreshedSettings).toHaveLength(2), { timeout: SpecWait.milliseconds });
     await expect(runtime.context.commands[0]?.runAsync(null)).rejects.toThrow("No shell zsh.");
 
     expect(runtime.context.menuGroups.get("terminal.shellList")?.({ tabGroup: "g2" }).map(t => t.label)).toEqual(["Bash (default)"]);
@@ -456,7 +458,8 @@ describe("TerminalWindowPart", () => {
 
     await createPart().activateAsync(runtime.context);
 
-    await vi.waitFor(() => expect(runtime.context.settingOptions.get("terminal.defaultShell")?.({})?.map(t => t.value)).toEqual(["", "bash", "zsh"]));
+    await vi.waitFor(() => expect(runtime.context.settingOptions.get("terminal.defaultShell")?.({})?.map(t => t.value)).toEqual(["", "bash", "zsh"]),
+      { timeout: SpecWait.milliseconds });
   });
 
   it("opens a new terminal in the folder and with the shell its arguments give", async () => {
@@ -578,12 +581,12 @@ describe("TerminalWindowPart", () => {
     it("opens no tab for a terminal from + that the runtime closed by its owner while its tab waited, whatever else the runtime closes", async () => {
       const runtime: FakeRuntime = new FakeRuntime();
       await createPart().activateAsync(runtime.context);
-      await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]));
+      await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]), { timeout: SpecWait.milliseconds });
       await provide(runtime, () => "example.chat/42").showAsync("example.chat/42");
       const held: { readonly listing: HeldAnswer; readonly isAsked: () => boolean } = holdTabNames(runtime);
 
       const opening: Promise<JsonValue> | undefined = runtime.context.commands[0]?.runAsync({ ...PLUS_ARGUMENTS });
-      await vi.waitFor(() => expect(held.isAsked()).toBe(true));
+      await vi.waitFor(() => expect(held.isAsked()).toBe(true), { timeout: SpecWait.milliseconds });
       runtime.context.emit(TerminalNames.closedEvent, { sessionId: 7 });
       runtime.context.emit(TerminalNames.closedEvent, { sessionId: "opened-1" });
       held.listing.resolve(null);
@@ -597,13 +600,13 @@ describe("TerminalWindowPart", () => {
     it("opens no tab for a terminal from + whose owner the app stopped showing while its tab waited", async () => {
       const runtime: FakeRuntime = new FakeRuntime();
       await createPart().activateAsync(runtime.context);
-      await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]));
+      await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]), { timeout: SpecWait.milliseconds });
       const owners: TerminalOwners = provide(runtime, () => "example.chat/42");
       await owners.showAsync("example.chat/42");
       const held: { readonly listing: HeldAnswer; readonly isAsked: () => boolean } = holdTabNames(runtime);
 
       const opening: Promise<JsonValue> | undefined = runtime.context.commands[0]?.runAsync({ ...PLUS_ARGUMENTS });
-      await vi.waitFor(() => expect(held.isAsked()).toBe(true));
+      await vi.waitFor(() => expect(held.isAsked()).toBe(true), { timeout: SpecWait.milliseconds });
       await owners.showAsync("example.chat/7");
       held.listing.resolve(null);
       await opening;
@@ -641,7 +644,7 @@ describe("TerminalWindowPart", () => {
     it("gives the app's new owner to a terminal from + and Toggle Terminal's first open, asked at each, but none to a shell menu row's", async () => {
       const runtime: FakeRuntime = new FakeRuntime();
       await createPart().activateAsync(runtime.context);
-      await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]));
+      await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]), { timeout: SpecWait.milliseconds });
       let owner: string | null = "example.chat/42";
       await provide(runtime, () => owner).showAsync("example.chat/42");
       const rows: readonly MenuRowContribution[] = runtime.context.menuGroups.get("terminal.shellList")?.({ tabGroup: "g2" }) ?? [];
@@ -695,7 +698,7 @@ describe("TerminalWindowPart", () => {
       runtime.context.emit(TerminalNames.openedEvent, { sessionId: 7 });
       runtime.context.emit(TerminalNames.openedEvent, new TerminalSummary("a42", "bash", "/work", "", null, true, false, "example.chat/42", true, null, null, TerminalShellKind.Other).toJson());
 
-      await vi.waitFor(() => expect(runtime.context.opened.map(t => [t.instance, t.title])).toEqual([["a42", "Bash"]]));
+      await vi.waitFor(() => expect(runtime.context.opened.map(t => [t.instance, t.title])).toEqual([["a42", "Bash"]]), { timeout: SpecWait.milliseconds });
       expect([TerminalFocus.takeUnasked("a42"), TerminalFocus.takeUnasked("a7"), TerminalFocus.takeUnasked("r42")]).toEqual([true, false, false]);
       expect(runtime.context.logs).toHaveLength(1);
       expect(runtime.context.logs[0]).toMatch(/^An agent's terminal opened for an owner could not get its tab: \S/u);
@@ -710,7 +713,7 @@ describe("TerminalWindowPart", () => {
 
       try {
         runtime.context.emit(TerminalNames.openedEvent, new TerminalSummary("a42", "bash", "/work", "", null, true, false, "example.chat/42", true, null, null, TerminalShellKind.Other).toJson());
-        await vi.waitFor(() => expect(runtime.context.opened.map(t => t.instance)).toEqual(["a42"]));
+        await vi.waitFor(() => expect(runtime.context.opened.map(t => t.instance)).toEqual(["a42"]), { timeout: SpecWait.milliseconds });
       }
       finally {
         remove();
@@ -729,7 +732,7 @@ describe("TerminalWindowPart", () => {
 
       try {
         runtime.context.emit(TerminalNames.openedEvent, new TerminalSummary("a42", "bash", "/work", "", null, true, false, "example.chat/42", true, null, null, TerminalShellKind.Other).toJson());
-        await vi.waitFor(() => expect(held.isAsked()).toBe(true));
+        await vi.waitFor(() => expect(held.isAsked()).toBe(true), { timeout: SpecWait.milliseconds });
         await owners.showAsync("example.chat/7");
         held.listing.resolve(null);
         await Promise.all(openTabs.mock.results.map(t => t.value));
@@ -853,7 +856,7 @@ describe("TerminalWindowPart", () => {
 
     await runtime.context.requestAsync(TerminalNames.renameMethod, { sessionId: "s1", name: "Server" });
     runtime.rename(new TerminalName("s1", null));
-    await vi.waitFor(() => expect(runtime.context.updates).toHaveLength(2));
+    await vi.waitFor(() => expect(runtime.context.updates).toHaveLength(2), { timeout: SpecWait.milliseconds });
 
     expect(runtime.context.updates).toEqual([["s1", { title: "Server" }], ["s1", { title: "Bash", icon: "attach_money" }]]);
     expect(() => runtime.context.emit(TerminalNames.renamedEvent, { sessionId: "s1" })).toThrow(JsonException);
@@ -868,7 +871,7 @@ describe("TerminalWindowPart", () => {
 
     runtime.rename(new TerminalName("s1", "Server"));
 
-    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["A renamed terminal's tab could not be retitled: The title is blank."]));
+    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["A renamed terminal's tab could not be retitled: The title is blank."]), { timeout: SpecWait.milliseconds });
   });
 
   it("renames a terminal whose tab was renamed in place, an empty title taking the name away, and its tab menu adds only Restart", async () => {
@@ -877,9 +880,9 @@ describe("TerminalWindowPart", () => {
     await createPart().activateAsync(runtime.context);
 
     runtime.context.renameTab("terminal.session", "s1", "Server");
-    await vi.waitFor(() => expect(runtime.context.updates).toHaveLength(1));
+    await vi.waitFor(() => expect(runtime.context.updates).toHaveLength(1), { timeout: SpecWait.milliseconds });
     runtime.context.renameTab("terminal.session", "s1", "");
-    await vi.waitFor(() => expect(runtime.context.updates).toHaveLength(2));
+    await vi.waitFor(() => expect(runtime.context.updates).toHaveLength(2), { timeout: SpecWait.milliseconds });
 
     expect(runtime.context.sent(TerminalNames.renameMethod)).toEqual([{ sessionId: "s1", name: "Server" }, { sessionId: "s1", name: null }]);
     expect(runtime.context.updates).toEqual([["s1", { title: "Server" }], ["s1", { title: "Bash", icon: "attach_money" }]]);
@@ -897,7 +900,7 @@ describe("TerminalWindowPart", () => {
 
     runtime.context.renameTab("terminal.session", "s1", "Server");
 
-    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["A terminal could not be renamed: The terminal is gone."]));
+    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["A terminal could not be renamed: The terminal is gone."]), { timeout: SpecWait.milliseconds });
     expect(runtime.context.updates).toEqual([]);
   });
 

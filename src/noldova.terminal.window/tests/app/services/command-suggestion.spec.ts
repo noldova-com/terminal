@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CommandSuggestion } from "../../../src/app/services/command-suggestion.ts";
 import { Resources } from "../../../src/resources.ts";
+import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 
 const GREY: string = "rgb(127, 127, 127)";
 
@@ -90,7 +91,7 @@ describe("CommandSuggestion", () => {
     await promptAsync();
     await writeAsync("git st");
 
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"), { timeout: SpecWait.milliseconds });
     const element: HTMLElement | null = shownElement();
     const screen: HTMLElement | null = host.querySelector<HTMLElement>(".xterm-screen");
     expect(element).not.toBeNull();
@@ -114,7 +115,7 @@ describe("CommandSuggestion", () => {
 
     await writeAsync("git st");
 
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"), { timeout: SpecWait.milliseconds });
     expect(shownElement()?.style.color).toBe("");
   });
 
@@ -123,7 +124,7 @@ describe("CommandSuggestion", () => {
     await promptAsync();
 
     await writeAsync("echo one two");
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe(" three"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe(" three"), { timeout: SpecWait.milliseconds });
     expect(await restAsync()).toBe(" three four five six");
   });
 
@@ -181,10 +182,10 @@ describe("CommandSuggestion", () => {
     await writeAsync("git st and more\u001b[9D");
     expect(await restAsync()).toBeNull();
     await writeAsync("\u001b[K");
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"), { timeout: SpecWait.milliseconds });
     suggestion.endInput();
     expect(await restAsync()).toBeNull();
-    await vi.waitFor(() => expect(shownElement()).toBeNull());
+    await vi.waitFor(() => expect(shownElement()).toBeNull(), { timeout: SpecWait.milliseconds });
   });
 
   it("gives way to the shell's own suggestion drawn after the cursor, as PSReadLine's predictions, and shows the rest once the shell clears it", async () => {
@@ -196,7 +197,7 @@ describe("CommandSuggestion", () => {
 
     await writeAsync("\u001b[K");
 
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"), { timeout: SpecWait.milliseconds });
   });
 
   it("shows the rest before the right prompt the shell marked, cut where it starts, and nothing while other text follows the cursor", async () => {
@@ -205,9 +206,9 @@ describe("CommandSuggestion", () => {
     await rightPromptAsync(14, "~/work", 3);
 
     await writeAsync("git st");
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"), { timeout: SpecWait.milliseconds });
     await writeAsync("\b\b\b\b\b\b      \u001b[3Gecho");
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe(" one tw"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe(" one tw"), { timeout: SpecWait.milliseconds });
     await writeAsync("\b\b\b\b    \u001b[3G");
     await writeAsync(" bar\u001b[3Gg bar\u001b[4D");
     expect(await restAsync()).toBeNull();
@@ -223,18 +224,18 @@ describe("CommandSuggestion", () => {
     await promptAsync();
     await rightPromptAsync(14, "~/work", 3);
     await writeAsync("git st");
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"), { timeout: SpecWait.milliseconds });
     terminal.resize(24, 5);
     await writeAsync("\r\u001b[K");
     await promptAsync();
     await rightPromptAsync(18, "~/work", 3);
     await writeAsync("git st");
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("atus"), { timeout: SpecWait.milliseconds });
     await writeAsync("\u001b[2J\u001b[H");
     await promptAsync();
     await rightPromptAsync(18, "~/work", 3);
     await writeAsync("echo one");
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe(" two th"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe(" two th"), { timeout: SpecWait.milliseconds });
   });
 
   it("takes no right prompt from a mark before a line starts or on another row", async () => {
@@ -257,7 +258,7 @@ describe("CommandSuggestion", () => {
     await writeAsync("\u001b[A\u001b[K");
     expect(await restAsync()).toBeNull();
     await writeAsync("\u001b[B\r    \u001b[A");
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("t stat"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("t stat"), { timeout: SpecWait.milliseconds });
     expect(suggestion.take(keyDown("End"))).toBe("t status");
   });
 
@@ -314,10 +315,10 @@ describe("CommandSuggestion", () => {
 
     suggestion.remember("git stage");
     suggestion.remember("git stage");
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("ge"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("ge"), { timeout: SpecWait.milliseconds });
     suggestion.enable(false);
     expect(await restAsync()).toBeNull();
-    await vi.waitFor(() => expect(shownElement()).toBeNull());
+    await vi.waitFor(() => expect(shownElement()).toBeNull(), { timeout: SpecWait.milliseconds });
     suggestion.enable(true);
     expect(await restAsync()).toBeNull();
     suggestion.remember("git stage");
@@ -328,7 +329,7 @@ describe("CommandSuggestion", () => {
     open(40);
     await promptAsync();
     await writeAsync("g");
-    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("it status"));
+    await vi.waitFor(() => expect(shownElement()?.textContent).toBe("it status"), { timeout: SpecWait.milliseconds });
 
     terminal.input("i");
     terminal.input("t");

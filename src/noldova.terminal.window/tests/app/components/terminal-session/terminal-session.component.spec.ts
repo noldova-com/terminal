@@ -26,8 +26,9 @@ import { TerminalRuntimeClient } from "../../../../src/app/services/terminal-run
 import { ErrorRecorder } from "../../../fixtures/error-recorder.fixture.ts";
 import { FakeRuntime } from "../../../fixtures/fake-runtime.fixture.ts";
 import { PaneHost } from "../../../fixtures/pane-host.fixture.ts";
+import { SpecWait } from "../../../fixtures/spec-wait.fixture.ts";
 
-const SOON: { readonly interval: number } = { interval: 1 };
+const SOON: { readonly interval: number; readonly timeout: number } = { interval: 1, timeout: SpecWait.milliseconds };
 
 function createSession(runtime: FakeRuntime = new FakeRuntime(), providers: readonly Provider[] = []): PaneHost<TerminalSessionComponent> {
   return new PaneHost(TerminalSessionComponent, true, { instance: "s1", title: "Terminal" }, runtime, providers);

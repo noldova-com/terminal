@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ITerminalSink } from "../../../src/app/interfaces/i-terminal-sink.ts";
 import { TerminalConnection } from "../../../src/app/services/terminal-connection.ts";
 import { FakeRuntime } from "../../fixtures/fake-runtime.fixture.ts";
+import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 import type { TerminalPartContext } from "../../fixtures/terminal-part-context.fixture.ts";
 
 class SinkRecorder implements ITerminalSink {
@@ -148,7 +149,7 @@ describe("TerminalConnection", () => {
     harness.sink.callbacks[0]?.();
 
     expect(harness.sink.events.slice(-2)).toEqual(["write abc", "write de"]);
-    await vi.waitFor(() => expect(harness.sent(TerminalNames.ackMethod)).toEqual([{ sessionId: "s1", paneId: "p1", offset: 8 }]));
+    await vi.waitFor(() => expect(harness.sent(TerminalNames.ackMethod)).toEqual([{ sessionId: "s1", paneId: "p1", offset: 8 }]), { timeout: SpecWait.milliseconds });
   });
 
   it("writes output in parts at the shell's line's edges, and marks each edge once the part before it is written", async () => {
@@ -162,7 +163,7 @@ describe("TerminalConnection", () => {
       callback();
 
     expect(harness.sink.events.slice(3)).toEqual(["write $ ", "write ls", "write \r\n", "write out", "write ", "input Start", "input End", "input Start"]);
-    await vi.waitFor(() => expect(harness.sent(TerminalNames.ackMethod).at(-1)).toEqual({ sessionId: "s1", paneId: "p1", offset: 14 }));
+    await vi.waitFor(() => expect(harness.sent(TerminalNames.ackMethod).at(-1)).toEqual({ sessionId: "s1", paneId: "p1", offset: 14 }), { timeout: SpecWait.milliseconds });
   });
 
   it("gives the sink each command added to its session's shell, and those added while it attaches after the attachment's", async () => {
@@ -246,7 +247,7 @@ describe("TerminalConnection", () => {
 
     harness.runtime.output("s1", 10, "later");
 
-    await vi.waitFor(() => expect(harness.runtime.attachCount).toBe(2));
+    await vi.waitFor(() => expect(harness.runtime.attachCount).toBe(2), { timeout: SpecWait.milliseconds });
   });
 
   it("sends input, sizes and visibility only while attached, and nothing for empty input or an unchanged visibility", async () => {
@@ -280,7 +281,7 @@ describe("TerminalConnection", () => {
     });
 
     const refreshing: Promise<void> = harness.connection.refreshAsync();
-    await vi.waitFor(() => expect(harness.sink.events.at(-1)).toBe("reset 80x24 none"));
+    await vi.waitFor(() => expect(harness.sink.events.at(-1)).toBe("reset 80x24 none"), { timeout: SpecWait.milliseconds });
     harness.connection.input("l");
     harness.connection.input("s");
     harness.connection.resize(new TerminalSize(100, 30));
@@ -294,7 +295,7 @@ describe("TerminalConnection", () => {
       draw = resolve;
     });
     const closing: Promise<void> = harness.connection.refreshAsync();
-    await vi.waitFor(() => expect(harness.runtime.attachCount).toBe(3));
+    await vi.waitFor(() => expect(harness.runtime.attachCount).toBe(3), { timeout: SpecWait.milliseconds });
     harness.connection.close();
     harness.connection.input("after");
     draw();
@@ -374,7 +375,7 @@ describe("TerminalConnection", () => {
     harness.runtime.detach("s2", "p1");
     harness.runtime.detach("s1", "p1");
 
-    await vi.waitFor(() => expect(harness.runtime.attachCount).toBe(2));
+    await vi.waitFor(() => expect(harness.runtime.attachCount).toBe(2), { timeout: SpecWait.milliseconds });
   });
 
   it("waits until a detached hidden pane shows to attach again, and drops output meanwhile", async () => {
@@ -387,7 +388,7 @@ describe("TerminalConnection", () => {
     expect(harness.runtime.attachCount).toBe(1);
     harness.connection.setVisible(true);
 
-    await vi.waitFor(() => expect(harness.runtime.attachCount).toBe(2));
+    await vi.waitFor(() => expect(harness.runtime.attachCount).toBe(2), { timeout: SpecWait.milliseconds });
     expect(harness.sink.events.includes("write missed")).toBe(false);
   });
 
@@ -402,7 +403,7 @@ describe("TerminalConnection", () => {
 
     expect(harness.sink.events[0]).toBe("lost");
     expect(harness.runtime.context.logs).toEqual(["terminal.attach failed: unknown session"]);
-    await vi.waitFor(() => expect(harness.sink.events.slice(1, 2)).toEqual(["reset 80x24 none"]));
+    await vi.waitFor(() => expect(harness.sink.events.slice(1, 2)).toEqual(["reset 80x24 none"]), { timeout: SpecWait.milliseconds });
   });
 
   it("logs an attach that fails for any other reason than a gone session, such as a restarting runtime or an answer it can't read, without showing the terminal as lost, and tries again when it next shows", async () => {
@@ -416,7 +417,7 @@ describe("TerminalConnection", () => {
       harness.connection.setVisible(false);
       harness.connection.setVisible(true);
 
-      await vi.waitFor(() => expect(harness.sink.events.slice(0, 1)).toEqual(["reset 80x24 none"]));
+      await vi.waitFor(() => expect(harness.sink.events.slice(0, 1)).toEqual(["reset 80x24 none"]), { timeout: SpecWait.milliseconds });
       expect(harness.sink.events.includes("lost")).toBe(false);
       expect(harness.runtime.context.logs).toEqual([`terminal.attach failed: ${failure.message}`]);
     }
@@ -457,7 +458,7 @@ describe("TerminalConnection", () => {
 
     harness.runtime.releaseAttaches();
 
-    await vi.waitFor(() => expect(harness.sink.events.filter(t => t.startsWith("reset"))).toHaveLength(2));
+    await vi.waitFor(() => expect(harness.sink.events.filter(t => t.startsWith("reset"))).toHaveLength(2), { timeout: SpecWait.milliseconds });
     expect(harness.sink.events.includes("lost")).toBe(false);
     expect(harness.runtime.context.logs).toEqual(["terminal.attach failed: stale"]);
   });
@@ -471,7 +472,7 @@ describe("TerminalConnection", () => {
 
     harness.runtime.releaseAttaches();
 
-    await vi.waitFor(() => expect(harness.runtime.context.sent(TerminalNames.visibilityMethod)).toHaveLength(2));
+    await vi.waitFor(() => expect(harness.runtime.context.sent(TerminalNames.visibilityMethod)).toHaveLength(2), { timeout: SpecWait.milliseconds });
     expect(harness.sink.events.filter(t => t.startsWith("reset"))).toHaveLength(2);
   });
 
@@ -512,7 +513,7 @@ describe("TerminalConnection", () => {
     harness.connection.input("lost");
 
     TerminalConnection.reattachAll();
-    await vi.waitFor(() => expect(harness.sink.events.filter(t => t === "title ")).toHaveLength(2));
+    await vi.waitFor(() => expect(harness.sink.events.filter(t => t === "title ")).toHaveLength(2), { timeout: SpecWait.milliseconds });
     harness.connection.resize(new TerminalSize(100, 30));
     harness.connection.input("x");
     harness.runtime.output("s1", 0, "abc");
@@ -535,7 +536,7 @@ describe("TerminalConnection", () => {
     harness.connection.resize(new TerminalSize(90, 30));
 
     TerminalConnection.reattachAll();
-    await vi.waitFor(() => expect(harness.sink.events.filter(t => t === "title ")).toHaveLength(2));
+    await vi.waitFor(() => expect(harness.sink.events.filter(t => t === "title ")).toHaveLength(2), { timeout: SpecWait.milliseconds });
     harness.runtime.context.handlers.delete(TerminalNames.resizeMethod);
     refuse(new GoneRefusal("gone"));
     await Promise.allSettled(answers);
@@ -580,7 +581,7 @@ describe("TerminalConnection", () => {
     harness.connection.input("x");
 
     expect(harness.runtime.context.logs[0]).toMatch(/^terminal\.output failed: /u);
-    await vi.waitFor(() => expect(harness.runtime.context.logs[1]).toBe("terminal.input failed: refused"));
+    await vi.waitFor(() => expect(harness.runtime.context.logs[1]).toBe("terminal.input failed: refused"), { timeout: SpecWait.milliseconds });
   });
 
   it("holds output that arrives while it draws a new screen, and writes the part after the screen once it is drawn", async () => {
@@ -591,7 +592,7 @@ describe("TerminalConnection", () => {
       draw = resolve;
     });
     const opening: Promise<void> = harness.openAsync();
-    await vi.waitFor(() => expect(harness.sink.events).toEqual(["reset 80x24 none"]));
+    await vi.waitFor(() => expect(harness.sink.events).toEqual(["reset 80x24 none"]), { timeout: SpecWait.milliseconds });
 
     harness.runtime.output("s1", 3, "xxyyy");
     draw();
@@ -607,7 +608,7 @@ describe("TerminalConnection", () => {
       draw = resolve;
     });
     const opening: Promise<void> = harness.openAsync();
-    await vi.waitFor(() => expect(harness.sink.events).toEqual(["reset 80x24 none"]));
+    await vi.waitFor(() => expect(harness.sink.events).toEqual(["reset 80x24 none"]), { timeout: SpecWait.milliseconds });
     harness.sink.drawn = Promise.resolve();
     harness.runtime.holdAttaches();
 
@@ -622,7 +623,7 @@ describe("TerminalConnection", () => {
       draw = resolve;
     });
     const closing: Promise<void> = harness.connection.refreshAsync();
-    await vi.waitFor(() => expect(harness.sink.events).toHaveLength(6));
+    await vi.waitFor(() => expect(harness.sink.events).toHaveLength(6), { timeout: SpecWait.milliseconds });
     harness.connection.close();
     draw();
     await closing;
@@ -657,9 +658,9 @@ describe("TerminalConnection", () => {
 
     TerminalConnection.reattachAll();
 
-    await vi.waitFor(() => expect(shown.runtime.attachCount).toBe(2));
+    await vi.waitFor(() => expect(shown.runtime.attachCount).toBe(2), { timeout: SpecWait.milliseconds });
     expect([hidden.runtime.attachCount, closed.runtime.attachCount]).toEqual([1, 1]);
     hidden.connection.setVisible(true);
-    await vi.waitFor(() => expect(hidden.runtime.attachCount).toBe(2));
+    await vi.waitFor(() => expect(hidden.runtime.attachCount).toBe(2), { timeout: SpecWait.milliseconds });
   });
 });
