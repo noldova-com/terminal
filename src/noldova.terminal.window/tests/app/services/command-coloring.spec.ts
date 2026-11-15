@@ -359,7 +359,7 @@ describe("CommandColoring", () => {
 
       answers[0]?.(["gti"]);
       await vi.waitFor(() => expect(asked).toEqual([["gti"], ["gti"]]));
-      expect([drawnOf(0), drawnOf(1)]).toEqual(["..CCC", "..CCC"]);
+      await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..CCC", "..CCC"]));
       answers[1]?.(["gti"]);
 
       await vi.waitFor(() => expect([drawnOf(0), drawnOf(1)]).toEqual(["..CCC", "..NNN"]));
