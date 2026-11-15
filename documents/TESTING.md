@@ -44,7 +44,7 @@ Each suite has one hang limit, for each test and each hook, and no test or `desc
 | Suite | Limit | Where | Slowest test |
 |---|---|---|---|
 | The module's tests | 70 seconds | `src/noldova.terminal/vitest.config.ts` | 22.1 seconds on the Windows test machine: `one-shot-command.e2e.test.ts` runs a command after each developer shell's start and in each WSL distribution. |
-| The scripts' tests | Vitest's default, 5 seconds | `scripts/vitest.config.ts` | SLOWEST |
+| The scripts' tests | Vitest's default, 5 seconds | `scripts/vitest.config.ts` | 143 milliseconds on the Windows test machine: a declaration check test, which runs the check in its own Node.js process. |
 | The protocol's tests | Vitest's default, 5 seconds | `src/noldova.terminal.protocol/vitest.config.ts` | 18 milliseconds. |
 | The window part's specs, the unit and the look specs | 30 seconds | `src/noldova.terminal.window/vitest.config.ts` | 3.5 seconds on the Linux test machine in a full run, a `terminal-pager.spec.ts` test, which took 2.2 seconds on mac-01 and 1.5 on the Windows test machine in the timing check's runs, where the slowest look test took 1.5 seconds on each; it is also above `DrawnWait`'s 10 seconds, so a wait that runs out reports what it waited for before the test's limit ends it. |
 
