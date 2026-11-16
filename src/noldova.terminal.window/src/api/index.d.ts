@@ -443,8 +443,8 @@ export declare class TerminalOwners {
    * With `shown`, no tab opens or takes the focus for the run's terminal, whether the run picks a free one, opens a new one or is given a
    * target, and none opens later as the owner shows, since the app shows the terminal in its own pane; the terminal stays in the window's list
    * and the agents' tools, and its tab opens only when the person opens it. `shown` gets the terminal's session ID before anything is typed:
-   * the app attaches its pane then, and a new terminal waits for that pane's first fit, however long it takes, before the commands are typed
-   * at its size; it starts at 80 columns at once when the window closes or detaches the pane first. A window's runs with `shown` start one at a time.
+   * the app attaches its pane then, and a new terminal waits up to 10 seconds for that pane's first fit before the commands are typed
+   * at its size; it starts at 80 columns at once when the window closes or detaches the pane first, or once the 10 seconds pass. A window's runs with `shown` start one at a time.
    *
    * @param owner The owner: not blank, at most 256 UTF-16 code units.
    * @param command The commands, as {@link TerminalOwners.canRun} checks them.
