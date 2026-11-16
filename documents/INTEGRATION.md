@@ -317,7 +317,7 @@ const end = await launched.ended;
   The runtime lists it without a tab, so a window that opens again doesn't give it one either.
   The runtime ends it when the window that launched it closes or reloads, as the app's connection closing ends every launched terminal, and the app closes it with `closeAsync` once it no longer shows it.
 - The minimum rows, the launch's seventh argument, is a whole number from 1 to 100: the tab shows at least that many rows while the terminal is open, for a program that draws more than a short dock shows, such as a sign-in's list.
-  As the tab first shows in a dock, the dock grows by what the terminal lacks, as far as the window allows, through Noldova Desktop's `growViewDock`; when the terminal ends or closes, the dock goes back to its size, unless the person resized it meanwhile.
+  As the tab first shows in the bottom dock, which the window part learns from Noldova Desktop's `viewDockOf`, also when the person moves the tab there later, the dock grows by what the terminal lacks, as far as the window allows, through Noldova Desktop's `growViewDock`; when the terminal ends or closes, the dock goes back to its size, unless the person resized it meanwhile.
   A tab in a side dock grows nothing, since Noldova Desktop grows a side dock's width, which gives the terminal no rows, and a tab in the middle area grows nothing either.
   A launch without a tab can't ask for minimum rows, since the embedded terminal takes its rows from `EmbeddedTerminal.open`.
 - The shell kinds, the launch's eighth argument, limit the shell the terminal runs, as a run's kinds do: the Default shell setting's shell when it is of them, else the runtime's default when it is, else the first installed shell of them.

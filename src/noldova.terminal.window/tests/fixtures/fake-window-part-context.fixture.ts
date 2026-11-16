@@ -6,8 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { signal, type Signal, type WritableSignal } from "@angular/core";
 import { QualifiedName, SettingEntry } from "@noldova/desktop.protocol";
-import type { CommandContribution, ILinkOpenOptions, ISelectionSource, IViewInstanceOptions, IViewUpdate, IWindowPartContext, ViewContribution } from "@noldova/desktop.window";
+import type { CommandContribution, DockSide, ILinkOpenOptions, ISelectionSource, IViewInstanceOptions, IViewUpdate, IWindowPartContext, ViewContribution } from "@noldova/desktop.window";
 import type { LinkGesture } from "@noldova/ui.components.angular";
 import type { JsonValue } from "@noldova/context.json";
 
@@ -50,6 +51,7 @@ export class FakeWindowPartContext implements IWindowPartContext {
   public readonly hiddenDocks: string[] = [];
   public readonly grownDocks: [string, number][] = [];
   public readonly releasedDocks: string[] = [];
+  public readonly dock: WritableSignal<DockSide | null> = signal<DockSide | null>(null);
   public readonly updates: [string, IViewUpdate][] = [];
   public readonly logs: string[] = [];
   public readonly links: string[] = [];
@@ -163,6 +165,11 @@ export class FakeWindowPartContext implements IWindowPartContext {
     const tab: string = instance === undefined ? name : `${name}/${instance}`;
     this.grownDocks.push([tab, minimum]);
     return () => this.releasedDocks.push(tab);
+  }
+
+  public viewDockOf(name: string): Signal<DockSide | null> {
+    this.requireOwn(name);
+    return this.dock.asReadonly();
   }
 
   public provideMenuGroup(group: string, provider: MenuProvider): () => void {
