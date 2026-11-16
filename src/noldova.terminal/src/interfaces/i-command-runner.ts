@@ -6,6 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { CommandRun } from "../models/command-run.ts";
+
 export interface ICommandRunner {
   runAsync(file: string, args: readonly string[], timeoutMilliseconds: number, environment?: Readonly<Record<string, string>>): Promise<string>;
+  start(file: string, args: readonly string[], timeoutMilliseconds: number, endMilliseconds: number, environment?: Readonly<Record<string, string>>): CommandRun;
 }

@@ -17,6 +17,7 @@ import { CommandExitedException } from "../../src/exceptions/command-exited.exce
 import { CommandNotStartedException } from "../../src/exceptions/command-not-started.exception.ts";
 import { CommandTimedOutException } from "../../src/exceptions/command-timed-out.exception.ts";
 import type { ICommandRunner } from "../../src/interfaces/i-command-runner.ts";
+import { CommandRun } from "../../src/models/command-run.ts";
 import { EnvironmentTools } from "../../src/models/environment-tools.ts";
 import { WindowsEnvironment } from "../../src/services/windows-environment.ts";
 import { FakeFileSystemReader } from "../fixtures/fake-file-system-reader.fixture.ts";
@@ -93,6 +94,11 @@ class ExportRunner implements ICommandRunner {
 
   public constructor(reader: FakeFileSystemReader) {
     this.reader = reader;
+  }
+
+  public start(file: string, args: readonly string[], timeoutMilliseconds: number): CommandRun {
+    const answer: Promise<string> = this.runAsync(file, args, timeoutMilliseconds);
+    return new CommandRun(answer, answer.then(() => undefined, () => undefined));
   }
 
   public async runAsync(file: string, args: readonly string[], timeoutMilliseconds: number): Promise<string> {

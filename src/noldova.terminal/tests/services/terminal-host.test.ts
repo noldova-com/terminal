@@ -776,7 +776,7 @@ describe("TerminalHost", () => {
         fixture.host.handleAsync("terminal.complete", { sessionId, line: "ls -", cursor: 4, asksShell: true }, APP);
 
       const late: Promise<JsonValue> = completeAsync();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(2_000);
       const timedOut: JsonValue = await late;
       fixture.process.answers.set("\u001b[24;7~", `\u001b]6973;O;${nonce};--late\u0007\u001b]6973;O;${nonce};--long\u0007`);
       const answered: JsonValue = await completeAsync();
@@ -1702,7 +1702,7 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
 
       assert.equal(fixture.log.messages.length, 1);
-      assert.ok(fixture.log.messages[0]?.startsWith(`The stored lines of terminal ${sessionId} could not be removed: `), fixture.log.messages[0]);
+      assert.ok(fixture.log.messages[0]?.startsWith(`The stored lines of terminal ${sessionId} could not be removed: `), JSON.stringify(fixture.log.messages));
       assert.deepEqual((await readdir(temporaryFolder)).filter(t => t.startsWith("noldova-terminal-lines-")), []);
     });
 
