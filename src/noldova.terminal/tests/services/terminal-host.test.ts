@@ -1702,7 +1702,7 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
 
       assert.equal(fixture.log.messages.length, 1);
-      assert.ok(fixture.log.messages[0]?.startsWith(`The stored lines of terminal ${sessionId} could not be removed: `), fixture.log.messages[0]);
+      assert.ok(fixture.log.messages[0]?.startsWith(`The stored lines of terminal ${sessionId} could not be removed: `), JSON.stringify(fixture.log.messages));
       assert.deepEqual((await readdir(temporaryFolder)).filter(t => t.startsWith("noldova-terminal-lines-")), []);
     });
 

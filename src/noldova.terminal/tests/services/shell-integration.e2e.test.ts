@@ -853,8 +853,11 @@ describe("shell integration with real shells", () => {
           const written: readonly unknown[] = fixture.context.log.callsOf("write").slice(logged).map(t => t[0]);
           const notes: readonly string[] = [...missing.includes("whoami") ? [describeProgramLookups(lookups)] : [],
             ...written.length > 0 ? [`During this test the runtime logged ${JSON.stringify(written)}.`] : []];
-          assert.deepEqual(found, [["noldovanone", "nöldovanone"], true, false, false],
-            notes.length === 0 ? undefined : `Got ${JSON.stringify(found)}. ${notes.join(" ")}`);
+          const expected: readonly unknown[] = [["noldovanone", "nöldovanone"], true, false, false];
+          if (notes.length === 0)
+            assert.deepEqual(found, expected);
+          else
+            assert.deepEqual(found, expected, `Got ${JSON.stringify(found)}. ${notes.join(" ")}`);
           await fixture.callAsync("terminal.close", { sessionId });
         });
       });
