@@ -3032,11 +3032,11 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    it("starts a new terminal's shell at its opening size 10 seconds into its wait for a pane that a window shows and never sizes, not before, and types into it", async () => {
+    it("starts a new terminal's shell at its opening size 10 seconds into its wait for a pane that a window shows and never sizes, not before, types into it, and resizes it at the pane's later fit", async () => {
       vi.useFakeTimers();
       const fixture: HostFixture = await HostFixture.createAsync();
       const openedAt: number = Date.now();
-      const { result, spawning } = await openNewAsync(fixture);
+      const { result, sessionId, spawning } = await openNewAsync(fixture);
       const listedAt: number = Date.now();
       await advanceToAsync(openedAt + 9_999);
       const spawnedBeforeLimit: number = fixture.spawner.spawned.length;
@@ -3046,8 +3046,11 @@ describe("TerminalHost", () => {
       const process: FakePtyProcess = await readAsync(spawning);
       showPrompt(fixture, process);
 
-      assert.deepEqual([spawnedBeforeLimit, fixture.spawner.spawned.length, (await result).outcome, fixture.spawner.calls.at(-1)?.endsWith(" at 80x24"),
-        process.writes], [0, 1, "Typed", true, ["\u001b[200~npm test\u001b[201~\r"]]);
+      const answer: TerminalRunResult = await result;
+      await fixture.host.handleAsync("terminal.resize", { sessionId, size: PANE_SIZE }, APP);
+
+      assert.deepEqual([spawnedBeforeLimit, fixture.spawner.spawned.length, answer.outcome, fixture.spawner.calls.at(-1)?.endsWith(" at 80x24"), process.writes,
+        process.sizes], [0, 1, "Typed", true, ["\u001b[200~npm test\u001b[201~\r"], ["120x30"]]);
       await fixture.endAllAsync();
     });
 
