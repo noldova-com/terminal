@@ -110,13 +110,15 @@ A target with no time for a file skips it or runs it within 1 second.
 
 | Test file | Time | Why |
 |---|---|---|
-| `src/noldova.terminal/tests/services/shell-integration.e2e.test.ts` | Linux 162 s, macOS 166 s, Windows 231 s | It starts each installed shell, bash, Git Bash, zsh, PowerShell 7 and Windows PowerShell, many times over, and waits for each one's prompts, commands and exit through a real pseudo-terminal. |
+| `src/noldova.terminal/tests/services/shell-integration.e2e.test.ts` | Linux 162 s, macOS 166 s, Windows 282 s | It starts each installed shell, bash, Git Bash, zsh, PowerShell 7 and Windows PowerShell, many times over, and waits for each one's prompts, commands and exit through a real pseudo-terminal. |
 | `src/noldova.terminal/tests/runtime-part.e2e.test.ts` | Linux 33 s, macOS 41 s, Windows 74 s | It starts the module's runtime part with real shells and drives it through its published API, as an app does. |
 | `src/noldova.terminal/tests/services/one-shot-command.e2e.test.ts` | Windows 24 s | Windows only: it runs a command after each developer shell's start and in each WSL distribution. |
 | `src/noldova.terminal/tests/services/terminal-host.test.ts` | Linux 13 s, macOS 13 s, Windows 15 s | Its 225 tests cover every request the host answers, each with its own host and sessions, and many with history files on disk. |
 | `src/noldova.terminal/tests/services/context-pty-spawner.test.ts` | Windows 14 s | Each of its 5 tests starts Node.js in a real pseudo-terminal, which on Windows starts a pseudo console, conhost and Node.js for each. |
 | `src/noldova.terminal/tests/services/pseudo-terminal.e2e.test.ts` | Windows 5.0 s | It runs real shells through node-pty, and waits up to its listed pause for a background child's end. |
 | `src/noldova.terminal/tests/services/terminal-session.test.ts` | Linux 2.1 s, macOS 3.9 s, Windows 2.6 s | Its tests write and read each session's history files in a temporary folder. |
+| `src/noldova.terminal/tests/services/completion-source.e2e.test.ts` | Linux 1.2 s, macOS 1.8 s, Windows 1.1 s | It runs this computer's PowerShell twice for a real lookup, Windows PowerShell on Windows and PowerShell 7 elsewhere, and waits for the first to end on its own. |
+| `src/noldova.terminal/tests/services/command-runner.test.ts` | Linux 1.1 s, macOS 1.5 s, Windows 1.5 s | Its 14 tests each start a real Node.js program, and two run one past its time, to its own end or to the end it is given. |
 | `src/noldova.terminal/tests/services/terminal-mirror.test.ts` | macOS 1.6 s, Windows 1.9 s | Its 19 tests write a headless xterm's lines to history files in a temporary folder. |
 | `src/noldova.terminal/tests/services/line-process.test.ts` | macOS 1.3 s, Windows 1.5 s | Its 16 tests each start a real Node.js program and read its lines. |
 | `src/noldova.terminal/tests/services/agent-terminals.test.ts` | Linux 1.2 s, macOS 1.2 s, Windows 1.3 s | Its tests launch and end the terminals each agent reaches, through a host each. |
