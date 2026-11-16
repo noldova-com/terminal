@@ -134,10 +134,7 @@ export class CompletionSource {
         Buffer.from(Resources.formatPowerShellLookupScript(unasked), Resources.utf16Encoding).toString(Resources.base64Encoding)], Resources.powerShellLookupMilliseconds,
         Resources.powerShellLookupEndMilliseconds, variables);
       this.lookups.set(shell, run);
-      void run.ended.then(() => {
-        if (this.lookups.get(shell) === run)
-          this.lookups.delete(shell);
-      });
+      void run.ended.then(() => this.lookups.delete(shell));
       try {
         const output: string = await run.answer;
         const missing: ReadonlySet<string> = new Set(output.split(Resources.lineBreaks).map(t => t.trim()));
