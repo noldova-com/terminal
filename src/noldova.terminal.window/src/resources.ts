@@ -277,8 +277,6 @@ export class Resources {
   public static readonly copyRefused: string = "the clipboard refused the text.";
   public static readonly macPlatformPrefix: string = "Mac";
   public static readonly windowsPlatformPrefix: string = "Win";
-  public static readonly tabGroupTag: string = "nol-tab-group";
-  public static readonly sideAttribute: string = "data-side";
   public static readonly pageArgument: string = "page";
   public static readonly commandWordSeparator: string = " ";
   public static readonly commandSpanFieldSeparator: string = ",";

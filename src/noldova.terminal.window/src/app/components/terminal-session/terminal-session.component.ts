@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { Component, DestroyRef, effect, ElementRef, ErrorHandler, inject, input, signal, untracked, viewChild, type InputSignal, type Signal, type WritableSignal } from "@angular/core";
+import { Component, computed, DestroyRef, effect, ElementRef, ErrorHandler, inject, input, signal, untracked, viewChild, type InputSignal, type Signal, type WritableSignal } from "@angular/core";
 import { DockSide, WindowPartTokens, type IWindowPartContext } from "@noldova/desktop.window";
 import { TerminalNames, type TerminalSize } from "@noldova/terminal.protocol";
 
@@ -40,6 +40,8 @@ export class TerminalSessionComponent implements ITerminalRestartTarget, ITermin
   public readonly instance: InputSignal<string> = input.required<string>();
   public readonly title: InputSignal<string> = input<string>(Resources.panelTitle);
 
+  private readonly dock: Signal<Signal<DockSide | null>> = computed(() => this.context.viewDockOf(Resources.sessionView, this.instance()));
+
   public constructor() {
     effect(() => {
       const sessionId: string = this.instance();
@@ -60,7 +62,7 @@ export class TerminalSessionComponent implements ITerminalRestartTarget, ITermin
     effect(() => {
       const sessionId: string = this.instance();
       const pane: TerminalPaneComponent | undefined = this.pane();
-      if (pane !== undefined && pane.rowHeight() > 0 && this.isInBottomDock())
+      if (pane !== undefined && pane.rowHeight() > 0 && this.dock()() === DockSide.Bottom)
         untracked(() => TerminalDockGrowths.grow(sessionId, rows => this.context.growViewDock(Resources.sessionView,
           pane.heightFor(rows) / Number.parseFloat(getComputedStyle(document.documentElement).fontSize), sessionId)));
     });
@@ -119,9 +121,5 @@ export class TerminalSessionComponent implements ITerminalRestartTarget, ITermin
     finally {
       this.isRestarting = false;
     }
-  }
-
-  private isInBottomDock(): boolean {
-    return this.host.closest(Resources.tabGroupTag)?.getAttribute(Resources.sideAttribute) === DockSide.Bottom;
   }
 }

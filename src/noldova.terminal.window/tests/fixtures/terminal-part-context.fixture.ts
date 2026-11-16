@@ -6,10 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { signal, type WritableSignal } from "@angular/core";
 import type { JsonValue } from "@noldova/context.json";
 import { QualifiedName, SettingEntry } from "@noldova/desktop.protocol";
 import { UnansweredCallException } from "@noldova/desktop.protocol/testing";
-import type { CommandContribution, ISelectionSource, IViewInstanceOptions, IViewUpdate, IWindowPartContext, ViewContribution } from "@noldova/desktop.window";
+import type { CommandContribution, DockSide, ISelectionSource, IViewInstanceOptions, IViewUpdate, IWindowPartContext, ViewContribution } from "@noldova/desktop.window";
 import { FakeWindowPartContext } from "@noldova/desktop.window/testing";
 import type { LinkGesture } from "@noldova/ui.components.angular";
 
@@ -58,6 +59,7 @@ export class TerminalPartContext extends FakeWindowPartContext {
   public readonly hiddenDocks: string[] = [];
   public readonly grownDocks: [string, number][] = [];
   public readonly releasedDocks: string[] = [];
+  public readonly dock: WritableSignal<DockSide | null> = signal<DockSide | null>(null);
   public readonly updates: [string, IViewUpdate][] = [];
   public readonly logs: string[] = [];
   public readonly links: string[] = [];
@@ -130,6 +132,10 @@ export class TerminalPartContext extends FakeWindowPartContext {
     this.answer("hideViewDock", (name, instance) => {
       this.requireOwn(name);
       this.hiddenDocks.push(TerminalPartContext.tabOf(name, instance));
+    });
+    this.answer("viewDockOf", name => {
+      this.requireOwn(name);
+      return this.dock.asReadonly();
     });
     this.answer("updateView", (name, instance, update) => {
       this.requireOwn(name);
