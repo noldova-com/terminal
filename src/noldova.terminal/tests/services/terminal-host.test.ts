@@ -2657,6 +2657,10 @@ describe("TerminalHost", () => {
       return new OpeningRun(result, opened.sessionId, spawning);
     }
 
+    async function advanceToAsync(time: number): Promise<void> {
+      await vi.advanceTimersByTimeAsync(time - Date.now());
+    }
+
     async function readAsync(spawning: Promise<FakePtyProcess>): Promise<FakePtyProcess> {
       const process: FakePtyProcess = await spawning;
       await vi.waitFor(() => assert.ok(process.isRead));
@@ -2857,11 +2861,13 @@ describe("TerminalHost", () => {
     it("waits up to 10 seconds for the asking window's pane to fit a new terminal a run without a tab opens, though no window shows its owner, then starts it at its opening size and types into it", async () => {
       vi.useFakeTimers();
       const fixture: HostFixture = await HostFixture.createAsync();
+      const openedAt: number = Date.now();
       const { result, sessionId, spawning } = await openNewAsync(fixture, { opensTab: false }, false);
+      const listedAt: number = Date.now();
 
-      await vi.advanceTimersByTimeAsync(9_999);
+      await advanceToAsync(openedAt + 9_999);
       const spawnedBeforeLimit: number = fixture.spawner.spawned.length;
-      await vi.advanceTimersByTimeAsync(1);
+      await advanceToAsync(listedAt + 10_000);
       vi.useRealTimers();
       const process: FakePtyProcess = await readAsync(spawning);
       showPrompt(fixture, process);
@@ -3012,8 +3018,9 @@ describe("TerminalHost", () => {
       vi.useFakeTimers();
       const fixture: HostFixture = await HostFixture.createAsync();
       await fixture.host.handleAsync("terminal.showOwner", { owner: "example.chat/7" }, new RequestClient(1, 2, true));
+      const openedAt: number = Date.now();
       const { result, spawning } = await openNewAsync(fixture);
-      await vi.advanceTimersByTimeAsync(9_999);
+      await advanceToAsync(openedAt + 9_999);
       const spawnedWhileShown: number = fixture.spawner.spawned.length;
       vi.useRealTimers();
 
@@ -3028,10 +3035,12 @@ describe("TerminalHost", () => {
     it("starts a new terminal's shell at its opening size 10 seconds into its wait for a pane that a window shows and never sizes, not before, and types into it", async () => {
       vi.useFakeTimers();
       const fixture: HostFixture = await HostFixture.createAsync();
+      const openedAt: number = Date.now();
       const { result, spawning } = await openNewAsync(fixture);
-      await vi.advanceTimersByTimeAsync(9_999);
+      const listedAt: number = Date.now();
+      await advanceToAsync(openedAt + 9_999);
       const spawnedBeforeLimit: number = fixture.spawner.spawned.length;
-      await vi.advanceTimersByTimeAsync(1);
+      await advanceToAsync(listedAt + 10_000);
       vi.useRealTimers();
 
       const process: FakePtyProcess = await readAsync(spawning);
