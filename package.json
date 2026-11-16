@@ -24,7 +24,7 @@
     "@noldova/desktop.runtime": "0.0.1",
     "@noldova/desktop.window": "0.0.1",
     "@noldova/ui.components.angular": "0.0.9",
-    "@types/node": "24.19.2",
+    "@types/node": "26.6.6",
     "@vitest/coverage-v8": "5.0.3",
     "typescript": "6.0.3",
     "vitest": "5.0.3"
