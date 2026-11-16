@@ -209,7 +209,7 @@ const output = await owners.readRunOutputAsync(block.run);
   A shell without the integration can't be told free, so a run into it is always busy.
   A run that comes while another run into the same target is still starting is busy too, so two Runs at once never type into each other's line.
 - An app that shows the run's terminal in its own pane, as a chat does under its code blocks, passes `shown`, `startRunAsync(owner, command, folder, shellKinds, target, shown)`, so no tab opens or takes the focus, for a new terminal or a free one the run reuses, now or when the owner shows; the person's typing stays where it is.
-  `shown` gets the terminal's session id before anything is typed, so the app attaches its pane then: a new terminal's shell starts at that pane's first fit and draws the commands at its width, or at 80 columns once the window closes or detaches the pane before it fits.
+  `shown` gets the terminal's session id before anything is typed, so the app attaches its pane then: a new terminal's shell starts at that pane's first fit and draws the commands at its width, or at 80 columns once the window closes or detaches the pane before it fits, or once the pane hasn't fit within 10 seconds.
   The terminal stays in the window's terminal list and the agents' tools, and its tab opens only when the person opens it.
   A window's runs with `shown` start one at a time.
 

@@ -4836,7 +4836,8 @@ export declare class TerminalNames {
    * and whether the window is hidden, and answers with null. A window sends it as it starts and whenever either changes; the runtime keeps it
    * for the window until the window disconnects. A run's shell that no window shows starts at once; one whose owner a reaching window shows
    * starts at the terminal's first fit, or once no reaching window shows that owner any more. A run without a tab starts its shell at the
-   * asking window's fit, or at once while that window is hidden or gone, since a hidden window draws no frame to fit it.
+   * asking window's fit, or at once while that window is hidden or gone, since a hidden window draws no frame to fit it. A run waits up to
+   * 10 seconds for that fit, then starts the shell at the size it opened with.
    */
   public static readonly showOwnerMethod: string;
 

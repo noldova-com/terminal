@@ -2854,17 +2854,21 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    it("waits for the asking window's pane to fit a new terminal a run without a tab opens, though no window shows its owner, however long it takes", async () => {
+    it("waits up to 10 seconds for the asking window's pane to fit a new terminal a run without a tab opens, though no window shows its owner, then starts it at its opening size and types into it", async () => {
       vi.useFakeTimers();
       const fixture: HostFixture = await HostFixture.createAsync();
-      const { result, sessionId } = await openNewAsync(fixture, { opensTab: false }, false);
+      const { result, sessionId, spawning } = await openNewAsync(fixture, { opensTab: false }, false);
 
-      await vi.advanceTimersByTimeAsync(60_000);
-
-      assert.deepEqual([fixture.spawner.spawned.length, fixture.runOpened.published], [0, [{ sessionId }]]);
+      await vi.advanceTimersByTimeAsync(9_999);
+      const spawnedBeforeLimit: number = fixture.spawner.spawned.length;
+      await vi.advanceTimersByTimeAsync(1);
       vi.useRealTimers();
+      const process: FakePtyProcess = await readAsync(spawning);
+      showPrompt(fixture, process);
+
+      assert.deepEqual([spawnedBeforeLimit, fixture.runOpened.published, (await result).outcome, fixture.spawner.calls.at(-1)?.endsWith(" at 80x24"),
+        process.writes], [0, [{ sessionId }], "Typed", true, ["\u001b[200~npm test\u001b[201~\r"]]);
       await fixture.endAllAsync();
-      assert.equal((await result).outcome, "Ended");
     });
 
     it("starts a new terminal a run without a tab opens at its opening size once the asking window closes before its pane fits, and types into it", async () => {
@@ -3004,12 +3008,12 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    it("waits for the first fit while one of two windows shows the owner, the other another owner, however long it takes, and starts once it hides it", async () => {
+    it("waits for the first fit while one of two windows shows the owner, the other another owner, and starts once it hides it", async () => {
       vi.useFakeTimers();
       const fixture: HostFixture = await HostFixture.createAsync();
       await fixture.host.handleAsync("terminal.showOwner", { owner: "example.chat/7" }, new RequestClient(1, 2, true));
       const { result, spawning } = await openNewAsync(fixture);
-      await vi.advanceTimersByTimeAsync(60_000);
+      await vi.advanceTimersByTimeAsync(9_999);
       const spawnedWhileShown: number = fixture.spawner.spawned.length;
       vi.useRealTimers();
 
@@ -3018,6 +3022,23 @@ describe("TerminalHost", () => {
       showPrompt(fixture, process);
 
       assert.deepEqual([spawnedWhileShown, (await result).outcome, fixture.spawner.calls.at(-1)?.endsWith(" at 80x24")], [0, "Typed", true]);
+      await fixture.endAllAsync();
+    });
+
+    it("starts a new terminal's shell at its opening size 10 seconds into its wait for a pane that a window shows and never sizes, not before, and types into it", async () => {
+      vi.useFakeTimers();
+      const fixture: HostFixture = await HostFixture.createAsync();
+      const { result, spawning } = await openNewAsync(fixture);
+      await vi.advanceTimersByTimeAsync(9_999);
+      const spawnedBeforeLimit: number = fixture.spawner.spawned.length;
+      await vi.advanceTimersByTimeAsync(1);
+      vi.useRealTimers();
+
+      const process: FakePtyProcess = await readAsync(spawning);
+      showPrompt(fixture, process);
+
+      assert.deepEqual([spawnedBeforeLimit, fixture.spawner.spawned.length, (await result).outcome, fixture.spawner.calls.at(-1)?.endsWith(" at 80x24"),
+        process.writes], [0, 1, "Typed", true, ["\u001b[200~npm test\u001b[201~\r"]]);
       await fixture.endAllAsync();
     });
 
