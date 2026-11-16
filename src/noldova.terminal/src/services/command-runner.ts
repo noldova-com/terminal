@@ -25,8 +25,8 @@ export class CommandRunner implements ICommandRunner {
     this.context = context;
   }
 
-  public runAsync(file: string, args: readonly string[], timeoutMilliseconds: number, environment: Readonly<Record<string, string>> = {}): Promise<string> {
-    return this.start(file, args, timeoutMilliseconds, timeoutMilliseconds, environment).answer;
+  public async runAsync(file: string, args: readonly string[], timeoutMilliseconds: number, environment: Readonly<Record<string, string>> = {}): Promise<string> {
+    return await this.start(file, args, timeoutMilliseconds, timeoutMilliseconds, environment).answer;
   }
 
   public start(file: string, args: readonly string[], timeoutMilliseconds: number, endMilliseconds: number,

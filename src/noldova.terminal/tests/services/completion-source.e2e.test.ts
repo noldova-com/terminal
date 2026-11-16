@@ -7,7 +7,7 @@
  */
 
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { homedir } from "node:os";
 import path from "node:path";
 import { finished } from "node:stream/promises";
@@ -64,5 +64,8 @@ function findPowerShell(): string | null {
   const program: string = process.platform === "win32"
     ? path.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
     : "pwsh";
-  return spawnSync(program, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "exit 0"], { stdio: "ignore", windowsHide: true }).status === 0 ? program : null;
+  const found: SpawnSyncReturns<string> = spawnSync(program, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "(Get-Process -Id $PID).Path"],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
+  const file: string = found.status === 0 ? found.stdout.trim() : "";
+  return path.isAbsolute(file) ? file : null;
 }
