@@ -31,9 +31,9 @@ import { FileSystemReader } from "../../src/services/file-system.reader.ts";
 import { FolderAccess } from "../../src/services/folder-access.ts";
 import { ShellIntegration } from "../../src/services/shell-integration.ts";
 import { ShellLocator } from "../../src/services/shell-locator.ts";
-import { FakeRuntimePartContext } from "../fixtures/fake-runtime-part-context.fixture.ts";
-import { PrivateFolder } from "../fixtures/private-folder.fixture.ts";
-import { SupervisedTerminals } from "../fixtures/supervised-terminals.fixture.ts";
+import { FakeRuntimePartContext } from "./fake-runtime-part-context.fixture.ts";
+import { PrivateFolder } from "./private-folder.fixture.ts";
+import { SupervisedTerminals } from "./supervised-terminals.fixture.ts";
 
 const WAIT_MS: number = 20_000;
 const SHELL_COLD_START_MS: number = 55_000;
@@ -52,9 +52,9 @@ const STYLES: RegExp = /\u001b\[[\d;]*m/gu;
 const MARK: RegExp = /\u001b\]6973;([A-Z]);([\da-f]{32})(?:;([^\u0007]*))?\u0007/gu;
 const START_TEMP: RegExp = /\[([A-Za-z]:\\[^\]\r\n]*)\]/u;
 const PRINTED_TEMP: RegExp = /<tmp=([A-Za-z]:\\[^>\r\n]*)>/u;
-const POSIX_SHELLS: readonly string[] = ["bash", "git-bash", "zsh"];
-const POWERSHELLS: readonly string[] = ["pwsh", "powershell"];
-const PLAIN_SHELLS: readonly string[] = ["sh", "cmd"];
+const POSIX_SHELL_IDS: readonly string[] = ["bash", "git-bash", "zsh"];
+const POWERSHELL_IDS: readonly string[] = ["pwsh", "powershell"];
+const PLAIN_SHELL_IDS: readonly string[] = ["sh", "cmd"];
 const SHELL_FILES: Map<string, string> = new Map<string, string>();
 const REDRAW_BINDINGS: ReadonlyMap<string, string> = new Map<string, string>([
   ["bash", "bind '\"\\C-g\": redraw-current-line'"],
@@ -180,15 +180,31 @@ class RuntimeFixture {
   }
 }
 
-beforeAll(async () => {
-  terminals = await SupervisedTerminals.createAsync();
-});
+export function defineShellIntegrationTests(covered: readonly string[]): void {
+  beforeAll(async () => {
+    terminals = await SupervisedTerminals.createAsync();
+  });
 
-afterAll(async () => {
-  await terminals.endAsync();
-});
+  afterAll(async () => {
+    await terminals.endAsync();
+  });
 
-describe("shell integration with real shells", () => {
+  describe("shell integration with real shells", () => defineRealShellTests(covered));
+  if (covered.includes("bash"))
+    describe("a shell's nonce file", defineNonceFileTests);
+  if (covered.includes("pwsh"))
+    describe("the Store install of PowerShell 7", defineStoreInstallTests);
+  const policyShells: readonly string[] = POWERSHELL_IDS.filter(t => covered.includes(t));
+  if (policyShells.length > 0)
+    describe("a PowerShell under the Restricted execution policy", () => defineRestrictedPolicyTests(policyShells));
+  if (covered.includes("powershell"))
+    describe("a PowerShell profile another PowerShell is reading", defineReadProfileTests);
+}
+
+function defineRealShellTests(covered: readonly string[]): void {
+  const posixShells: readonly string[] = POSIX_SHELL_IDS.filter(t => covered.includes(t));
+  const powerShells: readonly string[] = POWERSHELL_IDS.filter(t => covered.includes(t));
+  const plainShells: readonly string[] = PLAIN_SHELL_IDS.filter(t => covered.includes(t));
   const fixture: RuntimeFixture = new RuntimeFixture();
   let folder: string = "";
   let workFolder: string = "";
@@ -241,7 +257,7 @@ describe("shell integration with real shells", () => {
     await rm(folder, { force: true, recursive: true });
   });
 
-  for (const shellId of POSIX_SHELLS)
+  for (const shellId of posixShells)
     it(`[${shellId}] marks ${shellId}'s prompts and commands after the person's startup files`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
@@ -271,7 +287,7 @@ describe("shell integration with real shells", () => {
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of POSIX_SHELLS.filter(t => t !== "zsh"))
+  for (const shellId of posixShells.filter(t => t !== "zsh"))
     it(`[${shellId}] marks ${shellId}'s prompts with promptvars off, once after it turns on, and keeps an exported PS1 from programs`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       await writeFile(join(home, ".bashrc"), `shopt -u promptvars\n${BASH_STARTUP}`, "utf8");
@@ -301,7 +317,7 @@ describe("shell integration with real shells", () => {
       }
     });
 
-  for (const shellId of POSIX_SHELLS)
+  for (const shellId of posixShells)
     it(`[${shellId}] marks the end of a ${shellId} command line that starts with a subshell with its code, its start where the shell runs a hook for it, and no end for an empty line`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
@@ -327,7 +343,7 @@ describe("shell integration with real shells", () => {
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of POSIX_SHELLS.filter(t => t !== "zsh"))
+  for (const shellId of posixShells.filter(t => t !== "zsh"))
     it(`[${shellId}] sends no end mark again after a subshell's once the person's PROMPT_COMMAND replaces the integration's hooks`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
@@ -350,7 +366,7 @@ describe("shell integration with real shells", () => {
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of POSIX_SHELLS)
+  for (const shellId of posixShells)
     it(`[${shellId}] marks the end of ${shellId}'s continuation prompt, once for each line a command goes on to`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
@@ -368,7 +384,7 @@ describe("shell integration with real shells", () => {
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of POWERSHELLS)
+  for (const shellId of powerShells)
     it(`[${shellId}] marks ${shellId}'s prompts and commands after the person's profiles`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
@@ -385,7 +401,7 @@ describe("shell integration with real shells", () => {
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of POWERSHELLS)
+  for (const shellId of powerShells)
     it(`[${shellId}] runs ${shellId}'s profiles in order, at the global scope, after reading its nonce file`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       await withProfilesAsync(context, shellId, PROFILES, async () => {
@@ -407,7 +423,7 @@ describe("shell integration with real shells", () => {
       });
     });
 
-  for (const shellId of [...POSIX_SHELLS, ...POWERSHELLS])
+  for (const shellId of [...posixShells, ...powerShells])
     it(`[${shellId}] reports ${shellId}'s working folder whole when its name holds U+009C`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       await mkdir(join(workFolder, C1_FOLDER), { recursive: true });
@@ -415,13 +431,13 @@ describe("shell integration with real shells", () => {
       await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
 
-      await fixture.typeAsync(sessionId, POWERSHELLS.includes(shellId) ? "cd \"c1-$([char] 0x9c)-folder\"\r" : "cd \"$(printf 'c1-\\302\\234-folder')\"\r");
+      await fixture.typeAsync(sessionId, POWERSHELL_IDS.includes(shellId) ? "cd \"c1-$([char] 0x9c)-folder\"\r" : "cd \"$(printf 'c1-\\302\\234-folder')\"\r");
 
       await fixture.waitForAsync(sessionId, () => fixture.cwds(sessionId).some(t => t.endsWith(C1_FOLDER)), "No working folder ended with the folder's whole name.", 2 * WAIT_MS);
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of POSIX_SHELLS)
+  for (const shellId of posixShells)
     it(`[${shellId}] reports ${shellId}'s working folder whole when its name holds the mark's separator, and a backslash and a tab where the system allows them`,
       async context => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
@@ -437,7 +453,7 @@ describe("shell integration with real shells", () => {
         await fixture.callAsync("terminal.close", { sessionId });
       });
 
-  for (const shellId of [...POSIX_SHELLS, ...POWERSHELLS])
+  for (const shellId of [...posixShells, ...powerShells])
     it(`[${shellId}] shows a missing folder's note as written, dim and italic, on the rows above ${shellId}'s first prompt`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const missing: string = join(folder, SCRIPT_FOLDER);
@@ -459,7 +475,7 @@ describe("shell integration with real shells", () => {
       const typedRow: number = rows.findIndex(t => t.includes(`echo ${word.slice(0, -1)}`));
       assert.ok(noteEnd < typedRow && rows[noteEnd]?.endsWith("home folder.") === true, `The prompt is not below the note: ${JSON.stringify(text)}`);
       assert.doesNotMatch(text.replaceAll("\r\n", ""), /(?<!echo )ran-[abc]/u, "The folder's name ran as script.");
-      const powerShell: boolean = POWERSHELLS.includes(shellId);
+      const powerShell: boolean = POWERSHELL_IDS.includes(shellId);
       await fixture.typeAsync(sessionId, powerShell
         ? "\"[note-$env:NOLDOVA_TERMINAL_NOTE] [child-$(& (Get-Process -Id $PID).Path -NoProfile -Command '$env:NOLDOVA_TERMINAL_NOTE')]\"\r"
         : "echo \"[note-${NOLDOVA_TERMINAL_NOTE-}] [child-$(env | grep -c NOLDOVA_TERMINAL_NOTE)]\"\r");
@@ -468,7 +484,7 @@ describe("shell integration with real shells", () => {
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of POWERSHELLS)
+  for (const shellId of powerShells)
     it(`[${shellId}] writes the note in ${shellId} under ConstrainedLanguage and removes its variable`, context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const script: string =
@@ -481,48 +497,50 @@ describe("shell integration with real shells", () => {
       assert.equal(result.stdout.trim(), "a terminal's note[gone-]");
     });
 
-  it("[cmd] shows a missing folder's note as written, dim and italic, on the rows above Command Prompt's first prompt",
-    async context => {
-      context.skip(!shellIds.includes("cmd"), "cmd is not installed.");
-      const missing: string = join(folder, CMD_FOLDER);
-      const sessionId: string = await fixture.openAsync("cmd", missing);
-      const word: string = `after-note-${randomUUID().slice(0, 8)}`;
+  if (covered.includes("cmd")) {
+    it("[cmd] shows a missing folder's note as written, dim and italic, on the rows above Command Prompt's first prompt",
+      async context => {
+        context.skip(!shellIds.includes("cmd"), "cmd is not installed.");
+        const missing: string = join(folder, CMD_FOLDER);
+        const sessionId: string = await fixture.openAsync("cmd", missing);
+        const word: string = `after-note-${randomUUID().slice(0, 8)}`;
 
-      await fixture.typeAsync(sessionId, `echo ${word.slice(0, -1)}^${word.slice(-1)}\r`);
-      await fixture.waitForAsync(sessionId, t => t.includes(word), "The shell did not echo.");
-      const attachment: TerminalAttachment = TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId: "p1" }));
+        await fixture.typeAsync(sessionId, `echo ${word.slice(0, -1)}^${word.slice(-1)}\r`);
+        await fixture.waitForAsync(sessionId, t => t.includes(word), "The shell did not echo.");
+        const attachment: TerminalAttachment = TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId: "p1" }));
 
-      const note: string = `The folder ${missing} does not exist, so this terminal opened in the home folder.`;
-      const text: string = attachment.snapshot.replace(STYLES, "");
-      assert.match(attachment.snapshot, NOTE_STYLE);
-      assert.equal(text.replaceAll("\r\n", "").indexOf(note), 0, `The note is not the terminal's first rows: ${JSON.stringify(text)}`);
-      const rows: string[] = text.split("\r\n");
-      const noteEnd: number = rows.findIndex((_, i) => rows.slice(0, i + 1).join("").length >= note.length);
-      const typedRow: number = rows.findIndex(t => t.includes(`echo ${word.slice(0, -1)}`));
-      assert.ok(noteEnd < typedRow && rows[noteEnd]?.endsWith("home folder.") === true, `The prompt is not below the note: ${JSON.stringify(text)}`);
-      assert.doesNotMatch(text.replaceAll("\r\n", ""), /(?<!echo )ran-[def]/u, "The folder's name ran as commands.");
-      const held: string = "[child-%NOLDOVA_TERMINAL_NOTE%]";
-      await fixture.typeAsync(sessionId, `cmd /d /c echo ${held}\r`);
-      await fixture.waitForAsync(sessionId, t => t.split(held).length > 2, "The shell or its programs hold the note's variable.");
-      await fixture.callAsync("terminal.close", { sessionId });
-    });
+        const note: string = `The folder ${missing} does not exist, so this terminal opened in the home folder.`;
+        const text: string = attachment.snapshot.replace(STYLES, "");
+        assert.match(attachment.snapshot, NOTE_STYLE);
+        assert.equal(text.replaceAll("\r\n", "").indexOf(note), 0, `The note is not the terminal's first rows: ${JSON.stringify(text)}`);
+        const rows: string[] = text.split("\r\n");
+        const noteEnd: number = rows.findIndex((_, i) => rows.slice(0, i + 1).join("").length >= note.length);
+        const typedRow: number = rows.findIndex(t => t.includes(`echo ${word.slice(0, -1)}`));
+        assert.ok(noteEnd < typedRow && rows[noteEnd]?.endsWith("home folder.") === true, `The prompt is not below the note: ${JSON.stringify(text)}`);
+        assert.doesNotMatch(text.replaceAll("\r\n", ""), /(?<!echo )ran-[def]/u, "The folder's name ran as commands.");
+        const held: string = "[child-%NOLDOVA_TERMINAL_NOTE%]";
+        await fixture.typeAsync(sessionId, `cmd /d /c echo ${held}\r`);
+        await fixture.waitForAsync(sessionId, t => t.split(held).length > 2, "The shell or its programs hold the note's variable.");
+        await fixture.callAsync("terminal.close", { sessionId });
+      });
 
-  for (const expansion of ["/v:off", "/v:on"])
-    it(`has Command Prompt write a note as it is, and clear its variable, with delayed expansion ${expansion.slice(3)}`, context => {
-      context.skip(process.platform !== "win32", "Command Prompt runs on Windows only.");
-      const commandPrompt: string = join(process.env["SystemRoot"] ?? "", "System32", "cmd.exe");
-      const note: string = "\u001b[2;3mThe folder C:\\a & echo ran-x | %PATH% !PATH! ^& (y) <z> \"q\" does not exist.\u001b[0m";
-      const line: string = Resources.formatCmdNoteLine(commandPrompt, "NOLDOVA_TERMINAL_NOTE",
-        `"${commandPrompt}" /d /c echo [gone-%NOLDOVA_TERMINAL_NOTE^%]`).replace("/s /k", "/s /c");
+    for (const expansion of ["/v:off", "/v:on"])
+      it(`has Command Prompt write a note as it is, and clear its variable, with delayed expansion ${expansion.slice(3)}`, context => {
+        context.skip(process.platform !== "win32", "Command Prompt runs on Windows only.");
+        const commandPrompt: string = join(process.env["SystemRoot"] ?? "", "System32", "cmd.exe");
+        const note: string = "\u001b[2;3mThe folder C:\\a & echo ran-x | %PATH% !PATH! ^& (y) <z> \"q\" does not exist.\u001b[0m";
+        const line: string = Resources.formatCmdNoteLine(commandPrompt, "NOLDOVA_TERMINAL_NOTE",
+          `"${commandPrompt}" /d /c echo [gone-%NOLDOVA_TERMINAL_NOTE^%]`).replace("/s /k", "/s /c");
 
-      const result: SpawnSyncReturns<string> = spawnSync(commandPrompt, [`/d ${expansion} ${line}`],
-        { encoding: "utf8", timeout: WAIT_MS, windowsVerbatimArguments: true, env: { ...process.env, NOLDOVA_TERMINAL_NOTE: note } });
+        const result: SpawnSyncReturns<string> = spawnSync(commandPrompt, [`/d ${expansion} ${line}`],
+          { encoding: "utf8", timeout: WAIT_MS, windowsVerbatimArguments: true, env: { ...process.env, NOLDOVA_TERMINAL_NOTE: note } });
 
-      assert.equal(result.stderr, "");
-      assert.equal(result.stdout, `${note}\r\n[gone-%NOLDOVA_TERMINAL_NOTE%]\r\n`);
-    });
+        assert.equal(result.stderr, "");
+        assert.equal(result.stdout, `${note}\r\n[gone-%NOLDOVA_TERMINAL_NOTE%]\r\n`);
+      });
+  }
 
-  for (const shellId of [...POSIX_SHELLS, ...POWERSHELLS])
+  for (const shellId of [...posixShells, ...powerShells])
     it(`[${shellId}] keeps each ${shellId} command a person starts for every terminal of that shell, and tells where the line starts at its prompt`,
       async context => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
@@ -554,12 +572,12 @@ describe("shell integration with real shells", () => {
         await fixture.callAsync("terminal.close", { sessionId: other });
       });
 
-  for (const shellId of [...POSIX_SHELLS, ...POWERSHELLS])
+  for (const shellId of [...posixShells, ...powerShells])
     it(`[${shellId}] reads a ${shellId} command over several lines by its first line, and the line again from where a prompt redrawn in place starts it`,
       async context => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
         const sessionId: string = await fixture.openAsync(shellId, workFolder);
-        const continuation: string = POWERSHELLS.includes(shellId) ? "`" : "\\";
+        const continuation: string = POWERSHELL_IDS.includes(shellId) ? "`" : "\\";
         const prompted: () => boolean = () => /C[^B]*B[^C]*$/u.test(fixture.kinds(sessionId));
         const waitForCommandAsync: (command: string) => Promise<void> = command => vi.waitFor(() => assert.ok(fixture.commandsAdded(sessionId).includes(command),
           `The commands kept were ${JSON.stringify(fixture.commandsAdded(sessionId))}.`), { timeout: WAIT_MS, interval: TEXT_POLL_MS });
@@ -589,14 +607,14 @@ describe("shell integration with real shells", () => {
         await fixture.callAsync("terminal.close", { sessionId });
       });
 
-  for (const shellId of [...POSIX_SHELLS, ...POWERSHELLS])
+  for (const shellId of [...posixShells, ...powerShells])
     it(`[${shellId}] completes each name so ${shellId} reads it as itself, from a print command or PowerShell's -Path`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const names: string = join(folder, `names-${shellId}`);
       await mkdir(names);
       for (const name of COMPLETED_NAMES)
         await writeFile(join(names, name), "", "utf8");
-      const isPowerShell: boolean = POWERSHELLS.includes(shellId);
+      const isPowerShell: boolean = POWERSHELL_IDS.includes(shellId);
       const sessionId: string = await fixture.openAsync(shellId, names);
       await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       await fixture.waitForQuietAsync(sessionId);
@@ -636,7 +654,7 @@ describe("shell integration with real shells", () => {
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of [...POSIX_SHELLS, ...POWERSHELLS])
+  for (const shellId of [...posixShells, ...powerShells])
     it(`[${shellId}] completes ${shellId}'s commands from its PATH at the prompt, once a command changes it`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const bin: string = join(folder, `bin-${shellId}`);
@@ -658,20 +676,20 @@ describe("shell integration with real shells", () => {
         await fixture.waitForQuietAsync(sessionId);
         return completeAsync();
       };
-      const added: readonly string[] = await changePathAsync(POWERSHELLS.includes(shellId) ? `$env:PATH = '${bin}' + [IO.Path]::PathSeparator + $env:PATH\r`
+      const added: readonly string[] = await changePathAsync(POWERSHELL_IDS.includes(shellId) ? `$env:PATH = '${bin}' + [IO.Path]::PathSeparator + $env:PATH\r`
         : `export PATH="${shellId === "git-bash" ? "$(cygpath -u '" + bin + "')" : bin}:$PATH"\r`);
-      const grown: readonly string[] = await changePathAsync(POWERSHELLS.includes(shellId) ? "$env:PATH = $env:PATH + [IO.Path]::PathSeparator + ('x' * 20000)\r"
+      const grown: readonly string[] = await changePathAsync(POWERSHELL_IDS.includes(shellId) ? "$env:PATH = $env:PATH + [IO.Path]::PathSeparator + ('x' * 20000)\r"
         : "export PATH=\"$PATH:/$(printf '%020000d' 0)\"\r");
 
       assert.deepEqual([added, grown], [["noldovaprobe"], []]);
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of ["zsh", ...POWERSHELLS])
+  for (const shellId of [...posixShells.filter(t => t === "zsh"), ...powerShells])
     it(`[${shellId}] asks ${shellId}'s own completion for a command's options through its hidden binding, which changes neither the screen nor the history`,
       async context => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
-        const isPowerShell: boolean = POWERSHELLS.includes(shellId);
+        const isPowerShell: boolean = POWERSHELL_IDS.includes(shellId);
         const sessionId: string = await fixture.openAsync(shellId, workFolder);
         await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
         await fixture.waitForQuietAsync(sessionId);
@@ -728,7 +746,7 @@ describe("shell integration with real shells", () => {
         await fixture.callAsync("terminal.close", { sessionId });
       });
 
-  for (const shellId of POSIX_SHELLS.filter(t => t !== "zsh"))
+  for (const shellId of posixShells.filter(t => t !== "zsh"))
     it(`[${shellId}] registers no completion binding in ${shellId}, whose request for options sends it nothing`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
@@ -751,10 +769,10 @@ describe("shell integration with real shells", () => {
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of ["zsh", ...POWERSHELLS])
+  for (const shellId of [...posixShells.filter(t => t === "zsh"), ...powerShells])
     it(`[${shellId}] keeps ${shellId}'s own binding of the completion binding's key and registers none`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
-      const isPowerShell: boolean = POWERSHELLS.includes(shellId);
+      const isPowerShell: boolean = POWERSHELL_IDS.includes(shellId);
       const checkAsync = async (): Promise<void> => {
         const sessionId: string = await fixture.openAsync(shellId, workFolder);
         await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
@@ -787,7 +805,7 @@ describe("shell integration with real shells", () => {
       }
     });
 
-  for (const shellId of POSIX_SHELLS)
+  for (const shellId of posixShells)
     it(`[${shellId}] finds the names ${shellId} would run, its keywords, aliases and functions too, once a prompt reports them`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
@@ -819,7 +837,7 @@ describe("shell integration with real shells", () => {
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of POWERSHELLS)
+  for (const shellId of powerShells)
     it(`[${shellId}] finds the names ${shellId} would run: a profile's function, modules' commands it never imports, a program and a name it runs with Get-`,
       async context => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
@@ -867,7 +885,7 @@ describe("shell integration with real shells", () => {
         });
       });
 
-  for (const shellId of POSIX_SHELLS)
+  for (const shellId of posixShells)
     it(`[${shellId}] never finds a folder missing under ${shellId}'s autocd, nor a file a zsh suffix alias runs`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const folder: string = join(dirname(workFolder), `autocd-${shellId}`);
@@ -898,7 +916,7 @@ describe("shell integration with real shells", () => {
       await fixture.callAsync("terminal.close", { sessionId });
     });
 
-  for (const shellId of POSIX_SHELLS)
+  for (const shellId of posixShells)
     it(`[${shellId}] keeps ${shellId}'s names list out of set -x's trace and of the environment, and leaves xtrace on for the person's commands`,
       async context => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
@@ -921,130 +939,134 @@ describe("shell integration with real shells", () => {
         await fixture.callAsync("terminal.close", { sessionId });
       });
 
-  it("[git-bash] completes Git Bash's commands from its start PATH again once cygpath can't convert its PATH", async context => {
-    context.skip(!shellIds.includes("git-bash"), "Git Bash is not installed.");
-    const bin: string = join(folder, "bin-probe");
-    const failing: string = join(folder, "bin-failing-cygpath");
-    await mkdir(bin);
-    await mkdir(failing);
-    await writeFile(join(bin, "noldovaprobe.cmd"), "@echo off\r\n", "utf8");
-    await writeFile(join(failing, "cygpath"), "#!/bin/sh\nexit 1\n", { encoding: "utf8", mode: 0o755 });
-    const sessionId: string = await fixture.openAsync("git-bash", workFolder);
-    await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
-    await fixture.waitForQuietAsync(sessionId);
-    const changePathAsync = async (added: string): Promise<readonly string[]> => {
-      const marked: number = fixture.kinds(sessionId).length;
-      await fixture.typeAsync(sessionId, `export PATH="$(cygpath -u '${added}'):$PATH"\r`);
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).length > marked && fixture.kinds(sessionId).endsWith("B"),
-        "Git Bash did not prompt again after PATH changed.");
-      await fixture.waitForQuietAsync(sessionId);
-      return TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line: "noldovapro", cursor: 10 })).items.map(t => t.label);
-    };
-
-    assert.deepEqual([await changePathAsync(bin), await changePathAsync(failing)], [["noldovaprobe"], []]);
-    await fixture.callAsync("terminal.close", { sessionId });
-  });
-
-  it("sends no /tmp of Git Bash's own when cygpath fails at its first prompt, and completes /tmp/ in the TEMP it started with",
-    async context => {
-      context.skip(!shellIds.includes("git-bash") || !shellIds.includes("cmd"), "Git Bash or Command Prompt is not installed.");
-      const logged: number = fixture.context.log.callsOf("write").length;
-      const cmdId: string = await fixture.openAsync("cmd", workFolder);
-      await fixture.typeAsync(cmdId, "echo [%TEMP%]\r");
-      await fixture.waitForAsync(cmdId, t => START_TEMP.test(t), "Command Prompt did not print the TEMP a shell starts with.");
-      const startTemp: string = START_TEMP.exec(fixture.text(cmdId))?.[1] ?? "";
-      await fixture.callAsync("terminal.close", { sessionId: cmdId });
-      const failing: string = join(folder, "bin-failing-cygpath-at-start");
-      const probe: string = `noldova-temp-${randomUUID().slice(0, 8)}`;
+  if (covered.includes("git-bash")) {
+    it("[git-bash] completes Git Bash's commands from its start PATH again once cygpath can't convert its PATH", async context => {
+      context.skip(!shellIds.includes("git-bash"), "Git Bash is not installed.");
+      const bin: string = join(folder, "bin-probe");
+      const failing: string = join(folder, "bin-failing-cygpath");
+      await mkdir(bin);
       await mkdir(failing);
+      await writeFile(join(bin, "noldovaprobe.cmd"), "@echo off\r\n", "utf8");
       await writeFile(join(failing, "cygpath"), "#!/bin/sh\nexit 1\n", { encoding: "utf8", mode: 0o755 });
-      await writeFile(join(startTemp, probe), "", "utf8");
-      await writeFile(join(home, ".bashrc"), `${BASH_STARTUP}export PATH="$(cygpath -u '${failing}'):$PATH"\n`, "utf8");
-      try {
-        const sessionId: string = await fixture.openAsync("git-bash", workFolder);
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
+      const sessionId: string = await fixture.openAsync("git-bash", workFolder);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
+      await fixture.waitForQuietAsync(sessionId);
+      const changePathAsync = async (added: string): Promise<readonly string[]> => {
+        const marked: number = fixture.kinds(sessionId).length;
+        await fixture.typeAsync(sessionId, `export PATH="$(cygpath -u '${added}'):$PATH"\r`);
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).length > marked && fixture.kinds(sessionId).endsWith("B"),
+          "Git Bash did not prompt again after PATH changed.");
         await fixture.waitForQuietAsync(sessionId);
+        return TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line: "noldovapro", cursor: 10 })).items.map(t => t.label);
+      };
 
+      assert.deepEqual([await changePathAsync(bin), await changePathAsync(failing)], [["noldovaprobe"], []]);
+      await fixture.callAsync("terminal.close", { sessionId });
+    });
+
+    it("sends no /tmp of Git Bash's own when cygpath fails at its first prompt, and completes /tmp/ in the TEMP it started with",
+      async context => {
+        context.skip(!shellIds.includes("git-bash") || !shellIds.includes("cmd"), "Git Bash or Command Prompt is not installed.");
+        const logged: number = fixture.context.log.callsOf("write").length;
+        const cmdId: string = await fixture.openAsync("cmd", workFolder);
+        await fixture.typeAsync(cmdId, "echo [%TEMP%]\r");
+        await fixture.waitForAsync(cmdId, t => START_TEMP.test(t), "Command Prompt did not print the TEMP a shell starts with.");
+        const startTemp: string = START_TEMP.exec(fixture.text(cmdId))?.[1] ?? "";
+        await fixture.callAsync("terminal.close", { sessionId: cmdId });
+        const failing: string = join(folder, "bin-failing-cygpath-at-start");
+        const probe: string = `noldova-temp-${randomUUID().slice(0, 8)}`;
+        await mkdir(failing);
+        await writeFile(join(failing, "cygpath"), "#!/bin/sh\nexit 1\n", { encoding: "utf8", mode: 0o755 });
+        await writeFile(join(startTemp, probe), "", "utf8");
+        await writeFile(join(home, ".bashrc"), `${BASH_STARTUP}export PATH="$(cygpath -u '${failing}'):$PATH"\n`, "utf8");
+        try {
+          const sessionId: string = await fixture.openAsync("git-bash", workFolder);
+          await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
+          await fixture.waitForQuietAsync(sessionId);
+
+          const line: string = `printf '[%s]\\n' /tmp/${probe.slice(0, -2)}`;
+          const askedAt: number = Date.now();
+          const completion: TerminalCompletion = TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line, cursor: line.length }));
+          const answeredIn: number = Date.now() - askedAt;
+          const listedAt: number = Date.now();
+          const entries: readonly string[] = await readdir(startTemp);
+          const listedIn: number = Date.now() - listedAt;
+
+          assert.deepEqual(fixture.marks(sessionId).filter(t => t.value?.startsWith(Resources.temporaryFolderProperty) === true), []);
+          assert.deepEqual(completion.items.map(t => t.label), [probe], `The completion answered in ${answeredIn} ms with ${JSON.stringify(completion.toJson())}. `
+            + `Listing ${startTemp} after it took ${listedIn} ms and found ${entries.length} entries, the probe ${entries.includes(probe) ? "among them" : "not among them"}. `
+            + `During this test the runtime logged ${JSON.stringify(fixture.context.log.callsOf("write").slice(logged))}.`);
+          await fixture.callAsync("terminal.close", { sessionId });
+        }
+        finally {
+          await writeFile(join(home, ".bashrc"), BASH_STARTUP, "utf8");
+          await rm(join(startTemp, probe), { force: true });
+        }
+      });
+
+    it("[git-bash] sends Git Bash's /tmp as cygpath -w /tmp prints it, and completes /tmp/ in that folder", async context => {
+      context.skip(!shellIds.includes("git-bash"), "Git Bash is not installed.");
+      const sessionId: string = await fixture.openAsync("git-bash", workFolder);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
+      await fixture.waitForQuietAsync(sessionId);
+      const sent: readonly string[] = fixture.marks(sessionId)
+        .map(t => t.value ?? "")
+        .filter(t => t.startsWith(Resources.temporaryFolderProperty))
+        .map(t => t.slice(Resources.temporaryFolderProperty.length).replace(Resources.markScannerEscapedCharacter,
+          (_, code: string) => String.fromCharCode(Number.parseInt(code, Resources.hexadecimalRadix))));
+      await fixture.typeAsync(sessionId, "printf '<tmp=%s>\\n' \"$(cygpath -w /tmp)\"\r");
+      await fixture.waitForAsync(sessionId, t => PRINTED_TEMP.test(t), "Git Bash did not print cygpath -w /tmp.");
+      const printed: string = PRINTED_TEMP.exec(fixture.text(sessionId))?.[1] ?? "";
+      const probe: string = `noldova-temp-${randomUUID().slice(0, 8)}`;
+      await writeFile(join(printed, probe), "", "utf8");
+      try {
         const line: string = `printf '[%s]\\n' /tmp/${probe.slice(0, -2)}`;
-        const askedAt: number = Date.now();
         const completion: TerminalCompletion = TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line, cursor: line.length }));
-        const answeredIn: number = Date.now() - askedAt;
-        const listedAt: number = Date.now();
-        const entries: readonly string[] = await readdir(startTemp);
-        const listedIn: number = Date.now() - listedAt;
 
-        assert.deepEqual(fixture.marks(sessionId).filter(t => t.value?.startsWith(Resources.temporaryFolderProperty) === true), []);
-        assert.deepEqual(completion.items.map(t => t.label), [probe], `The completion answered in ${answeredIn} ms with ${JSON.stringify(completion.toJson())}. `
-          + `Listing ${startTemp} after it took ${listedIn} ms and found ${entries.length} entries, the probe ${entries.includes(probe) ? "among them" : "not among them"}. `
-          + `During this test the runtime logged ${JSON.stringify(fixture.context.log.callsOf("write").slice(logged))}.`);
+        assert.deepEqual(sent, [printed]);
+        assert.deepEqual(completion.items.map(t => t.label), [probe]);
         await fixture.callAsync("terminal.close", { sessionId });
       }
       finally {
-        await writeFile(join(home, ".bashrc"), BASH_STARTUP, "utf8");
-        await rm(join(startTemp, probe), { force: true });
+        await rm(join(printed, probe), { force: true });
       }
     });
+  }
 
-  it("[git-bash] sends Git Bash's /tmp as cygpath -w /tmp prints it, and completes /tmp/ in that folder", async context => {
-    context.skip(!shellIds.includes("git-bash"), "Git Bash is not installed.");
-    const sessionId: string = await fixture.openAsync("git-bash", workFolder);
-    await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
-    await fixture.waitForQuietAsync(sessionId);
-    const sent: readonly string[] = fixture.marks(sessionId)
-      .map(t => t.value ?? "")
-      .filter(t => t.startsWith(Resources.temporaryFolderProperty))
-      .map(t => t.slice(Resources.temporaryFolderProperty.length).replace(Resources.markScannerEscapedCharacter,
-        (_, code: string) => String.fromCharCode(Number.parseInt(code, Resources.hexadecimalRadix))));
-    await fixture.typeAsync(sessionId, "printf '<tmp=%s>\\n' \"$(cygpath -w /tmp)\"\r");
-    await fixture.waitForAsync(sessionId, t => PRINTED_TEMP.test(t), "Git Bash did not print cygpath -w /tmp.");
-    const printed: string = PRINTED_TEMP.exec(fixture.text(sessionId))?.[1] ?? "";
-    const probe: string = `noldova-temp-${randomUUID().slice(0, 8)}`;
-    await writeFile(join(printed, probe), "", "utf8");
-    try {
-      const line: string = `printf '[%s]\\n' /tmp/${probe.slice(0, -2)}`;
-      const completion: TerminalCompletion = TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line, cursor: line.length }));
+  if (covered.includes("zsh")) {
+    it("[zsh] keeps a zsh command without its right prompt, and tells where the right prompt starts after the prompt redraws in place",
+      async context => {
+        context.skip(!shellIds.includes("zsh"), "zsh is not installed.");
+        const sessionId: string = await fixture.openAsync("zsh", workFolder);
+        const prompted: () => boolean = () => /C[^B]*B[^C]*$/u.test(fixture.kinds(sessionId));
+        const right: string = "[right-317]";
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
+        await fixture.waitForQuietAsync(sessionId);
+        await fixture.typeAsync(sessionId, "RPROMPT=\"[right-$((300 + 17))]\"; bindkey '^G' reset-prompt\r");
+        await fixture.waitForAsync(sessionId, t => prompted() && fixture.kinds(sessionId).endsWith("BR") && t.slice(t.lastIndexOf("\u0007")).includes(right),
+          "No prompt with the right prompt after setting it.");
+        await fixture.waitForQuietAsync(sessionId);
 
-      assert.deepEqual(sent, [printed]);
-      assert.deepEqual(completion.items.map(t => t.label), [probe]);
-      await fixture.callAsync("terminal.close", { sessionId });
-    }
-    finally {
-      await rm(join(printed, probe), { force: true });
-    }
-  });
+        await fixture.typeAsync(sessionId, "echo nol");
+        await fixture.waitForAsync(sessionId, t => t.slice(t.lastIndexOf("\u0007")).replace(STYLES, "").includes("echo nol"), "The typed text was not echoed.");
+        await fixture.waitForQuietAsync(sessionId);
+        const marked: number = fixture.kinds(sessionId).length;
+        await fixture.typeAsync(sessionId, "\u0007");
+        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).slice(marked).includes("R"), "The prompt was not redrawn with its right prompt.");
+        await fixture.waitForQuietAsync(sessionId);
+        const typing: TerminalAttachment = TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId: "p1" }));
+        await fixture.typeAsync(sessionId, "dova-right\r");
 
-  it("[zsh] keeps a zsh command without its right prompt, and tells where the right prompt starts after the prompt redraws in place",
-    async context => {
-      context.skip(!shellIds.includes("zsh"), "zsh is not installed.");
-      const sessionId: string = await fixture.openAsync("zsh", workFolder);
-      const prompted: () => boolean = () => /C[^B]*B[^C]*$/u.test(fixture.kinds(sessionId));
-      const right: string = "[right-317]";
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
-      await fixture.waitForQuietAsync(sessionId);
-      await fixture.typeAsync(sessionId, "RPROMPT=\"[right-$((300 + 17))]\"; bindkey '^G' reset-prompt\r");
-      await fixture.waitForAsync(sessionId, t => prompted() && fixture.kinds(sessionId).endsWith("BR") && t.slice(t.lastIndexOf("\u0007")).includes(right),
-        "No prompt with the right prompt after setting it.");
-      await fixture.waitForQuietAsync(sessionId);
+        const column: number = typing.input?.column ?? 0;
+        assert.ok((typing.input?.rightPrompt ?? 0) > column + "echo nol".length, `The line starts at ${JSON.stringify(typing.input?.toJson() ?? null)}.`);
+        await vi.waitFor(() => assert.ok(fixture.commandsAdded(sessionId).includes("echo noldova-right"),
+          `The commands kept were ${JSON.stringify(fixture.commandsAdded(sessionId))}.`), { timeout: WAIT_MS, interval: TEXT_POLL_MS });
+        assert.deepEqual(fixture.commandsAdded(sessionId).filter(t => t.includes(right)), []);
+        await fixture.callAsync("terminal.close", { sessionId });
+      });
+  }
 
-      await fixture.typeAsync(sessionId, "echo nol");
-      await fixture.waitForAsync(sessionId, t => t.slice(t.lastIndexOf("\u0007")).replace(STYLES, "").includes("echo nol"), "The typed text was not echoed.");
-      await fixture.waitForQuietAsync(sessionId);
-      const marked: number = fixture.kinds(sessionId).length;
-      await fixture.typeAsync(sessionId, "\u0007");
-      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).slice(marked).includes("R"), "The prompt was not redrawn with its right prompt.");
-      await fixture.waitForQuietAsync(sessionId);
-      const typing: TerminalAttachment = TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId: "p1" }));
-      await fixture.typeAsync(sessionId, "dova-right\r");
-
-      const column: number = typing.input?.column ?? 0;
-      assert.ok((typing.input?.rightPrompt ?? 0) > column + "echo nol".length, `The line starts at ${JSON.stringify(typing.input?.toJson() ?? null)}.`);
-      await vi.waitFor(() => assert.ok(fixture.commandsAdded(sessionId).includes("echo noldova-right"),
-        `The commands kept were ${JSON.stringify(fixture.commandsAdded(sessionId))}.`), { timeout: WAIT_MS, interval: TEXT_POLL_MS });
-      assert.deepEqual(fixture.commandsAdded(sessionId).filter(t => t.includes(right)), []);
-      await fixture.callAsync("terminal.close", { sessionId });
-    });
-
-  for (const shellId of PLAIN_SHELLS)
+  for (const shellId of plainShells)
     it(`[${shellId}] starts ${shellId} without integration`, async context => {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
@@ -1056,9 +1078,9 @@ describe("shell integration with real shells", () => {
       assert.deepEqual(fixture.cwds(sessionId), []);
       await fixture.callAsync("terminal.close", { sessionId });
     });
-});
+}
 
-describe("a shell's nonce file", () => {
+function defineNonceFileTests(): void {
   it("is readable by the person's account alone, in a folder only it reads, whatever its parent passes on", async () => {
     const parent: string = await mkdtemp(join(tmpdir(), "noldova-terminal-parent-"));
     const context: FakeRuntimePartContext = new FakeRuntimePartContext();
@@ -1079,9 +1101,9 @@ describe("a shell's nonce file", () => {
       await rm(parent, { recursive: true, force: true });
     }
   });
-});
+}
 
-describe("the Store install of PowerShell 7", () => {
+function defineStoreInstallTests(): void {
   const storePowerShell: string = join(process.env["LOCALAPPDATA"] ?? "", "Microsoft", "WindowsApps", "pwsh.exe");
 
   it("is the default shell when no other PowerShell 7 is installed, and starts as PowerShell 7 with its integration", async context => {
@@ -1114,10 +1136,10 @@ describe("the Store install of PowerShell 7", () => {
       await rm(folder, { force: true, recursive: true });
     }
   });
-});
+}
 
-describe("a PowerShell under the Restricted execution policy", () => {
-  for (const shellId of POWERSHELLS)
+function defineRestrictedPolicyTests(shellIds: readonly string[]): void {
+  for (const shellId of shellIds)
     it(`refuses ${shellId}'s profile and still marks its prompts`, async context => {
       context.skip(process.platform !== "win32", "Execution policies apply only to PowerShell on Windows.");
       const fixture: RuntimeFixture = new RuntimeFixture();
@@ -1148,9 +1170,9 @@ describe("a PowerShell under the Restricted execution policy", () => {
         await rm(folder, { force: true, recursive: true });
       }
     });
-});
+}
 
-describe("a PowerShell profile another PowerShell is reading", () => {
+function defineReadProfileTests(): void {
   it("is removed once the other PowerShell lets it go", async context => {
     context.skip(process.platform !== "win32", "Only Windows keeps a file that another program has open from being removed or written.");
     const held: string[] = [];
@@ -1182,7 +1204,7 @@ describe("a PowerShell profile another PowerShell is reading", () => {
 
     assert.equal(PROFILE_GUARD.exec(replaced)?.[1], String(process.pid));
   });
-});
+}
 
 function assertMarks(marks: readonly ShellMarkView[], exitCode: string): void {
   const nonces: ReadonlySet<string> = new Set(marks.map(t => t.nonce));

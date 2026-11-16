@@ -132,7 +132,9 @@ jobs:
         run: >-
           node node_modules/vitest/vitest.mjs run --reporter=default --reporter=json --outputFile.json="$RUNNER_TEMP/shells.json"
           src/noldova.terminal/tests/runtime-part.e2e.test.ts
-          src/noldova.terminal/tests/services/shell-integration.e2e.test.ts
+          src/noldova.terminal/tests/services/shell-integration.bash.e2e.test.ts
+          src/noldova.terminal/tests/services/shell-integration.zsh.e2e.test.ts
+          src/noldova.terminal/tests/services/shell-integration.pwsh.e2e.test.ts
           src/noldova.terminal/tests/services/pseudo-terminal.e2e.test.ts
           src/noldova.terminal/tests/services/shell-locator.e2e.test.ts
 
