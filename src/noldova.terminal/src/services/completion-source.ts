@@ -12,9 +12,11 @@ import type { IModuleLog } from "@noldova/desktop.runtime";
 import { Resources as ProtocolResources, TerminalCompletion, TerminalCompletionItem, TerminalCompletionKind, TerminalMissingCommands, TerminalShellKind } from "@noldova/terminal.protocol";
 
 import { CommandFailedException } from "../exceptions/command-failed.exception.ts";
+import { CommandTimedOutException } from "../exceptions/command-timed-out.exception.ts";
 import type { ICommandRunner } from "../interfaces/i-command-runner.ts";
 import type { IFileSystemReader } from "../interfaces/i-file-system-reader.ts";
 import { CommandListing } from "../models/command-listing.ts";
+import type { CommandRun } from "../models/command-run.ts";
 import { CompletionCandidate } from "../models/completion-candidate.ts";
 import type { FolderEntry } from "../models/folder-entry.ts";
 import { PowerShellLookup } from "../models/powershell-lookup.ts";
@@ -39,6 +41,7 @@ export class CompletionSource {
   private readonly looked: WeakMap<CommandTracker, PowerShellLookup> = new WeakMap<CommandTracker, PowerShellLookup>();
   private readonly skipped: WeakMap<CommandTracker, string> = new WeakMap<CommandTracker, string>();
   private readonly failing: WeakSet<CommandTracker> = new WeakSet<CommandTracker>();
+  private readonly lateLookups: WeakSet<CommandTracker> = new WeakSet<CommandTracker>();
   private readonly log: IModuleLog;
 
   public constructor(fileSystem: IFileSystemReader, runner: ICommandRunner, platform: string, homeFolder: string, log: IModuleLog) {
@@ -127,10 +130,12 @@ export class CompletionSource {
     const asked: readonly string[] = [...new Set(names)].filter(t => !this.isPath(t) && Resources.powerShellLookupNamePattern.test(t)
       && !known.has(t.toLowerCase()) && !known.has(`${Resources.powerShellImplicitVerb}${t}`.toLowerCase()));
     const unasked: readonly string[] = asked.filter(t => !answers.has(t));
-    if (unasked.length > 0) {
+    if (unasked.length > 0 && !this.lateLookups.has(shell)) {
+      const run: CommandRun = this.runner.start(program, [...Resources.environmentReadArguments,
+        Buffer.from(Resources.formatPowerShellLookupScript(unasked), Resources.utf16Encoding).toString(Resources.base64Encoding)], Resources.powerShellLookupMilliseconds,
+        Resources.powerShellLookupEndMilliseconds, variables);
       try {
-        const output: string = await this.runner.runAsync(program, [...Resources.environmentReadArguments,
-          Buffer.from(Resources.formatPowerShellLookupScript(unasked), Resources.utf16Encoding).toString(Resources.base64Encoding)], Resources.powerShellLookupMilliseconds, variables);
+        const output: string = await run.answer;
         const missing: ReadonlySet<string> = new Set(output.split(Resources.lineBreaks).map(t => t.trim()));
         for (const [index, name] of unasked.entries())
           answers.set(name, missing.has(String(index)));
@@ -139,6 +144,10 @@ export class CompletionSource {
       catch (error: unknown) {
         if (!(error instanceof CommandFailedException))
           throw error;
+        if (error instanceof CommandTimedOutException) {
+          this.lateLookups.add(shell);
+          void run.ended.then(() => this.lateLookups.delete(shell));
+        }
         if (!this.failing.has(shell))
           this.log.write(Resources.formatPowerShellLookupFailed(unasked.length, FailureText.read(error)));
         this.failing.add(shell);

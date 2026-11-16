@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess, type SpawnSyncReturns } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { once } from "node:events";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -832,6 +833,10 @@ describe("shell integration with real shells", () => {
         await writeFile(join(modules, "NoldovaProbe", "NoldovaProbe.psd1"),
           "@{ ModuleVersion = '1.0'; RootModule = 'NoldovaProbe.psm1'; FunctionsToExport = @('Get-NoldovaProbe', 'Invoke-NoldovaProbe') }\n", "utf8");
         await writeFile(join(modules, "NoldovaBare", "NoldovaBare.psm1"), `${marking}function Invoke-NoldovaBare { }\n`, "utf8");
+        // A runner's first scan of its many modules can pass the lookup's 10 seconds, and PowerShell keeps a scan in its module analysis cache only by running on
+        // about 10 seconds after it, so the cache is warmed first: this test checks which names a lookup finds, and the lookup's own late scan has its own test.
+        if (process.platform === "win32")
+          await warmModuleCacheAsync(shellId);
         await withProfilesAsync(context, shellId, PROFILES, async () => {
           const sessionId: string = await openWithProfilesAsync(shellId);
           await fixture.waitForQuietAsync(sessionId);
@@ -1208,6 +1213,14 @@ function profileTime(step: string): string {
 
 function executableOf(shellId: string): string {
   return SHELL_FILES.get(shellId) ?? shellId;
+}
+
+async function warmModuleCacheAsync(shellId: string): Promise<void> {
+  const warming: ChildProcess = spawn(executableOf(shellId), ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+    `Get-Command -Name '[n]oldovawarm' -ErrorAction SilentlyContinue | Out-Null; Start-Sleep -Milliseconds ${Resources.powerShellLookupCacheMilliseconds}`],
+  { stdio: "ignore", windowsHide: true });
+  const [code]: unknown[] = await once(warming, "exit");
+  assert.equal(code, 0, `Warming ${shellId}'s module analysis cache failed.`);
 }
 
 function describeProgramLookups(lookups: readonly ProcessRequest[]): string {

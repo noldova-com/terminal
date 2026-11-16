@@ -7,6 +7,9 @@
  */
 
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { ArgumentException } from "@noldova/context.exceptions";
@@ -18,6 +21,7 @@ import { CommandExitedException } from "../../src/exceptions/command-exited.exce
 import { CommandNotStartedException } from "../../src/exceptions/command-not-started.exception.ts";
 import { CommandOutputTooLongException } from "../../src/exceptions/command-output-too-long.exception.ts";
 import { CommandTimedOutException } from "../../src/exceptions/command-timed-out.exception.ts";
+import type { CommandRun } from "../../src/models/command-run.ts";
 import { CommandRunner } from "../../src/services/command-runner.ts";
 import { SpawnedPrograms } from "../fixtures/spawned-programs.fixture.ts";
 
@@ -72,6 +76,32 @@ describe("CommandRunner", () => {
 
   it("stops a program that runs past its time", async () => {
     await assert.rejects(runAsync(STAY, 200), new CommandTimedOutException(NODE, 200));
+  });
+
+  it("answers at its time for a program that runs past it, and lets the program run on to its own end", async () => {
+    const signal: string = path.join(tmpdir(), `noldova-run-on-${randomUUID()}`);
+    context.answer("startProcessAsync", t => programs.startAsync(t));
+    const run: CommandRun = new CommandRunner(context).start(process.execPath, ["-e",
+      `const t = setInterval(() => { if (require("fs").existsSync(${JSON.stringify(signal)})) { clearInterval(t); process.stdout.write("late"); } }, 20);`], 200, RUN_MS);
+    try {
+      await assert.rejects(run.answer, new CommandTimedOutException(NODE, 200));
+      await writeFile(signal, "");
+      await run.ended;
+
+      assert.deepEqual(await Promise.all(programs.programs.map(t => t.exited)), [new ProcessExit(0, null)]);
+    }
+    finally {
+      await rm(signal, { force: true });
+    }
+  });
+
+  it("stops a program still running at its end, after it answered at its time", async () => {
+    context.answer("startProcessAsync", t => programs.startAsync(t));
+    const run: CommandRun = new CommandRunner(context).start(process.execPath, ["-e", STAY], 100, 400);
+
+    await assert.rejects(run.answer, new CommandTimedOutException(NODE, 100));
+    await run.ended;
+    assert.deepEqual([programs.programs.length, programs.running], [1, []]);
   });
 
   it("stops a program that writes past the limit", async () => {

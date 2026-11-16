@@ -301,6 +301,8 @@ export class Resources {
   ]);
   public static readonly optionsMilliseconds: number = 500;
   public static readonly powerShellLookupMilliseconds: number = 10_000;
+  public static readonly powerShellLookupEndMilliseconds: number = 60_000;
+  public static readonly powerShellLookupCacheMilliseconds: number = 15_000;
   public static readonly powerShellLookupPathReset: string = "the session's PATH was reset";
   public static readonly powerShellLookupModulePathReset: string = "the session's PSModulePath was reset";
   public static readonly powerShellLookupNamesTooLong: string = "the shell's last list of its names was too long to send";
@@ -545,6 +547,9 @@ for ($index = 0; $index -lt $names.Count; $index++) {
   if (-not $found[$names[$index]] -and -not $found["${Resources.powerShellImplicitVerb}$($names[$index])"]) {
     $index
   }
+}
+if (((Get-Date) - [Diagnostics.Process]::GetCurrentProcess().StartTime).TotalMilliseconds -ge ${Resources.powerShellLookupMilliseconds}) {
+  Start-Sleep -Milliseconds ${Resources.powerShellLookupCacheMilliseconds}
 }
 exit 0
 `;

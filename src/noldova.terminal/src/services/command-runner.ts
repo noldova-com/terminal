@@ -15,6 +15,7 @@ import { CommandNotStartedException } from "../exceptions/command-not-started.ex
 import { CommandOutputTooLongException } from "../exceptions/command-output-too-long.exception.ts";
 import { CommandTimedOutException } from "../exceptions/command-timed-out.exception.ts";
 import type { ICommandRunner } from "../interfaces/i-command-runner.ts";
+import { CommandRun } from "../models/command-run.ts";
 import { Resources } from "../resources.ts";
 
 export class CommandRunner implements ICommandRunner {
@@ -24,51 +25,62 @@ export class CommandRunner implements ICommandRunner {
     this.context = context;
   }
 
-  public async runAsync(file: string, args: readonly string[], timeoutMilliseconds: number, environment: Readonly<Record<string, string>> = {}): Promise<string> {
+  public runAsync(file: string, args: readonly string[], timeoutMilliseconds: number, environment: Readonly<Record<string, string>> = {}): Promise<string> {
+    return this.start(file, args, timeoutMilliseconds, timeoutMilliseconds, environment).answer;
+  }
+
+  public start(file: string, args: readonly string[], timeoutMilliseconds: number, endMilliseconds: number,
+    environment: Readonly<Record<string, string>> = {}): CommandRun {
     const name: string = path.basename(file);
     const stopping: AbortController = new AbortController();
     const request: ProcessRequest = new ProcessRequest(file, [...args], path.dirname(file), environment, [], stopping.signal);
-    let isTooLong: boolean = false;
-    const timer: NodeJS.Timeout = setTimeout(() => stopping.abort(), timeoutMilliseconds);
+    const answer: PromiseWithResolvers<string> = Promise.withResolvers<string>();
+    const late: NodeJS.Timeout = setTimeout(() => answer.reject(new CommandTimedOutException(name, timeoutMilliseconds)), timeoutMilliseconds);
+    const ending: NodeJS.Timeout = setTimeout(() => stopping.abort(), Math.max(timeoutMilliseconds, endMilliseconds));
+    const stopTimers = (): void => {
+      clearTimeout(late);
+      clearTimeout(ending);
+    };
+    const ended: Promise<void> = this.readAsync(name, request, stopping, timeoutMilliseconds, stopTimers).then(answer.resolve, answer.reject).finally(stopTimers);
+    return new CommandRun(answer.promise, ended);
+  }
+
+  private async readAsync(name: string, request: ProcessRequest, stopping: AbortController, timeoutMilliseconds: number, exited: () => void): Promise<string> {
+    let process: OwnedProcess;
     try {
-      let process: OwnedProcess;
-      try {
-        process = await this.context.startProcessAsync(request);
-      }
-      catch (error: unknown) {
-        if (stopping.signal.aborted && error === stopping.signal.reason)
-          throw new CommandTimedOutException(name, timeoutMilliseconds);
-        if (!(error instanceof ProcessStartException))
-          throw error;
-        throw new CommandNotStartedException(name, error);
-      }
-      let output: string = "";
-      process.output.setEncoding(Resources.utf8Encoding);
-      process.output.on(Resources.dataEvent, (text: string) => {
-        output += text;
-        if (output.length > Resources.maximumCommandOutputLength) {
-          isTooLong = true;
-          stopping.abort();
-        }
-      });
-      let errors: string = "";
-      process.errors.setEncoding(Resources.utf8Encoding);
-      process.errors.on(Resources.dataEvent, (text: string) => {
-        errors = (errors + text).slice(-Resources.maximumCommandErrorLength);
-      });
-      const closed: Promise<void> = new Promise<void>(resolve => process.output.once(Resources.closeEvent, () => resolve()));
-      const errorsClosed: Promise<void> = new Promise<void>(resolve => process.errors.once(Resources.closeEvent, () => resolve()));
-      const [exit]: [ProcessExit, void, void] = await Promise.all([process.exited.finally(() => clearTimeout(timer)), closed, errorsClosed]);
-      if (isTooLong)
-        throw new CommandOutputTooLongException(name, Resources.maximumCommandOutputLength);
-      if (stopping.signal.aborted)
+      process = await this.context.startProcessAsync(request);
+    }
+    catch (error: unknown) {
+      if (stopping.signal.aborted && error === stopping.signal.reason)
         throw new CommandTimedOutException(name, timeoutMilliseconds);
-      if (exit.code !== 0)
-        throw new CommandExitedException(name, exit, errors);
-      return output;
+      if (!(error instanceof ProcessStartException))
+        throw error;
+      throw new CommandNotStartedException(name, error);
     }
-    finally {
-      clearTimeout(timer);
-    }
+    let isTooLong: boolean = false;
+    let output: string = "";
+    process.output.setEncoding(Resources.utf8Encoding);
+    process.output.on(Resources.dataEvent, (text: string) => {
+      output += text;
+      if (output.length > Resources.maximumCommandOutputLength) {
+        isTooLong = true;
+        stopping.abort();
+      }
+    });
+    let errors: string = "";
+    process.errors.setEncoding(Resources.utf8Encoding);
+    process.errors.on(Resources.dataEvent, (text: string) => {
+      errors = (errors + text).slice(-Resources.maximumCommandErrorLength);
+    });
+    const closed: Promise<void> = new Promise<void>(resolve => process.output.once(Resources.closeEvent, () => resolve()));
+    const errorsClosed: Promise<void> = new Promise<void>(resolve => process.errors.once(Resources.closeEvent, () => resolve()));
+    const [exit]: [ProcessExit, void, void] = await Promise.all([process.exited.finally(exited), closed, errorsClosed]);
+    if (isTooLong)
+      throw new CommandOutputTooLongException(name, Resources.maximumCommandOutputLength);
+    if (stopping.signal.aborted)
+      throw new CommandTimedOutException(name, timeoutMilliseconds);
+    if (exit.code !== 0)
+      throw new CommandExitedException(name, exit, errors);
+    return output;
   }
 }
