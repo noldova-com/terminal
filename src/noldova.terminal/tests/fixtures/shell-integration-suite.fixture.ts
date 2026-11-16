@@ -190,7 +190,7 @@ export function defineShellIntegrationTests(covered: readonly string[]): void {
   });
 
   describe("shell integration with real shells", () => defineRealShellTests(covered));
-  if (covered.includes("powershell"))
+  if (covered.includes(process.platform === "win32" ? "powershell" : "bash"))
     describe("a shell's nonce file", defineNonceFileTests);
   if (covered.includes("pwsh"))
     describe("the Store install of PowerShell 7", defineStoreInstallTests);
