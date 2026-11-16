@@ -578,6 +578,28 @@ describe("CompletionSource", () => {
       ]);
     });
 
+    it("starts no second lookup for a shell while its first runs, finding none missing meanwhile, even once the first answered, until the first ended", async () => {
+      const fixture: SourceFixture = new SourceFixture();
+      const answer: PromiseWithResolvers<string> = Promise.withResolvers<string>();
+      const ending: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.runner.ended = ending.promise;
+      fixture.runner.answers.set(PWSH, answer.promise);
+      const names: ReadonlySet<string> = new Set(["ll"]);
+
+      const first: Promise<readonly string[]> = fixture.powerShellMissingAsync(["gti"], names);
+      const second: Promise<readonly string[]> = fixture.powerShellMissingAsync(["gti", "gzp"], names);
+      answer.resolve("0\n");
+      const inFlight: readonly (readonly string[])[] = await Promise.all([first, second]);
+      const beforeEnd: readonly string[] = await fixture.powerShellMissingAsync(["gzp"], names);
+      ending.resolve();
+      await ending.promise;
+      fixture.runner.answers.set(PWSH, "0\n");
+      const after: readonly string[] = await fixture.powerShellMissingAsync(["gzp"], names);
+
+      assert.deepEqual([inFlight, beforeEnd, after], [[["gti"], []], [], ["gzp"]]);
+      assert.deepEqual(fixture.lookups.map(t => t.split("\n")[1]), ["$names = @('gti')", "$names = @('gzp')"]);
+    });
+
     it("finds none missing for a shell without its names, running nothing, and logs which of a reset PATH or PSModulePath, a list too long to send or no list yet, once until that changes", async () => {
       const fixture: SourceFixture = new SourceFixture();
       fixture.runner.answers.set(PWSH, "0\n");

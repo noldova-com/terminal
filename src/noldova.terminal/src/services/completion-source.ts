@@ -12,7 +12,6 @@ import type { IModuleLog } from "@noldova/desktop.runtime";
 import { Resources as ProtocolResources, TerminalCompletion, TerminalCompletionItem, TerminalCompletionKind, TerminalMissingCommands, TerminalShellKind } from "@noldova/terminal.protocol";
 
 import { CommandFailedException } from "../exceptions/command-failed.exception.ts";
-import { CommandTimedOutException } from "../exceptions/command-timed-out.exception.ts";
 import type { ICommandRunner } from "../interfaces/i-command-runner.ts";
 import type { IFileSystemReader } from "../interfaces/i-file-system-reader.ts";
 import { CommandListing } from "../models/command-listing.ts";
@@ -41,7 +40,7 @@ export class CompletionSource {
   private readonly looked: WeakMap<CommandTracker, PowerShellLookup> = new WeakMap<CommandTracker, PowerShellLookup>();
   private readonly skipped: WeakMap<CommandTracker, string> = new WeakMap<CommandTracker, string>();
   private readonly failing: WeakSet<CommandTracker> = new WeakSet<CommandTracker>();
-  private readonly lateLookups: WeakSet<CommandTracker> = new WeakSet<CommandTracker>();
+  private readonly lookups: WeakMap<CommandTracker, CommandRun> = new WeakMap<CommandTracker, CommandRun>();
   private readonly log: IModuleLog;
 
   public constructor(fileSystem: IFileSystemReader, runner: ICommandRunner, platform: string, homeFolder: string, log: IModuleLog) {
@@ -130,10 +129,15 @@ export class CompletionSource {
     const asked: readonly string[] = [...new Set(names)].filter(t => !this.isPath(t) && Resources.powerShellLookupNamePattern.test(t)
       && !known.has(t.toLowerCase()) && !known.has(`${Resources.powerShellImplicitVerb}${t}`.toLowerCase()));
     const unasked: readonly string[] = asked.filter(t => !answers.has(t));
-    if (unasked.length > 0 && !this.lateLookups.has(shell)) {
+    if (unasked.length > 0 && !this.lookups.has(shell)) {
       const run: CommandRun = this.runner.start(program, [...Resources.environmentReadArguments,
         Buffer.from(Resources.formatPowerShellLookupScript(unasked), Resources.utf16Encoding).toString(Resources.base64Encoding)], Resources.powerShellLookupMilliseconds,
         Resources.powerShellLookupEndMilliseconds, variables);
+      this.lookups.set(shell, run);
+      void run.ended.then(() => {
+        if (this.lookups.get(shell) === run)
+          this.lookups.delete(shell);
+      });
       try {
         const output: string = await run.answer;
         const missing: ReadonlySet<string> = new Set(output.split(Resources.lineBreaks).map(t => t.trim()));
@@ -144,10 +148,6 @@ export class CompletionSource {
       catch (error: unknown) {
         if (!(error instanceof CommandFailedException))
           throw error;
-        if (error instanceof CommandTimedOutException) {
-          this.lateLookups.add(shell);
-          void run.ended.then(() => this.lateLookups.delete(shell));
-        }
         if (!this.failing.has(shell))
           this.log.write(Resources.formatPowerShellLookupFailed(unasked.length, FailureText.read(error)));
         this.failing.add(shell);
