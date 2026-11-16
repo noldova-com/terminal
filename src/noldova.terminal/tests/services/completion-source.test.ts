@@ -506,6 +506,7 @@ describe("CompletionSource", () => {
       assert.deepEqual(fixture.runner.environments, [{ PATH: "/usr/bin", PSModulePath: "/opt/modules" }]);
       assert.deepEqual(fixture.runner.runs.map(t => [t[1].slice(0, -1), t[2]]),
         [[["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand"], 10_000]]);
+      assert.deepEqual(fixture.runner.endings, [60_000]);
     });
 
     it("never asks about a path, a name a quote could end, a session function Get- names, nor anything for a shell that reported no names", async () => {
@@ -554,6 +555,49 @@ describe("CompletionSource", () => {
       ]);
       fixture.runner.answers.set(PWSH, new TypeError("broken"));
       await assert.rejects(fixture.powerShellMissingAsync(["ls"], names), TypeError);
+    });
+
+    it("starts no other lookup for a shell whose lookup ran past its time until that one ends, finding none missing meanwhile, but does for another shell", async () => {
+      const fixture: SourceFixture = new SourceFixture();
+      const ending: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.runner.ended = ending.promise;
+      fixture.runner.answers.set(PWSH, new CommandTimedOutException("pwsh", 10_000));
+      const names: ReadonlySet<string> = new Set(["ll"]);
+      const late: readonly string[] = await fixture.powerShellMissingAsync(["gti"], names);
+      fixture.runner.answers.set(PWSH, "0\n");
+      const meanwhile: readonly string[] = await fixture.powerShellMissingAsync(["gti", "gzp"], names);
+      const other: readonly string[] = await fixture.powerShellMissingAsync(["gti"], names, {}, fixture.shellOf("s2"));
+      ending.resolve();
+      await ending.promise;
+      const after: readonly string[] = await fixture.powerShellMissingAsync(["gti"], names);
+
+      assert.deepEqual([late, meanwhile, other, after], [[], [], ["gti"], ["gti"]]);
+      assert.deepEqual(fixture.lookups.map(t => t.split("\n")[1]), ["$names = @('gti')", "$names = @('gti')", "$names = @('gti')"]);
+      assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [
+        "PowerShell's lookup of 1 name a command line runs gave up, so they count as found, as later ones do until one succeeds: pwsh did not end within 10 seconds."
+      ]);
+    });
+
+    it("starts no second lookup for a shell while its first runs, finding none missing meanwhile, even once the first answered, until the first ended", async () => {
+      const fixture: SourceFixture = new SourceFixture();
+      const answer: PromiseWithResolvers<string> = Promise.withResolvers<string>();
+      const ending: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.runner.ended = ending.promise;
+      fixture.runner.answers.set(PWSH, answer.promise);
+      const names: ReadonlySet<string> = new Set(["ll"]);
+
+      const first: Promise<readonly string[]> = fixture.powerShellMissingAsync(["gti"], names);
+      const second: Promise<readonly string[]> = fixture.powerShellMissingAsync(["gti", "gzp"], names);
+      answer.resolve("0\n");
+      const inFlight: readonly (readonly string[])[] = await Promise.all([first, second]);
+      const beforeEnd: readonly string[] = await fixture.powerShellMissingAsync(["gzp"], names);
+      ending.resolve();
+      await ending.promise;
+      fixture.runner.answers.set(PWSH, "0\n");
+      const after: readonly string[] = await fixture.powerShellMissingAsync(["gzp"], names);
+
+      assert.deepEqual([inFlight, beforeEnd, after], [[["gti"], []], [], ["gzp"]]);
+      assert.deepEqual(fixture.lookups.map(t => t.split("\n")[1]), ["$names = @('gti')", "$names = @('gzp')"]);
     });
 
     it("finds none missing for a shell without its names, running nothing, and logs which of a reset PATH or PSModulePath, a list too long to send or no list yet, once until that changes", async () => {
@@ -657,6 +701,18 @@ describe("CompletionSource", () => {
         "$patterns = foreach ($candidate in $candidates) { '[' + $candidate.Substring(0, 1) + ']' + $candidate.Substring(1) }",
         "$files = foreach ($candidate in $candidates) { \"$candidate*\" }",
         "foreach ($command in @(Get-Command -Name $patterns) + @(Get-Command -Name $files -CommandType Application, ExternalScript)) {"
+      ]);
+    });
+
+    it("has a lookup that answers past its time stay 15 seconds before it exits, so PowerShell writes its scan to its module analysis cache, and one in time exit at once", () => {
+      const script: string = Resources.formatPowerShellLookupScript(["gti"]);
+
+      assert.deepEqual(script.split("\n").slice(-5), [
+        "if (((Get-Date) - [Diagnostics.Process]::GetCurrentProcess().StartTime).TotalMilliseconds -ge 10000) {",
+        "  Start-Sleep -Milliseconds 15000",
+        "}",
+        "exit 0",
+        ""
       ]);
     });
   });
