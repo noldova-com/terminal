@@ -6,7 +6,7 @@
   "parts": ["runtime", "window"],
   "pseudoTerminals": true,
   "dependencies": {},
-  "noldovaDesktop": ">=0.0.1 <0.1.0",
+  "noldovaDesktop": ">=0.0.2 <0.1.0",
   "contributes": {
     "methods": [
       "terminal.shells", "terminal.open", "terminal.close", "terminal.restart", "terminal.sessions", "terminal.attach", "terminal.input", "terminal.resize",

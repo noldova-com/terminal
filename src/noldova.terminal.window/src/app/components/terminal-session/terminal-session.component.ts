@@ -122,5 +122,4 @@ export class TerminalSessionComponent implements ITerminalRestartTarget, ITermin
       this.isRestarting = false;
     }
   }
-
 }
