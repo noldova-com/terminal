@@ -300,6 +300,7 @@ export class Resources {
     [TerminalShellKind.Zsh, "\u001b[24;7~"]
   ]);
   public static readonly optionsMilliseconds: number = 500;
+  public static readonly firstOptionsMilliseconds: number = 2_000;
   public static readonly powerShellLookupMilliseconds: number = 10_000;
   public static readonly powerShellLookupPathReset: string = "the session's PATH was reset";
   public static readonly powerShellLookupModulePathReset: string = "the session's PSModulePath was reset";

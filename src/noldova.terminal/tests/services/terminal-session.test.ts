@@ -1062,6 +1062,9 @@ describe("TerminalSession marking the shell's line", () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       const process: FakePtyProcess = new FakePtyProcess();
       const session: TerminalSession = createBoundSession(process);
+      const first: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
+      process.emitData("\u001b]6973;O;n1;--first\u0007");
+      await first;
 
       const late: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
       vi.advanceTimersByTime(499);
@@ -1071,7 +1074,33 @@ describe("TerminalSession marking the shell's line", () => {
       const next: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
       process.emitData("\u001b]6973;O;n1;--late\u0007\u001b]6973;O;n1;--next\u0007");
 
-      assert.deepEqual([writesBefore, timedOut, (await next).options, process.writes], [[KEYS], ShellOptionsReply.timedOut, ["--next"], [KEYS, "\t", KEYS]]);
+      assert.deepEqual([writesBefore, timedOut, (await next).options, process.writes],
+        [[KEYS, KEYS], ShellOptionsReply.timedOut, ["--next"], [KEYS, KEYS, "\t", KEYS]]);
+      await session.disposeAsync();
+    });
+
+    it("waits 2 seconds for a shell's first answer, as a fresh Windows PowerShell loads its completion on first use, and again after a restart", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const process: FakePtyProcess = new FakePtyProcess();
+      const session: TerminalSession = createBoundSession(process);
+
+      const slow: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
+      vi.advanceTimersByTime(1_999);
+      process.emitData("\u001b]6973;O;n1;--slow\u0007");
+      const slowOptions: readonly string[] | null = (await slow).options;
+      const warm: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
+      vi.advanceTimersByTime(500);
+      const warmReply: ShellOptionsReply = await warm;
+      const restarted: FakePtyProcess = new FakePtyProcess();
+      session.restart(restarted, "n1", new TerminalSize(80, 24));
+      restarted.emitData(BOUND_PROMPT);
+      const cold: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
+      vi.advanceTimersByTime(1_999);
+      const writesBefore: readonly string[] = [...restarted.writes];
+      vi.advanceTimersByTime(1);
+
+      assert.deepEqual([slowOptions, warmReply, writesBefore, await cold, restarted.writes],
+        [["--slow"], ShellOptionsReply.timedOut, [KEYS], ShellOptionsReply.timedOut, [KEYS, "\t"]]);
       await session.disposeAsync();
     });
   });
