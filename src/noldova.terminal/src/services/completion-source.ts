@@ -30,7 +30,7 @@ import { ShellWords } from "./shell-words.ts";
 export class CompletionSource {
   private readonly runner: ICommandRunner;
   private readonly isWindows: boolean;
-  private readonly paths: path.PlatformPath;
+  private readonly paths: typeof path;
   private readonly homeFolder: string;
   private readonly binding: PowerShellBinding;
   private readonly shared: SharedReads;
