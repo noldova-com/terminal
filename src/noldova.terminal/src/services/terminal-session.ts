@@ -52,6 +52,7 @@ export class TerminalSession {
   private readonly typedLines: Set<TypedLine> = new Set<TypedLine>();
   private readonly options: ShellOptionsQueue = new ShellOptionsQueue();
   private isPromptNew: boolean = false;
+  private hasAnsweredOptions: boolean = false;
   private readonly disposal: AbortController = new AbortController();
 
   public readonly sessionId: string;
@@ -193,7 +194,8 @@ export class TerminalSession {
     if (!this.hasIntegration || !this.commands.hasOptionsBinding || !this.commands.isWaitingAtPrompt || this.commands.runningCommand !== null
       || this.exit !== null)
       return ShellOptionsReply.none;
-    const reply: Promise<ShellOptionsReply> = this.options.askAsync(Resources.optionsMilliseconds);
+    const reply: Promise<ShellOptionsReply> = this.options.askAsync(this.hasAnsweredOptions ? Resources.optionsMilliseconds
+      : Resources.firstOptionsMilliseconds);
     this.wakeup?.beforeInput();
     this.terminal.write(keys);
     const answered: ShellOptionsReply = await reply;
@@ -273,6 +275,7 @@ export class TerminalSession {
     this.hasIntegration = nonce !== null;
     this.commands = this.trackCommands();
     this.options.reset();
+    this.hasAnsweredOptions = false;
     this.isPromptNew = false;
     this.replacePromptLine(null);
     this.typedLines.clear();
@@ -364,8 +367,10 @@ export class TerminalSession {
   }
 
   private applyMark(mark: ShellMark): void {
-    if (mark.kind === MarkKind.Options)
+    if (mark.kind === MarkKind.Options) {
+      this.hasAnsweredOptions = true;
       this.options.answer(mark.values);
+    }
     else if (mark.kind === MarkKind.OutputStart || mark.kind === MarkKind.PromptStart && this.isPromptNew)
       this.options.reset();
     if (mark.kind === MarkKind.CommandEnd || mark.kind === MarkKind.Property)
