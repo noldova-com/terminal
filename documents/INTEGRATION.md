@@ -28,11 +28,11 @@ An app pins the module's package exactly in its root `package.json` and lists it
 }
 ```
 
-- The module accepts Noldova Desktop from 0.0.1, the first public version, up to 0.1.0, its `module.json`'s `noldovaDesktop`, `>=0.0.1 <0.1.0`, so an app moves to a Noldova Desktop release that doesn't break modules without a Terminal release.
+- The module accepts Noldova Desktop from 0.0.2, the first that names the dock holding a view, which a terminal tab asks through `viewDockOf`, up to 0.1.0, its `module.json`'s `noldovaDesktop`, `>=0.0.2 <0.1.0`, so an app moves to a Noldova Desktop release that doesn't break modules without a Terminal release.
 - The package takes `@noldova/desktop.runtime` and `@noldova/desktop.protocol` as peers at that range, which the app's own install of Noldova Desktop meets.
 - The package and `@noldova/terminal.protocol` both take context's `@noldova/context.exceptions` and `@noldova/context.json` as peers at `>=0.0.7 <0.1.0`: the protocol reads its messages through context's `JsonReader` and throws context's `ArgumentException` and `JsonException`, so an app catches those from context's packages.
   An app whose install pins an earlier context version moves it to 0.0.7 or later in the same change that takes this Terminal version.
-- The window part's package takes the app's packages its compiled part imports as optional peers: `@angular/core` at `>=22.2.6 <23.0.0`, from the Angular the part builds with to the next major, `@noldova/desktop.protocol` and `@noldova/desktop.window` at `>=0.0.1 <0.1.0`, `@noldova/ui.components.angular` at `>=0.0.9 <0.1.0`, and `@noldova/context.exceptions` at `>=0.0.7 <0.1.0`, since its exceptions extend context's `Exception` and it throws context's `ArgumentException`.
+- The window part's package takes the app's packages its compiled part imports as optional peers: `@angular/core` at `>=22.2.6 <23.0.0`, from the Angular the part builds with to the next major, `@noldova/desktop.protocol` and `@noldova/desktop.window` at `>=0.0.2 <0.1.0`, `@noldova/ui.components.angular` at `>=0.0.9 <0.1.0`, and `@noldova/context.exceptions` at `>=0.0.7 <0.1.0`, since its exceptions extend context's `Exception` and it throws context's `ArgumentException`.
   Its other context packages are only types in its compiled part, so it names them only where its declarations import them.
   The app's window workspace holds them, and Noldova Desktop's build installs the window part's package there.
   An app whose window workspace pins an earlier kit moves it to 0.0.9 or later first, in the same change that takes this Terminal version or before it: the window part draws its completion list with the kit's `nol-completion-list`, which 0.0.9 adds, and npm refuses the window part's package against an earlier pin.
@@ -317,7 +317,7 @@ const end = await launched.ended;
   The runtime lists it without a tab, so a window that opens again doesn't give it one either.
   The runtime ends it when the window that launched it closes or reloads, as the app's connection closing ends every launched terminal, and the app closes it with `closeAsync` once it no longer shows it.
 - The minimum rows, the launch's seventh argument, is a whole number from 1 to 100: the tab shows at least that many rows while the terminal is open, for a program that draws more than a short dock shows, such as a sign-in's list.
-  As the tab first shows in a dock, the dock grows by what the terminal lacks, as far as the window allows, through Noldova Desktop's `growViewDock`; when the terminal ends or closes, the dock goes back to its size, unless the person resized it meanwhile.
+  As the tab first shows in the bottom dock, which the window part learns from Noldova Desktop's `viewDockOf`, also when the person moves the tab there later, the dock grows by what the terminal lacks, as far as the window allows, through Noldova Desktop's `growViewDock`; when the terminal ends or closes, the dock goes back to its size, unless the person resized it meanwhile.
   A tab in a side dock grows nothing, since Noldova Desktop grows a side dock's width, which gives the terminal no rows, and a tab in the middle area grows nothing either.
   A launch without a tab can't ask for minimum rows, since the embedded terminal takes its rows from `EmbeddedTerminal.open`.
 - The shell kinds, the launch's eighth argument, limit the shell the terminal runs, as a run's kinds do: the Default shell setting's shell when it is of them, else the runtime's default when it is, else the first installed shell of them.

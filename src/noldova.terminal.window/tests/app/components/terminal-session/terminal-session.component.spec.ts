@@ -43,21 +43,7 @@ function tabMenuTarget(): ITerminalRestartTarget | undefined {
 }
 
 function dock(host: PaneHost<TerminalSessionComponent>, side: DockSide | null): void {
-  const workspace: HTMLElement = document.createElement("nol-workspace");
-  const strip: HTMLElement = document.createElement("nol-dock");
-  const group: HTMLElement = document.createElement("nol-tab-group");
-  const slot: HTMLElement = document.createElement("nol-tab-slot");
-  if (side !== null) {
-    strip.setAttribute("data-side", side);
-    group.setAttribute("data-side", side);
-  }
-  for (const element of [workspace, group, slot])
-    element.style.display = "block";
-  host.element.replaceWith(workspace);
-  onTestFinished(() => workspace.remove());
-  workspace.append(strip, group);
-  group.append(slot);
-  slot.append(host.element);
+  host.runtime.context.dock.set(side);
 }
 
 function lastSize(host: PaneHost<TerminalSessionComponent>): TerminalSize | undefined {
@@ -83,7 +69,7 @@ describe("TerminalSessionComponent", () => {
     expect(host.runtime.context.updates).toEqual([]);
   });
 
-  it("grows its tab's bottom dock once for a launch's minimum rows, found from the tab group that holds it, in rem, a height at which the pane shows all those rows inside its screen's inset, until the ask is released", async () => {
+  it("grows its tab's bottom dock once for a launch's minimum rows, as Noldova Desktop names the dock that holds it, in rem, a height at which the pane shows all those rows inside its screen's inset, until the ask is released", async () => {
     const release: () => void = TerminalDockGrowths.ask("s1", 30);
     try {
       const host: PaneHost<TerminalSessionComponent> = createSession();
@@ -122,7 +108,7 @@ describe("TerminalSessionComponent", () => {
     }
   });
 
-  it("grows no dock for a launch's minimum rows while its tab is among the documents, whose tab group names no side", async () => {
+  it("grows no dock for a launch's minimum rows while its tab is among the documents, where Noldova Desktop names no dock", async () => {
     const release: () => void = TerminalDockGrowths.ask("s1", 30);
     try {
       const host: PaneHost<TerminalSessionComponent> = createSession();
@@ -131,6 +117,25 @@ describe("TerminalSessionComponent", () => {
       await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toBe(""), SOON);
 
       expect(host.runtime.context.grownDocks).toEqual([]);
+    }
+    finally {
+      release();
+    }
+  });
+
+  it("grows the bottom dock for a launch's minimum rows once the person moves its tab there from a side dock", async () => {
+    const release: () => void = TerminalDockGrowths.ask("s1", 30);
+    try {
+      const host: PaneHost<TerminalSessionComponent> = createSession();
+      dock(host, DockSide.Right);
+      await host.attachedAsync();
+      await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toBe(""), SOON);
+      const beside: number = host.runtime.context.grownDocks.length;
+
+      dock(host, DockSide.Bottom);
+
+      await vi.waitFor(() => expect(host.runtime.context.grownDocks).toHaveLength(1), SOON);
+      expect([beside, host.runtime.context.grownDocks.map(([tab]) => tab), host.runtime.context.callsOf("viewDockOf")]).toEqual([0, ["terminal.session/s1"], [["terminal.session", "s1"]]]);
     }
     finally {
       release();
