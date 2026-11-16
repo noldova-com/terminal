@@ -86,6 +86,7 @@ export class Resources {
   public static readonly agentColumns: number = 120;
   public static readonly agentRows: number = 30;
   public static readonly integrationWaitMilliseconds: number = 10_000;
+  public static readonly paneFitWaitMilliseconds: number = 10_000;
   public static readonly shellStartMilliseconds: number = 60_000;
   public static readonly maximumExitedSessions: number = 32;
   public static readonly restartReset: string = "\u001b[?1047l\u001b[!p\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l\u001b[?2004l\r";

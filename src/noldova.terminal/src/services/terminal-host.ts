@@ -432,8 +432,12 @@ export class TerminalHost {
     const signal: AbortSignal = pending.signal;
     const inputCount: number = terminal.inputCount;
     const keyCount: number = terminal.keyCount;
-    if (waitsForFit)
-      await session.changes.waitUntilAsync(() => session.hasExited || terminal.isSized || terminal.deferredShell?.hasStarted !== false, null, signal);
+    if (waitsForFit) {
+      await session.changes.waitUntilAsync(() => session.hasExited || terminal.isSized || terminal.deferredShell?.hasStarted !== false,
+        Resources.paneFitWaitMilliseconds, signal);
+      if (!signal.aborted && this.sessions.get(session.sessionId) === terminal)
+        this.startShell(terminal);
+    }
     const startedAt: number = Date.now();
     const isReady = (): boolean => session.hasIntegration ? session.commands.promptEndOffset !== null : session.receivedLength > 0;
     const isStarted = (): boolean => session.hasExited || isReady() || session.commands.isLoaded;
