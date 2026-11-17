@@ -214,6 +214,7 @@ function defineRealShellTests(covered: readonly string[]): void {
   let workFolder: string = "";
   let home: string = "";
   let shellIds: readonly string[] = [];
+  let warmings: ReadonlyMap<string, Promise<void>> = new Map<string, Promise<void>>();
 
   async function openWithProfilesAsync(shellId: string): Promise<string> {
     const times: string = join(folder, PROFILE_TIMES_FILE);
@@ -253,9 +254,14 @@ function defineRealShellTests(covered: readonly string[]): void {
       new CommandRunner(fixture.context), new FakeModuleLog()).locateAsync();
     for (const shell of located)
       SHELL_FILES.set(shell.id, shell.file);
+    if (process.platform === "win32")
+      warmings = new Map(powerShells.filter(t => shellIds.includes(t)).map(t => [t, warmModuleCacheAsync(t)]));
+    for (const warming of warmings.values())
+      void warming.catch(() => undefined);
   });
 
   afterAll(async () => {
+    await Promise.allSettled(warmings.values());
     await fixture.part.deactivateAsync();
     vi.unstubAllEnvs();
     await rm(folder, { force: true, recursive: true });
@@ -838,8 +844,8 @@ function defineRealShellTests(covered: readonly string[]): void {
         await writeFile(join(modules, "NoldovaBare", "NoldovaBare.psm1"), `${marking}function Invoke-NoldovaBare { }\n`, "utf8");
         // A runner's first scan of its many modules can pass the lookup's 10 seconds, and PowerShell keeps a scan in its module analysis cache only by running on
         // about 10 seconds after it, so the cache is warmed first: this test checks which names a lookup finds, and the lookup's own late scan has its own test.
-        if (process.platform === "win32")
-          await warmModuleCacheAsync(shellId);
+        // The warming starts in the setup, so the tests before this one run while it does.
+        await warmings.get(shellId);
         await withProfilesAsync(context, shellId, PROFILES, async () => {
           const sessionId: string = await openWithProfilesAsync(shellId);
           const marked: number = fixture.kinds(sessionId).length;
