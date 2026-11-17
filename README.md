@@ -127,7 +127,7 @@ A target with no time for a file skips it or runs it within 1 second.
 | `src/noldova.terminal/tests/services/terminal-mirror.test.ts` | macOS 1.7 s, Windows 1.6 s | Its 19 tests write a headless xterm's lines to history files in a temporary folder. |
 | `src/noldova.terminal/tests/services/line-process.test.ts` | macOS 1.4 s, Windows 1.0 s | Its 16 tests each start a real Node.js program and read its lines. |
 | `src/noldova.terminal/tests/services/agent-terminals.test.ts` | Linux 1.2 s, macOS 1.2 s, Windows 1.3 s | Its tests launch and end the terminals each agent reaches, through a host each. |
-| `src/noldova.terminal/tests/runtime-part.test.ts` | Windows 1.2 s | One of its tests starts a real Node.js program, which on Windows takes most of a second. |
+| `src/noldova.terminal/tests/services/windows-environment.test.ts` | Linux 1.3 s, macOS 1.3 s, Windows 1.3 s | Its 5 tests of an export reg.exe fails and exports again wait the real 250 ms the source waits before that second export. |
 
 ### Component tests over 1 second
 
