@@ -23,7 +23,7 @@ permissions: {}
 jobs:
   relock:
     name: Relock
-    uses: noldova-com/.github/.github/workflows/relock-dependent.yml@61a49ab45454e6f7074782ee34cf34fbfeeda512 # v2.35.0
+    uses: noldova-com/.github/.github/workflows/relock-dependent.yml@ca4ec084bd2907b4050679523deba3e3cc010fb7 # v2.36.0
     permissions:
       contents: read
       packages: read
