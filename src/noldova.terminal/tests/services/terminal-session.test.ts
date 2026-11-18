@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { Resources as ProtocolResources, TerminalShellKind, TerminalSize, WindowsPty, type TerminalAttachment, type TerminalLinePage } from "@noldova/terminal.protocol";
-import { afterEach, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, onTestFinished, vi } from "vitest";
 
 import { StoredLinesUnwritableException } from "../../src/exceptions/stored-lines-unwritable.exception.ts";
 import type { MirrorLine } from "../../src/models/mirror-line.ts";
@@ -45,6 +45,14 @@ function createSession(
   shellKind: TerminalShellKind = TerminalShellKind.Other): TerminalSession {
   return new TerminalSession("s1", "bash", size, process, nonce, windowsPty, null, ProtocolResources.defaultStoredLimit, recorder,
     Resources.maximumAgentTextLength, shellKind, false);
+}
+
+function holdKeysUntilAnswered(): void {
+  const limit: number = Resources.cursorAnswerMilliseconds;
+  Object.defineProperty(Resources, "cursorAnswerMilliseconds", { value: 3_600_000 });
+  onTestFinished(() => {
+    Object.defineProperty(Resources, "cursorAnswerMilliseconds", { value: limit });
+  });
 }
 
 afterEach(() => {
@@ -185,6 +193,7 @@ describe("TerminalSession", () => {
   });
 
   it("writes a key typed after a Windows shell's cursor request behind the mirror's answer", async () => {
+    holdKeysUntilAnswered();
     const process: FakePtyProcess = new FakePtyProcess();
     const session: TerminalSession = createSession(process, new SessionRecorder(), new TerminalSize(80, 24), new WindowsPty(26_100));
 
@@ -693,6 +702,7 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
   });
 
   it("types a command whole after a resize Git Bash took without a redraw, which leaves it waiting on its cursor request, sending one Ctrl+G ahead of it", async () => {
+    holdKeysUntilAnswered();
     const process: FakePtyProcess = new FakePtyProcess();
     const session: TerminalSession = createWindowsBash(process);
     process.emitData(PROMPT);
@@ -710,6 +720,7 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
   });
 
   it("sends it ahead of the next key after a pane's attach, whose redraw resizes the shell too", async () => {
+    holdKeysUntilAnswered();
     const process: FakePtyProcess = new FakePtyProcess();
     const session: TerminalSession = createWindowsBash(process);
     process.emitData(PROMPT);
@@ -723,6 +734,7 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
   });
 
   it("sends nothing when the shell redraws its prompt before the key, or the person types before the output stops", async () => {
+    holdKeysUntilAnswered();
     const redrawn: FakePtyProcess = new FakePtyProcess();
     const redrawnSession: TerminalSession = createWindowsBash(redrawn);
     const typed: FakePtyProcess = new FakePtyProcess();

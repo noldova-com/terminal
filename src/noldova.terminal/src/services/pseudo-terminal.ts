@@ -97,8 +97,8 @@ export class PseudoTerminal {
     this.outputEnd = text.slice(1 - Resources.cursorRequest.length);
     if (requests === 0)
       return;
-    if (this.openRequests === 0)
-      this.answerLimit = setTimeout(() => this.releaseKeys(), Resources.cursorAnswerMilliseconds);
+    clearTimeout(this.answerLimit);
+    this.answerLimit = setTimeout(() => this.releaseKeys(), Resources.cursorAnswerMilliseconds);
     this.openRequests += requests;
   }
 

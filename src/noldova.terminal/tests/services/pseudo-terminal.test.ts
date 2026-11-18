@@ -210,7 +210,7 @@ describe("PseudoTerminal's cursor requests on ConPTY", () => {
     assert.deepEqual(process.writes, [ANSWER, "\u001b[5;3R", "e"]);
   });
 
-  it("counts a request that comes while another is open, within the first request's limit", () => {
+  it("counts a request that comes while another is open, and gives it a limit of its own", () => {
     const process: FakePtyProcess = new FakePtyProcess();
     const terminal: PseudoTerminal = new Recorder().create(process, true);
 
@@ -219,6 +219,7 @@ describe("PseudoTerminal's cursor requests on ConPTY", () => {
     process.emitData(REQUEST);
     terminal.write("e");
     terminal.answer(ANSWER);
+    vi.advanceTimersByTime(Resources.cursorAnswerMilliseconds - 1);
     const held: readonly string[] = [...process.writes];
     const timers: number = vi.getTimerCount();
     vi.advanceTimersByTime(1);
