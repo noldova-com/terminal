@@ -29,7 +29,7 @@ import {
   type Signal,
   type WritableSignal
 } from "@angular/core";
-import { KeepsCtrlKeysDirective, WindowPartTokens, type IWindowPartContext } from "@noldova/desktop.window";
+import { KeepsCtrlKeysDirective, LinkPlace, WindowPartTokens, type ILinkOpenOptions, type IWindowPartContext } from "@noldova/desktop.window";
 import type { JsonValue } from "@noldova/context.json";
 import {
   Resources as ProtocolResources,
@@ -43,7 +43,7 @@ import {
   type TerminalInputStart,
   type WindowsPty
 } from "@noldova/terminal.protocol";
-import { ButtonComponent, ButtonVariant, ClipboardWriter, LinkOpenEvent } from "@noldova/ui.components.angular";
+import { ButtonComponent, ButtonVariant, ClipboardWriter, LinkOpenEvent, type LinkGesture } from "@noldova/ui.components.angular";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal, type IBuffer } from "@xterm/xterm";
 
@@ -528,8 +528,12 @@ export class TerminalPaneComponent {
   }
 
   private openLink(event: MouseEvent, url: string): void {
-    if (LinkPolicy.isOpening(event, this.isMac) && LinkPolicy.isAllowed(url))
-      this.context.openLinkAsync(url, { gesture: new LinkOpenEvent(url, event).gesture }).then(undefined, (error: unknown) => this.context.log(Resources.formatLinkFailed(error)));
+    if (!LinkPolicy.isOpening(event, this.isMac) || !LinkPolicy.isAllowed(url))
+      return;
+    const gesture: LinkGesture = new LinkOpenEvent(url, event).gesture;
+    const place: LinkPlace = this.context.readSetting(Resources.linkClickSetting) === LinkPlace.InApp ? LinkPlace.InApp : LinkPlace.System;
+    const options: ILinkOpenOptions = { gesture, place };
+    this.context.openLinkAsync(url, options).then(undefined, (error: unknown) => this.context.log(Resources.formatLinkFailed(error)));
   }
 
   private dispose(): void {

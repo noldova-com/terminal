@@ -167,6 +167,24 @@ describe("RuntimePart", () => {
     assert.ok(module.contributes.settings.includes("terminal.completionList"));
   });
 
+  it("declares Open clicked links in settings.json: in the person's own browser by default, shared, on the Terminal page", () => {
+    const declaration: { settings: { name: string }[] } = JSON.parse(readFileSync(new URL("../settings.json", import.meta.url), "utf8"));
+    const module: { contributes: { settings: string[] } } = JSON.parse(readFileSync(new URL("../module.json", import.meta.url), "utf8"));
+
+    assert.deepEqual(declaration.settings.find(t => t.name === "terminal.linkClick"), {
+      name: "terminal.linkClick",
+      title: "Open clicked links",
+      description: "Where a link you Ctrl+click in a terminal opens, Cmd+click on macOS. Sign-in links that tools print need your own browser, where you're signed in.",
+      type: { kind: "Choice", options: [{ value: "System", title: "In your browser" }, { value: "InApp", title: "In the app's browser" }] },
+      default: "System",
+      locality: "Shared",
+      scopes: [],
+      page: "Terminal",
+      group: "Terminal"
+    });
+    assert.ok(module.contributes.settings.includes("terminal.linkClick"));
+  });
+
   it("keeps the person's terminals in the module's database for the next run", async () => {
     const context: FakeRuntimePartContext = createContext();
     const part: RuntimePart = new RuntimePart();
