@@ -187,10 +187,13 @@ describe("TerminalPager", () => {
     await opening;
     await parsedAsync();
 
-    for (let page: number = 1; page <= 10; page++)
-      await scrollToTopAsync(2000 * page + 30);
+    for (let page: number = 1; page <= 6; page++) {
+      terminal.scrollToLine(0);
+      await vi.waitFor(() => expect([terminal.buffer.active.getLine(0)?.translateToString(true).startsWith(`stored ${5500 - 500 * page} `),
+        terminal.buffer.active.length >= 2000 * page + 30, terminal.buffer.active.viewportY]).toEqual([true, true, 2000]), drawn);
+    }
 
-    expect([lines()[0]?.startsWith("stored 500 "), terminal.buffer.active.viewportY, terminal.options.scrollback]).toEqual([true, 2000, Resources.scrollback + 20_000]);
+    expect([lines()[0]?.startsWith("stored 2500 "), lines().length, terminal.buffer.active.viewportY, terminal.options.scrollback]).toEqual([true, 12_030, 2000, Resources.scrollback + 12_000]);
   });
 
   it("leaves the screen behind beyond twelve pages, holds new output, and brings the screen back when scrolled down", async () => {
