@@ -184,6 +184,29 @@ describe("TerminalSession", () => {
     await session.disposeAsync();
   });
 
+  it("writes a key typed after a Windows shell's cursor request behind the mirror's answer", async () => {
+    const process: FakePtyProcess = new FakePtyProcess();
+    const session: TerminalSession = createSession(process, new SessionRecorder(), new TerminalSize(80, 24), new WindowsPty(26_100));
+
+    process.emitData("\u001b[6n");
+    session.write("e");
+
+    await vi.waitFor(() => assert.deepEqual(process.writes, ["\u001b[1;1R", "e"]));
+    await session.disposeAsync();
+  });
+
+  it("writes a key typed after another system's cursor request at once", async () => {
+    const process: FakePtyProcess = new FakePtyProcess();
+    const session: TerminalSession = createSession(process, new SessionRecorder());
+
+    process.emitData("\u001b[6n");
+    session.write("e");
+
+    assert.deepEqual(process.writes, ["e"]);
+    await vi.waitFor(() => assert.deepEqual(process.writes, ["e", "\u001b[1;1R"]));
+    await session.disposeAsync();
+  });
+
   it("reports title changes", async () => {
     const process: FakePtyProcess = new FakePtyProcess();
     const recorder: SessionRecorder = new SessionRecorder();
@@ -650,6 +673,10 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
     return process.writes.filter(t => t === "\u0007");
   }
 
+  function keysOf(writes: readonly string[]): readonly string[] {
+    return writes.filter(t => !/^\u001b\[\d+;\d+R$/u.test(t));
+  }
+
   it("sends the shell no Ctrl+G and holds no timer when the output after the resize stops at the cursor request and move and no key comes", async () => {
     vi.useFakeTimers();
     const process: FakePtyProcess = new FakePtyProcess();
@@ -678,7 +705,7 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
     process.emitData("\r\u001b[K\r$ ");
     session.write("echo again\r");
 
-    assert.deepEqual(process.writes.slice(before), ["\u0007", "echo probe-ok\r", "echo again\r"]);
+    await vi.waitFor(() => assert.deepEqual(keysOf(process.writes.slice(before)), ["\u0007", "echo probe-ok\r", "echo again\r"]));
     await session.disposeAsync();
   });
 
@@ -691,7 +718,7 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
     process.emitData(STALL);
     session.write("e");
 
-    assert.deepEqual(process.writes.slice(-2), ["\u0007", "e"]);
+    await vi.waitFor(() => assert.deepEqual(process.writes.slice(-2), ["\u0007", "e"]));
     await session.disposeAsync();
   });
 
@@ -712,7 +739,8 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
     redrawnSession.write("e");
     typedSession.write("c");
 
-    assert.deepEqual([bellsOf(redrawn), bellsOf(typed), typed.writes], [[], [], ["e", "c"]]);
+    await vi.waitFor(() => assert.deepEqual([keysOf(redrawn.writes), keysOf(typed.writes)], [["e"], ["e", "c"]]));
+    assert.deepEqual([bellsOf(redrawn), bellsOf(typed)], [[], []]);
     await redrawnSession.disposeAsync();
     await typedSession.disposeAsync();
   });
