@@ -78,6 +78,23 @@
       "scopes": [],
       "page": "Terminal",
       "group": "Terminal"
+    },
+    {
+      "name": "terminal.linkClick",
+      "title": "Open clicked links",
+      "description": "Where a link you Ctrl+click in a terminal opens, Cmd+click on macOS. Sign-in links that tools print need your own browser, where you're signed in.",
+      "type": {
+        "kind": "Choice",
+        "options": [
+          { "value": "System", "title": "In your browser" },
+          { "value": "Same", "title": "The same as other links" }
+        ]
+      },
+      "default": "System",
+      "locality": "Shared",
+      "scopes": [],
+      "page": "Terminal",
+      "group": "Terminal"
     }
   ]
 }

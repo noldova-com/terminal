@@ -181,6 +181,8 @@ export class Resources {
   public static readonly answeredSettingQuery: IFunctionIdentifier = { intermediates: "$", final: "q" };
   public static readonly commandColorsSetting: string = "terminal.commandColors";
   public static readonly completionListSetting: string = "terminal.completionList";
+  public static readonly linkClickSetting: string = "terminal.linkClick";
+  public static readonly sameLinkPlace: string = "Same";
   public static readonly completeKey: string = "Tab";
   public static readonly completionMoveKeys: readonly string[] = ["ArrowUp", "ArrowDown"];
   public static readonly completionInsertKeys: readonly string[] = ["Tab", "Enter"];
