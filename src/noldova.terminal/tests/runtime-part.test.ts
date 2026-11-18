@@ -175,7 +175,7 @@ describe("RuntimePart", () => {
       name: "terminal.linkClick",
       title: "Open clicked links",
       description: "Where a link you Ctrl+click in a terminal opens, Cmd+click on macOS. Sign-in links that tools print need your own browser, where you're signed in.",
-      type: { kind: "Choice", options: [{ value: "System", title: "In your browser" }, { value: "Same", title: "The same as other links" }] },
+      type: { kind: "Choice", options: [{ value: "System", title: "In your browser" }, { value: "InApp", title: "In the app's browser" }] },
       default: "System",
       locality: "Shared",
       scopes: [],

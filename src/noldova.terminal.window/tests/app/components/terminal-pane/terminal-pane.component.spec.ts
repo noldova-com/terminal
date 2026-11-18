@@ -35,6 +35,10 @@ import { SpecWait } from "../../../fixtures/spec-wait.fixture.ts";
 const COPY: KeyboardEventInit = PaneHost.isMac ? { key: "c", metaKey: true } : { key: "C", ctrlKey: true, shiftKey: true };
 const OPEN: MouseEventInit = PaneHost.isMac ? { metaKey: true } : { ctrlKey: true };
 const IN_APP_BROWSER: IInAppBrowser = { placeFor: () => LinkPlace.InApp, openAsync: async () => undefined };
+const SYSTEM_ON_MODIFIED_BROWSER: IInAppBrowser = {
+  placeFor: (_url: string, gesture: LinkGesture) => gesture === LinkGesture.Modified ? LinkPlace.System : LinkPlace.InApp,
+  openAsync: async () => undefined
+};
 
 function createPane(isShown: boolean = false, runtime: FakeRuntime = new FakeRuntime(), providers: readonly Provider[] = []): PaneHost<TerminalPaneComponent> {
   return new PaneHost(TerminalPaneComponent, isShown, { sessionId: "s1" }, runtime, providers);
@@ -438,10 +442,10 @@ describe("TerminalPaneComponent", () => {
     await vi.waitFor(() => expect(host.element.getAttribute("title")).toBeNull(), { timeout: SpecWait.milliseconds });
   });
 
-  it("leaves a clicked link's place to the window's Links settings when the person chose to open it as other links", async () => {
+  it("opens a clicked link in the app's browser when the person chose it, even where the window's Links settings send a Ctrl+click to the system", async () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
-    host.runtime.context.settings.set("terminal.linkClick", "Same");
-    host.runtime.context.inAppBrowser = IN_APP_BROWSER;
+    host.runtime.context.settings.set("terminal.linkClick", "InApp");
+    host.runtime.context.inAppBrowser = SYSTEM_ON_MODIFIED_BROWSER;
     host.runtime.snapshot = "https://noldova.com/docs";
     await host.startAsync();
     await vi.waitFor(() => expect(host.text).toContain("noldova"), { timeout: SpecWait.milliseconds });
@@ -460,6 +464,7 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.runtime.snapshot = "\u001b]8;;https://a.example/\u0007alpha\u001b]8;;\u0007 \u001b]8;;file:///etc/passwd\u0007beta\u001b]8;;\u0007";
     host.runtime.context.linkFailure = new Error("no browser");
+    host.runtime.context.inAppBrowser = IN_APP_BROWSER;
     await host.startAsync();
     await vi.waitFor(() => expect(host.text).toContain("alpha beta"), { timeout: SpecWait.milliseconds });
     await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toBe(""), { timeout: SpecWait.milliseconds });
@@ -476,7 +481,8 @@ describe("TerminalPaneComponent", () => {
 
     await vi.waitFor(() => expect(host.runtime.context.logs).toContain("Opening the link failed: no browser"), { timeout: SpecWait.milliseconds });
     await vi.waitFor(() => expect(host.element.getAttribute("title")).toBeNull(), { timeout: SpecWait.milliseconds });
-    expect([host.runtime.context.links, host.runtime.context.linkGestures]).toEqual([["https://a.example/"], [LinkGesture.Modified]]);
+    expect([host.runtime.context.links, host.runtime.context.linkGestures, host.runtime.context.linkPlaces])
+      .toEqual([["https://a.example/"], [LinkGesture.Modified], [LinkPlace.System]]);
   });
 
   it("draws a color too faint for its background at a contrast of at least 4.5", async () => {

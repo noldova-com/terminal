@@ -87,7 +87,7 @@
         "kind": "Choice",
         "options": [
           { "value": "System", "title": "In your browser" },
-          { "value": "Same", "title": "The same as other links" }
+          { "value": "InApp", "title": "In the app's browser" }
         ]
       },
       "default": "System",

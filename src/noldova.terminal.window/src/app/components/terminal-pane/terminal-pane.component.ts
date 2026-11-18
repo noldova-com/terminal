@@ -531,7 +531,8 @@ export class TerminalPaneComponent {
     if (!LinkPolicy.isOpening(event, this.isMac) || !LinkPolicy.isAllowed(url))
       return;
     const gesture: LinkGesture = new LinkOpenEvent(url, event).gesture;
-    const options: ILinkOpenOptions = this.context.readSetting(Resources.linkClickSetting) === Resources.sameLinkPlace ? { gesture } : { gesture, place: LinkPlace.System };
+    const place: LinkPlace = this.context.readSetting(Resources.linkClickSetting) === LinkPlace.InApp ? LinkPlace.InApp : LinkPlace.System;
+    const options: ILinkOpenOptions = { gesture, place };
     this.context.openLinkAsync(url, options).then(undefined, (error: unknown) => this.context.log(Resources.formatLinkFailed(error)));
   }
 
