@@ -19,7 +19,7 @@ import { RequestContext, type IMethodHandler, type ProcessRequest } from "@noldo
 import { FakeModuleLog, FakeModuleSettings } from "@noldova/desktop.runtime/testing";
 import type { JsonValue } from "@noldova/context.json";
 import { TerminalAttachment, TerminalCommandAdded, TerminalCompletion, TerminalCwd, TerminalMissingCommands, TerminalOutput, TerminalReference, TerminalShellKind, TerminalShells } from "@noldova/terminal.protocol";
-import { afterAll, beforeAll, describe, it, onTestFinished, vi, type TestContext } from "vitest";
+import { afterAll, beforeAll, describe, it, vi, type TestContext } from "vitest";
 
 import { RuntimePart } from "../../src/api/index.ts";
 import { Shell } from "../../src/models/shell.ts";
@@ -38,7 +38,8 @@ import { SupervisedTerminals } from "./supervised-terminals.fixture.ts";
 const WAIT_MS: number = 20_000;
 const SHELL_COLD_START_MS: number = 55_000;
 const TEXT_POLL_MS: number = 100;
-const HELD_OPTIONS_MS: number = 3_600_000;
+const OPTIONS_WAIT_MS: number = 10_000;
+const OPTIONS_POLL_MS: number = 10;
 const OUTPUT_TAIL: number = 1_500;
 const QUIET_MS: number = 1_000;
 const WORK_FOLDER: string = "work-folder";
@@ -683,7 +684,6 @@ function defineRealShellTests(covered: readonly string[]): void {
     it(`[${shellId}] asks ${shellId}'s own completion for a command's options through its hidden binding, which changes neither the screen nor the history`,
       async context => {
         context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
-        holdOptionsUntilAnswered();
         const isPowerShell: boolean = POWERSHELL_IDS.includes(shellId);
         const sessionId: string = await fixture.openAsync(shellId, workFolder);
         await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
@@ -707,18 +707,24 @@ function defineRealShellTests(covered: readonly string[]): void {
           const attached: number = fixture.kinds(sessionId).length;
           await fixture.callAsync("terminal.complete", { sessionId, line: "noldovaprobe -", cursor: 14, asksShell: true });
           await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).slice(attached).includes("O"),
-            `${shellId} did not answer the ask after the attach.`);
+            `${shellId} did not answer the ask after the attach.`, OPTIONS_WAIT_MS);
         }
         await fixture.waitForQuietAsync(sessionId);
         const marked: string = fixture.kinds(sessionId);
 
+        const askedAt: number = performance.now();
         const completion: TerminalCompletion = TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete",
           { sessionId, line: "noldovaprobe -", cursor: 14, asksShell: true }));
-        await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).slice(marked.length).includes("O"), `${shellId} sent no options mark for the ask.`);
+        const returnedIn: number = Math.round(performance.now() - askedAt);
+        const optionsIn: number | null = await vi.waitFor(() => {
+          assert.ok(fixture.kinds(sessionId).slice(marked.length).includes("O"));
+          return Math.round(performance.now() - askedAt);
+        }, { timeout: OPTIONS_WAIT_MS, interval: OPTIONS_POLL_MS }).catch(() => null);
         await fixture.waitForQuietAsync(sessionId);
         const after: string = await screen("p2");
         const answeredMarks: string = fixture.kinds(sessionId).slice(marked.length);
-        const answer: string = `It answered ${JSON.stringify(completion.toJson())}, with marks ${answeredMarks === "" ? "none" : answeredMarks} after `
+        const answer: string = `The completion answered in ${returnedIn} ms, and the options mark `
+          + `${optionsIn === null ? `didn't come within ${OPTIONS_WAIT_MS} ms of the ask` : `came ${optionsIn} ms after the ask`}. It answered ${JSON.stringify(completion.toJson())}, with marks ${answeredMarks === "" ? "none" : answeredMarks} after `
           + `it asked and the last options mark ${JSON.stringify(fixture.marks(sessionId).findLast(t => t.kind === "O")?.value ?? null)}. `
           + `Marks: ${fixture.kinds(sessionId)}. Output ends with: ${JSON.stringify(fixture.text(sessionId).slice(-OUTPUT_TAIL))}`;
         await fixture.typeAsync(sessionId, "\u007f".repeat(14));
@@ -1202,17 +1208,6 @@ async function nonceFilesAsync(nonce: string): Promise<readonly string[]> {
 
 function profileTime(step: string): string {
   return `if ($env:${PROFILE_TIMES_VARIABLE}) { Add-Content -LiteralPath $env:${PROFILE_TIMES_VARIABLE} -Value "${step} $([DateTime]::UtcNow.ToString('o'))" -ErrorAction SilentlyContinue }\n`;
-}
-
-function holdOptionsUntilAnswered(): void {
-  const limit: number = Resources.optionsMilliseconds;
-  const firstLimit: number = Resources.firstOptionsMilliseconds;
-  Object.defineProperty(Resources, "optionsMilliseconds", { value: HELD_OPTIONS_MS });
-  Object.defineProperty(Resources, "firstOptionsMilliseconds", { value: HELD_OPTIONS_MS });
-  onTestFinished(() => {
-    Object.defineProperty(Resources, "optionsMilliseconds", { value: limit });
-    Object.defineProperty(Resources, "firstOptionsMilliseconds", { value: firstLimit });
-  });
 }
 
 function executableOf(shellId: string): string {
