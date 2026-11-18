@@ -20,9 +20,9 @@
   "devDependencies": {
     "@noldova/context.exceptions": "0.0.7",
     "@noldova/context.json": "0.0.7",
-    "@noldova/desktop.protocol": "0.0.3",
-    "@noldova/desktop.runtime": "0.0.3",
-    "@noldova/desktop.window": "0.0.3",
+    "@noldova/desktop.protocol": "0.0.4",
+    "@noldova/desktop.runtime": "0.0.4",
+    "@noldova/desktop.window": "0.0.4",
     "@noldova/ui.components.angular": "0.0.9",
     "@types/node": "26.6.6",
     "@vitest/coverage-v8": "5.0.3",
