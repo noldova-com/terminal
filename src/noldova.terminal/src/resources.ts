@@ -304,7 +304,7 @@ export class Resources {
     [TerminalShellKind.Zsh, "\u001b[24;7~"]
   ]);
   public static readonly optionsMilliseconds: number = 500;
-  public static readonly firstOptionsMilliseconds: number = 5_000;
+  public static readonly firstOptionsMilliseconds: number = 3_500;
   public static readonly powerShellLookupMilliseconds: number = 10_000;
   public static readonly powerShellLookupEndMilliseconds: number = 60_000;
   public static readonly powerShellLookupCacheMilliseconds: number = 15_000;

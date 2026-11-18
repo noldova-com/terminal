@@ -1119,13 +1119,13 @@ describe("TerminalSession marking the shell's line", () => {
       await session.disposeAsync();
     });
 
-    it("waits 5 seconds for a shell's first answer, as a loaded runner's fresh Windows PowerShell can take over 2 seconds, and again after a restart", async () => {
+    it("waits 3.5 seconds for a shell's first answer, as a loaded runner's fresh Windows PowerShell can take over 2 seconds, and again after a restart", async () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       const process: FakePtyProcess = new FakePtyProcess();
       const session: TerminalSession = createBoundSession(process);
 
       const slow: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
-      vi.advanceTimersByTime(4_999);
+      vi.advanceTimersByTime(3_499);
       process.emitData("\u001b]6973;O;n1;--slow\u0007");
       const slowOptions: readonly string[] | null = (await slow).options;
       const warm: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
@@ -1135,7 +1135,7 @@ describe("TerminalSession marking the shell's line", () => {
       session.restart(restarted, "n1", new TerminalSize(80, 24));
       restarted.emitData(BOUND_PROMPT);
       const cold: Promise<ShellOptionsReply> = session.askOptionsAsync(KEYS);
-      vi.advanceTimersByTime(4_999);
+      vi.advanceTimersByTime(3_499);
       const writesBefore: readonly string[] = [...restarted.writes];
       vi.advanceTimersByTime(1);
 
