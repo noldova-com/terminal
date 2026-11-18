@@ -234,6 +234,7 @@ describe("EmbeddedTerminal", () => {
     const runtime: FakeRuntime = serve();
     const tab: ComponentFixture<TerminalPaneComponent> = await openTabAsync();
     const tabTextarea: HTMLTextAreaElement = PaneHost.find(PaneHost.hostOf(tab), "textarea", HTMLTextAreaElement);
+    await vi.waitFor(() => expect(visibilities(runtime)).toHaveLength(1), { timeout: SpecWait.milliseconds });
     tabTextarea.focus();
     for (const type of ["keydown", "keyup"])
       tabTextarea.dispatchEvent(new KeyboardEvent(type, { key: "Enter", code: "Enter", keyCode: 13, bubbles: true, cancelable: true }));
