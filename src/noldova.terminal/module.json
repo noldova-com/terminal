@@ -21,7 +21,7 @@
     ],
     "commands": ["terminal.new", "terminal.newWithShell", "terminal.toggle", "terminal.restartShell"],
     "menus": ["terminal.tabRow", "terminal.shellMenu"],
-    "settings": ["terminal.defaultShell", "terminal.outputLimit", "terminal.fontSize", "terminal.suggestions", "terminal.commandColors", "terminal.completionList"],
+    "settings": ["terminal.defaultShell", "terminal.outputLimit", "terminal.fontSize", "terminal.suggestions", "terminal.commandColors", "terminal.completionList", "terminal.linkClick"],
     "views": ["terminal.panel", "terminal.session"],
     "tools": ["terminal_list", "terminal_read", "terminal_open", "terminal_run", "terminal_write", "terminal_interrupt", "terminal_close"]
   }

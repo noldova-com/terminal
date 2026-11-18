@@ -10,9 +10,9 @@ import { signal, type WritableSignal } from "@angular/core";
 import type { JsonValue } from "@noldova/context.json";
 import { QualifiedName, SettingEntry } from "@noldova/desktop.protocol";
 import { UnansweredCallException } from "@noldova/desktop.protocol/testing";
-import type { CommandContribution, DockSide, ISelectionSource, IViewInstanceOptions, IViewUpdate, IWindowPartContext, ViewContribution } from "@noldova/desktop.window";
+import { LinkPlace, type CommandContribution, type DockSide, type IInAppBrowser, type ISelectionSource, type IViewInstanceOptions, type IViewUpdate, type IWindowPartContext, type ViewContribution } from "@noldova/desktop.window";
 import { FakeWindowPartContext } from "@noldova/desktop.window/testing";
-import type { LinkGesture } from "@noldova/ui.components.angular";
+import { LinkGesture } from "@noldova/ui.components.angular";
 
 type MenuProvider = Parameters<IWindowPartContext["provideMenuGroup"]>[1];
 type OptionsProvider = Parameters<IWindowPartContext["provideSettingOptions"]>[1];
@@ -48,7 +48,8 @@ export class TerminalPartContext extends FakeWindowPartContext {
     ["terminal.fontSize", 13],
     ["terminal.suggestions", true],
     ["terminal.commandColors", false],
-    ["terminal.completionList", true]
+    ["terminal.completionList", true],
+    ["terminal.linkClick", "System"]
   ]);
 
   public readonly views: ViewContribution[] = [];
@@ -64,6 +65,7 @@ export class TerminalPartContext extends FakeWindowPartContext {
   public readonly logs: string[] = [];
   public readonly links: string[] = [];
   public readonly linkGestures: (LinkGesture | undefined)[] = [];
+  public readonly linkPlaces: LinkPlace[] = [];
   public readonly requests: SentRequest[] = [];
   public readonly handlers: Map<string, (parameters: JsonValue) => Promise<JsonValue>> = new Map();
   public readonly settings: Map<string, JsonValue> = new Map();
@@ -72,6 +74,7 @@ export class TerminalPartContext extends FakeWindowPartContext {
   public readonly refreshedSettings: string[] = [];
   public readonly selectionSources: Map<HTMLElement, ISelectionSource> = new Map();
   public linkFailure: Error | null = null;
+  public inAppBrowser: IInAppBrowser | null = null;
   public moduleId: string | null = null;
 
   public override readonly registerSelectionSource: IWindowPartContext["registerSelectionSource"] = (element, source) => {
@@ -152,6 +155,7 @@ export class TerminalPartContext extends FakeWindowPartContext {
     this.answer("openLinkAsync", async (url, options) => {
       this.links.push(url);
       this.linkGestures.push(options?.gesture);
+      this.linkPlaces.push(options?.place ?? this.inAppBrowser?.placeFor(url, options?.gesture ?? LinkGesture.Plain) ?? LinkPlace.System);
       if (this.linkFailure !== null)
         throw this.linkFailure;
     });
