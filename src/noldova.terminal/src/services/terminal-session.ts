@@ -92,7 +92,7 @@ export class TerminalSession {
     });
     this.history = new TerminalHistory(historyPaths, storedLimit, () => this.flow.acknowledgeStoring(this.history.backlog));
     this.mirror = new TerminalMirror(size, this.history, {
-      onReply: t => this.terminal.write(t),
+      onReply: t => this.terminal.answer(t),
       onParsed: t => this.flow.acknowledgeMirror(t, this.history.backlog),
       onTitleChanged: t => this.listener.onTitleChanged(new TerminalTitle(this.sessionId, t))
     });
@@ -416,7 +416,7 @@ export class TerminalSession {
         if (this.terminal === terminal)
           this.end(t);
       }
-    });
+    }, this.windowsPty !== null);
     return terminal;
   }
 
