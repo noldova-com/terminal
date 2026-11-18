@@ -776,7 +776,7 @@ describe("TerminalHost", () => {
         fixture.host.handleAsync("terminal.complete", { sessionId, line: "ls -", cursor: 4, asksShell: true }, APP);
 
       const late: Promise<JsonValue> = completeAsync();
-      await vi.advanceTimersByTimeAsync(2_000);
+      await vi.advanceTimersByTimeAsync(5_000);
       const timedOut: JsonValue = await late;
       fixture.process.answers.set("\u001b[24;7~", `\u001b]6973;O;${nonce};--late\u0007\u001b]6973;O;${nonce};--long\u0007`);
       const answered: JsonValue = await completeAsync();
