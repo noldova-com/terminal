@@ -4,6 +4,12 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version; other pull requests don't edit this file.
 
+## 0.0.4
+
+- The agent tools' reports name a terminal as its tab does: each report that holds the terminal's `title` also holds its `name`, the person's or the app's name for it or `null`, and its `shell_name`, the name of the shell it runs, such as PowerShell. Their output schemas list both. No report holds the title an app launched a terminal with (#105).
+- Terminal needs Noldova Desktop 0.0.7 or later: the packages take `@noldova/desktop.protocol`, `@noldova/desktop.runtime` and `@noldova/desktop.window` at `>=0.0.7 <0.1.0`, and `module.json`'s `noldovaDesktop` is `>=0.0.7 <0.1.0` (#100).
+- A shell's first completion of a command's options waits up to 3.5 seconds for the shell's answer, then 500 ms after that (#88).
+
 ## 0.0.3
 
 - A link Ctrl+clicked in a terminal, Cmd+clicked on macOS, opens in the person's own browser by default, since sign-in links that tools print need the browser where they are signed in. The setting Open clicked links, `terminal.linkClick`, can open it in the app's browser instead (#92).
