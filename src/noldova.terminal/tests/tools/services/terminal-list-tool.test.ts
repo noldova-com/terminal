@@ -31,7 +31,7 @@ describe("TerminalListTool", () => {
 
   it("lists the session's own and shared terminals, asking nothing, with their titles marked as untrusted", async () => {
     const harness: ToolHarness = new ToolHarness();
-    harness.terminals.add("own", "session-1");
+    harness.terminals.add("own", "session-1").name = "Server";
     harness.terminals.add("shared", null).prompt = new FakeTerminalPrompt(true, null);
     harness.terminals.add("others", "session-2");
 
@@ -40,8 +40,8 @@ describe("TerminalListTool", () => {
     assert.deepEqual(harness.permissions.requests, []);
     assert.deepEqual(result.structured, {
       terminals: [
-        { terminal_id: "own", title: "bash - project", shell: "bash", cwd: "/work/project", is_shared: false, is_running: true },
-        { terminal_id: "shared", title: "bash - project", shell: "bash", cwd: null, is_shared: true, is_running: true }
+        { terminal_id: "own", title: "bash - project", name: "Server", shell_name: "Bash", shell: "bash", cwd: "/work/project", is_shared: false, is_running: true },
+        { terminal_id: "shared", title: "bash - project", name: null, shell_name: "Bash", shell: "bash", cwd: null, is_shared: true, is_running: true }
       ]
     });
     assert.equal(ToolHarness.textOf(result), "Terminals: own, shared.");

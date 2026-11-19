@@ -61,7 +61,7 @@ describe("TerminalWriteTool", () => {
       options: ["AllowOnce", "Deny"]
     }]);
     assert.deepEqual(terminal.writes, ["y\r"]);
-    assert.deepEqual(result.structured, { terminal_id: "t1", title: "bash - project" });
+    assert.deepEqual(result.structured, { terminal_id: "t1", title: "bash - project", name: null, shell_name: "Bash" });
     assert.equal(ToolHarness.textOf(result), "Sent the keys to terminal t1. terminal_read returns what follows.");
     assert.equal(ToolHarness.originOf(result), "terminal:t1");
   });

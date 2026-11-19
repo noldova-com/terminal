@@ -32,8 +32,13 @@ export class TerminalWriteTool extends TerminalTool<TerminalWriteInput> {
     outputSchema: {
       type: Resources.jsonObjectType,
       additionalProperties: false,
-      required: [Resources.terminalIdField, Resources.titleField],
-      properties: { [Resources.terminalIdField]: { type: Resources.jsonStringType }, [Resources.titleField]: { type: Resources.jsonStringType } }
+      required: [Resources.terminalIdField, Resources.titleField, Resources.nameField, Resources.shellNameField],
+      properties: {
+        [Resources.terminalIdField]: { type: Resources.jsonStringType },
+        [Resources.titleField]: { type: Resources.jsonStringType },
+        [Resources.nameField]: { type: [Resources.jsonStringType, Resources.jsonNullType], description: Resources.nameFieldDescription },
+        [Resources.shellNameField]: { type: Resources.jsonStringType, description: Resources.shellNameFieldDescription }
+      }
     },
     hints: { isReadOnly: false, isDestructive: true, isOpenWorld: true },
     risk: { default: ToolRisk.High, maximum: ToolRisk.High },
@@ -64,7 +69,12 @@ export class TerminalWriteTool extends TerminalTool<TerminalWriteInput> {
     await this.gate.requireGrantAsync(TerminalWriteTool.askFor(input, access, prompt, context), context);
     this.accessPolicy.requireStill(access, context);
     TerminalTool.actOnGrantedState(input.terminalId, context, () => access.terminal.write(input.keys.text, prompt));
-    return ToolResults.create(Resources.formatKeysSent(input.terminalId), { [Resources.terminalIdField]: input.terminalId, [Resources.titleField]: access.terminal.title }, access.origin);
+    return ToolResults.create(Resources.formatKeysSent(input.terminalId), {
+      [Resources.terminalIdField]: input.terminalId,
+      [Resources.titleField]: access.terminal.title,
+      [Resources.nameField]: access.terminal.name,
+      [Resources.shellNameField]: access.terminal.shellName
+    }, access.origin);
   }
 
   private static refuseSecret(access: AgentTerminalAccess): void {

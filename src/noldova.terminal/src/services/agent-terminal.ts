@@ -53,6 +53,14 @@ export class AgentTerminal implements IAgentTerminal {
     return this.session.title;
   }
 
+  public get name(): string | null {
+    return this.hosted.name;
+  }
+
+  public get shellName(): string {
+    return this.hosted.shell.name;
+  }
+
   public get shellId(): string {
     return this.hosted.shell.id;
   }

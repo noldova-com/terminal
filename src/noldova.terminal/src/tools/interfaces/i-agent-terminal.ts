@@ -13,6 +13,8 @@ import type { ITerminalPrompt } from "./i-terminal-prompt.ts";
 export interface IAgentTerminal extends IOutputSource {
   readonly id: string;
   readonly title: string;
+  readonly name: string | null;
+  readonly shellName: string;
   readonly shellId: string;
   readonly shellPath: string;
   readonly startFolder: string;

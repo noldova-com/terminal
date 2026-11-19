@@ -87,6 +87,8 @@ export class FakeAgentTerminal extends FakeOutputSource implements IAgentTermina
   public readonly ownerSessionId: string | null;
   public readonly owner: string | null;
   public title: string = "bash - project";
+  public name: string | null = null;
+  public readonly shellName: string = "Bash";
   public readonly shellId: string = "bash";
   public readonly shellPath: string = "/bin/bash";
   public readonly startFolder: string = "/work/start";

@@ -34,11 +34,13 @@ export class TerminalListTool extends TerminalTool<null> {
           items: {
             type: Resources.jsonObjectType,
             additionalProperties: false,
-            required: [Resources.terminalIdField, Resources.titleField, Resources.shellField, Resources.cwdField, Resources.terminalListToolIsSharedField,
-              Resources.terminalListToolIsRunningField],
+            required: [Resources.terminalIdField, Resources.titleField, Resources.nameField, Resources.shellNameField, Resources.shellField, Resources.cwdField,
+              Resources.terminalListToolIsSharedField, Resources.terminalListToolIsRunningField],
             properties: {
               [Resources.terminalIdField]: { type: Resources.jsonStringType },
               [Resources.titleField]: { type: Resources.jsonStringType },
+              [Resources.nameField]: { type: [Resources.jsonStringType, Resources.jsonNullType], description: Resources.nameFieldDescription },
+              [Resources.shellNameField]: { type: Resources.jsonStringType, description: Resources.shellNameFieldDescription },
               [Resources.shellField]: { type: Resources.jsonStringType },
               [Resources.cwdField]: { type: [Resources.jsonStringType, Resources.jsonNullType], description: Resources.cwdFieldDescription },
               [Resources.terminalListToolIsSharedField]: { type: Resources.jsonBooleanType, description: Resources.sharedFieldDescription },
@@ -71,6 +73,8 @@ export class TerminalListTool extends TerminalTool<null> {
     const terminals: readonly JsonObject[] = accesses.map(t => ({
       [Resources.terminalIdField]: t.terminal.id,
       [Resources.titleField]: t.terminal.title,
+      [Resources.nameField]: t.terminal.name,
+      [Resources.shellNameField]: t.terminal.shellName,
       [Resources.shellField]: t.terminal.shellId,
       [Resources.cwdField]: t.terminal.readPrompt().cwd,
       [Resources.terminalListToolIsSharedField]: t.isShared,
