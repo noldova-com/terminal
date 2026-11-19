@@ -660,8 +660,15 @@ function defineRealShellTests(covered: readonly string[]): void {
         { encoding: "utf8", mode: 0o755 });
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
       await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
-      const completeAsync = async (): Promise<readonly string[]> =>
-        TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line: "noldovapro", cursor: 10 })).items.map(t => t.label);
+      const listAsync = async (line: string): Promise<readonly string[]> =>
+        TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line, cursor: line.length })).items.map(t => t.label);
+      const builtin: string = POWERSHELL_IDS.includes(shellId) ? "Get-Date" : "cd";
+      const completeAsync = async (): Promise<readonly string[]> => {
+        let answered: boolean = false;
+        while (!answered)
+          answered = (await listAsync(builtin)).includes(builtin);
+        return listAsync("noldovapro");
+      };
       assert.deepEqual(await completeAsync(), []);
 
       const changePathAsync = async (line: string): Promise<readonly string[]> => {
