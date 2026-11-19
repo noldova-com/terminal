@@ -1055,16 +1055,15 @@ describe("TerminalHost", () => {
     const fixture: HostFixture = await HostFixture.createAsync();
     const started: PromiseWithResolvers<void> = Promise.withResolvers<void>();
     fixture.spawner.hold = started.promise;
-    const steps: string[] = [];
 
     const opening: Promise<string> = fixture.openAsync(ownedOpen("example.chat/7"));
     await fixture.spawner.held.promise;
-    void fixture.host.handleAsync("terminal.closeOwner", { owner: "example.chat/42" }, APP).then(() => steps.push("closed"));
-    await vi.waitFor(() => assert.deepEqual(steps, ["closed"]));
+    await fixture.host.handleAsync("terminal.closeOwner", { owner: "example.chat/42" }, APP);
     started.resolve();
     const sessionId: string = await opening;
 
     assert.deepEqual([(await fixture.listAsync()).map(t => t.sessionId), fixture.closed.published, fixture.process.ends], [[sessionId], [], 0]);
+    await fixture.endAllAsync();
   });
 
   it("gives an agent's terminal the owner its session is bound to, keeps it for no next run, and closes it with that owner", async () => {
@@ -1523,16 +1522,15 @@ describe("TerminalHost", () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       const started: PromiseWithResolvers<void> = Promise.withResolvers<void>();
       fixture.spawner.hold = started.promise;
-      const steps: string[] = [];
 
       const opening: Promise<string> = openFromAsync(fixture, COMMAND_LINE);
       await fixture.spawner.held.promise;
-      void fixture.host.closeConnectionAsync(1, null).then(() => steps.push("closed"));
-      await vi.waitFor(() => assert.deepEqual(steps, ["closed"]));
+      await fixture.host.closeConnectionAsync(1, null);
       started.resolve();
       await opening;
 
       assert.equal(fixture.process.ends, 0);
+      await fixture.endAllAsync();
     });
 
     it("restores the person's terminals for a reconnected app whose restore came while the old connection's close waited on an open", async () => {

@@ -401,10 +401,10 @@ export class TerminalHost {
     void opening.then(settled, settled);
     return opening;
   }
+
   private async settleOpensAsync(isTheirs: (opening: TerminalOpening) => boolean): Promise<void> {
     await Promise.allSettled([...this.opens].filter(([, t]) => isTheirs(t)).map(([t]) => t));
   }
-
 
   private async launchAsync(params: TerminalLaunchParams, client: RequestClient): Promise<TerminalLaunched> {
     if (params.folder !== null && !this.isAbsolute(params.folder))
