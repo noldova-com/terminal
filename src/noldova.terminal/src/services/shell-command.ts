@@ -18,6 +18,7 @@ import type { TerminalSession } from "./terminal-session.ts";
 export class ShellCommand implements IAgentCommand {
   private readonly session: TerminalSession;
   private readonly line: TypedLine;
+  private readonly run: number;
   private isKilled: boolean = false;
   private givenUp: readonly [number, number] | null = null;
 
@@ -27,6 +28,7 @@ export class ShellCommand implements IAgentCommand {
   public constructor(session: TerminalSession, command: string, timeoutMilliseconds: number, logFile: string) {
     this.session = session;
     this.logFile = logFile;
+    this.run = session.run;
     this.line = session.typeLine(command);
     if (timeoutMilliseconds > 0) {
       const limit: AbortController = new AbortController();
@@ -44,7 +46,7 @@ export class ShellCommand implements IAgentCommand {
       return CommandStatus.Killed;
     if (this.tracked?.hasEnded === true || this.unmarkedEnd !== null)
       return this.isKilled ? CommandStatus.Killed : CommandStatus.Exited;
-    if (this.session.hasExited)
+    if (this.restartEnd !== null || this.session.hasExited)
       return CommandStatus.Killed;
     return this.session.text.isAwaitingSecret ? CommandStatus.AwaitingInput : CommandStatus.Running;
   }
@@ -58,7 +60,7 @@ export class ShellCommand implements IAgentCommand {
   }
 
   private get hasEnded(): boolean {
-    return this.givenUp !== null || this.tracked?.hasEnded === true || this.unmarkedEnd !== null || this.session.hasExited;
+    return this.givenUp !== null || this.tracked?.hasEnded === true || this.unmarkedEnd !== null || this.restartEnd !== null || this.session.hasExited;
   }
 
   private get outputStart(): number {
@@ -69,7 +71,11 @@ export class ShellCommand implements IAgentCommand {
   }
 
   private get outputEnd(): number {
-    return this.givenUp?.[1] ?? this.tracked?.outputEnd ?? this.unmarkedEnd ?? this.session.text.endOffset;
+    return this.givenUp?.[1] ?? this.tracked?.outputEnd ?? this.unmarkedEnd ?? this.restartEnd ?? this.session.text.endOffset;
+  }
+
+  private get restartEnd(): number | null {
+    return this.session.endOfRun(this.run);
   }
 
   private get unmarkedEnd(): number | null {
