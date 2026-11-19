@@ -37,6 +37,7 @@ import { FileSystemWriter } from "../../src/services/file-system-writer.ts";
 import { FileSystemReader } from "../../src/services/file-system.reader.ts";
 import { FlowController } from "../../src/services/flow-controller.ts";
 import { InheritedEnvironment } from "../../src/services/inherited-environment.ts";
+import { LatestEnvironment } from "../../src/services/latest-environment.ts";
 import { ProcessSignaller } from "../../src/services/process-signaller.ts";
 import { SavedTerminals } from "../../src/services/saved-terminals.ts";
 import { ShellIntegration } from "../../src/services/shell-integration.ts";
@@ -144,7 +145,7 @@ class HostFixture {
       new ShellLocator(platform, "x64", environment, null, this.fileSystem, this.runner, this.log),
       platform,
       osRelease,
-      environmentSource,
+      new LatestEnvironment(environmentSource, environment),
       "/home/a",
       this.log,
       new TerminalEvents(this.output, this.exited, this.restarted, this.titleChanged, this.cwdChanged, this.detached, this.closed, this.opened,
@@ -707,6 +708,30 @@ describe("TerminalHost", () => {
     fixture.reportPath(fixture.process, "");
 
     assert.deepEqual([reported, reset, await completeAsync()], [["grepx"], ["grep"], []]);
+  });
+
+  it("completes at once from the last finished environment read while a new one is held, starts no other read meanwhile, and completes from the new one once it finishes", async () => {
+    const held: PromiseWithResolvers<Readonly<Record<string, string | undefined>>> = Promise.withResolvers<Readonly<Record<string, string | undefined>>>();
+    let reads: number = 0;
+    const source: IEnvironmentSource = {
+      start: () => undefined,
+      readAsync: () => ++reads === 1 ? Promise.resolve({ SHELL: "/bin/bash", PATH: "/usr/bin" }) : held.promise,
+      end: () => undefined
+    };
+    const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", { SHELL: "/bin/bash", PATH: "/usr/bin" }, source);
+    fixture.fileSystem.files.set("/usr/bin/grep", "");
+    fixture.fileSystem.files.set("/opt/bin/grepx", "");
+    const sessionId: string = await fixture.openAsync();
+    const completeAsync = async (): Promise<readonly string[]> =>
+      TerminalCompletion.fromJson(await fixture.host.handleAsync("terminal.complete", { sessionId, line: "gr", cursor: 2 }, APP)).items.map(t => t.label);
+
+    const whileHeld: readonly (readonly string[])[] = [await completeAsync(), await completeAsync()];
+    const readsWhileHeld: number = reads;
+    held.resolve({ SHELL: "/bin/bash", PATH: "/opt/bin" });
+    await vi.waitFor(async () => assert.deepEqual(await completeAsync(), ["grepx"]));
+
+    assert.deepEqual([whileHeld, readsWhileHeld], [[["grep"], ["grep"]], 2]);
+    await fixture.endAllAsync();
   });
 
   it("completes a Windows terminal's commands from its reported PATH, in place of the start Path whatever its case", async () => {

@@ -486,7 +486,10 @@ A terminal of bash, zsh or PowerShell shows one list of what can follow at the c
     A `~/` starting the word is the home folder only where the shell reads it so: unquoted and unescaped in bash and zsh, and in a quote too in PowerShell.
 - The folder is the shell's last reported working folder, else the one it started in.
   Git Bash on Windows reports `/c/Users` for `C:\Users`, which the runtime reads as such, and `/tmp` as the folder the shell reported for it, else the one its TEMP names; any other path of its own, outside a drive, gives no files.
-- The environment is the one a shell the terminal starts now gets, the system's with a launched terminal's variables over it, with PATH the one the shell reported at its last prompt that did, in place of the start one whatever its case on Windows, so commands a virtual environment adds are listed; before the first report, or for a shell without integration, PATH is the start PATH.
+- The environment is the system's from the last read that finished, with a launched terminal's variables over it, with PATH the one the shell reported at its last prompt that did, in place of the start one whatever its case on Windows, so commands a virtual environment adds are listed; before the first report, or for a shell without integration, PATH is the start PATH.
+  A completion never waits for a read: it starts one when none is under way and lists from the last finished one, which a shell's start also leaves, or from the app's inherited environment before any finished.
+  So a change to the system's variables shows from the completion after the one that started the read; a read that fails leaves the last one in place.
+  On Windows a read's file work waits behind Node's four I/O threads, which folder reads left past their deadline can hold for long, so a completion that waited for it could wait as long (#137).
 - Each item's text is written back as the shell reads it.
   In a quote still open at the cursor, it stays in that quote, closed but after a folder, so the person can go on into it.
   Otherwise, as for a word whose quote closed before the cursor, bash's and zsh's special characters are escaped, and a leading `~` that isn't the home folder too; PowerShell quotes it where it must be.
