@@ -23,6 +23,7 @@ export class TerminalPager {
   private drawPagesAsync: ((attachment: TerminalAttachment) => Promise<void>) | null = null;
   private drawing: Promise<void> = Promise.resolve();
   private followed: TerminalLineRange | null = null;
+  private heldPastes: string[] | null = [];
   private isLoaded: boolean = false;
   private isAttached: boolean = true;
   private isRebuilding: boolean = false;
@@ -76,6 +77,13 @@ export class TerminalPager {
       void this.extendAsync(() => this.comeBackAsync());
   }
 
+  public paste(text: string): void {
+    if (this.heldPastes === null)
+      this.terminal.paste(text);
+    else
+      this.heldPastes.push(text);
+  }
+
   public scroll(viewportY: number): void {
     if (!this.isLoaded || this.isRebuilding)
       return;
@@ -100,6 +108,7 @@ export class TerminalPager {
     await this.writeAsync("");
     this.window.reset(attachment.stored);
     this.onReset(attachment.size, attachment.windowsPty);
+    this.restoreModes(attachment);
     this.keepRows(0);
     this.terminal.write(attachment.snapshot + attachment.pending);
     this.isAttached = true;
@@ -205,8 +214,10 @@ export class TerminalPager {
     await this.writeAsync("");
     if (attachment === null)
       this.terminal.reset();
-    else
+    else {
       this.onReset(attachment.size, attachment.windowsPty);
+      this.restoreModes(attachment);
+    }
     this.keepRows(this.pagedRows());
     if (this.window.first === this.window.stored.start && this.window.stored.dropped > 0)
       await this.writeAsync(`${Resources.noteAttributes}${Resources.formatDroppedLines(this.window.stored.dropped)}${Resources.resetAttributes}${Resources.lineBreak}`);
@@ -230,6 +241,17 @@ export class TerminalPager {
     const bottom: number = this.terminal.buffer.active.baseY;
     this.terminal.scrollToLine(this.isReturning && this.isAttached ? bottom : Math.min(Math.max(0, anchorRow + offset), bottom));
     this.isReturning = this.isReturning && !this.isAttached;
+  }
+
+  private restoreModes(attachment: TerminalAttachment): void {
+    const pastes: string[] = this.heldPastes ?? [];
+    this.heldPastes = pastes;
+    const tail: string = attachment.snapshot.slice(attachment.snapshot.search(Resources.modesTail));
+    this.terminal.write((tail.match(Resources.inputModes) ?? []).join(""), () => {
+      this.heldPastes = null;
+      for (const text of pastes)
+        this.terminal.paste(text);
+    });
   }
 
   private pagedRows(): number {

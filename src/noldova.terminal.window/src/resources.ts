@@ -109,6 +109,8 @@ export class Resources {
   public static readonly minimumContrastRatio: number = 4.5;
   public static readonly scrollback: number = 10_000;
   public static readonly storedPageLines: number = 500;
+  public static readonly modesTail: RegExp = /(?:\u001b\[\??\d+[hl])*$/u;
+  public static readonly inputModes: RegExp = /\u001b\[\?(?:1|9|66|1000|1002|1003|1004|2004)h/gu;
   public static readonly storedLinesCap: number = 50_000;
   public static readonly wideCharacterStart: number = 0x1100;
   public static readonly wideCharacterCells: number = 2;
