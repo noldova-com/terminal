@@ -24,12 +24,13 @@ concurrency:
 jobs:
   build-and-test:
     name: Build and test
-    uses: noldova-com/.github/.github/workflows/build-and-test.yml@55fa60e7fc524fa07e0a1e4f374f3cd14550a0ba # v2.39.0
+    uses: noldova-com/.github/.github/workflows/build-and-test.yml@214f1e86dd561170fbdb471c147c8669087282e3 # dev3/151-test-targets
     permissions:
       contents: read
       packages: read
     with:
       targets: ${{ github.event_name != 'pull_request' && 'linux-x64 linux-arm64 windows-x64 windows-arm64 macos-x64 macos-arm64' || 'linux-x64 windows-x64 macos-arm64' }}
+      test-targets: linux-x64 windows-x64 macos-arm64
       publishes: true
       timeout-minutes: 20
 
@@ -42,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(github.event_name != 'pull_request' && '[{"target":"linux-x64","runner":"ubuntu-24.04","shells":"bash pwsh zsh fish"},{"target":"linux-arm64","runner":"ubuntu-24.04-arm","shells":"bash pwsh zsh fish"},{"target":"macos-x64","runner":"macos-15-intel","shells":"bash pwsh zsh"},{"target":"macos-arm64","runner":"macos-15","shells":"bash pwsh zsh"}]' || '[{"target":"linux-x64","runner":"ubuntu-24.04","shells":"bash pwsh zsh fish"},{"target":"macos-arm64","runner":"macos-15","shells":"bash pwsh zsh"}]') }}
+        include: [{"target":"linux-x64","runner":"ubuntu-24.04","shells":"bash pwsh zsh fish"},{"target":"macos-arm64","runner":"macos-15","shells":"bash pwsh zsh"}]
     steps:
       - name: Check out the revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
