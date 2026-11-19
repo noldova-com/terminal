@@ -29,6 +29,7 @@ export class TerminalConnection {
   private isAttached: boolean = false;
   private isVisible: boolean = false;
   private hasClosed: boolean = false;
+  private isDetachSent: boolean = false;
   private goneAttempt: number | null = null;
 
   public constructor(context: IWindowPartContext, sessionId: string, paneId: string, sink: ITerminalSink) {
@@ -107,7 +108,7 @@ export class TerminalConnection {
     for (const unsubscribe of this.unsubscribes.splice(0))
       unsubscribe();
     if (this.isSending())
-      this.send(TerminalNames.detachMethod, new TerminalPaneReference(this.sessionId, this.paneId).toJson());
+      this.sendDetach();
     this.isAttached = false;
     this.refreshing = null;
     this.buffered = null;
@@ -129,8 +130,10 @@ export class TerminalConnection {
       this.lose(attempt, TerminalRuntimeClient.isNotFound(error));
       return;
     }
-    if (attempt !== this.attempt || this.hasClosed)
+    if (attempt !== this.attempt || this.hasClosed) {
+      this.detachClosed(attempt);
       return;
+    }
 
     try {
       await this.sink.drawAsync(attachment);
@@ -140,8 +143,10 @@ export class TerminalConnection {
       this.lose(attempt);
       return;
     }
-    if (attempt !== this.attempt || this.hasClosed)
+    if (attempt !== this.attempt || this.hasClosed) {
+      this.detachClosed(attempt);
       return;
+    }
 
     this.buffered = null;
     this.addedCommands = null;
@@ -238,6 +243,16 @@ export class TerminalConnection {
     this.isAttached = false;
     if (this.isVisible)
       void this.attachAsync();
+  }
+
+  private detachClosed(attempt: number): void {
+    if (attempt === this.attempt && !this.isDetachSent)
+      this.sendDetach();
+  }
+
+  private sendDetach(): void {
+    this.isDetachSent = true;
+    this.send(TerminalNames.detachMethod, new TerminalPaneReference(this.sessionId, this.paneId).toJson());
   }
 
   private isSending(): boolean {

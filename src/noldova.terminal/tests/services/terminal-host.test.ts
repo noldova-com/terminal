@@ -2109,6 +2109,40 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
+    it("detaches a pane an earlier page of the window attached when its next page starts, as on a reload, so 1 MiB of output pauses its shell only while the mirror parses it", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      const sessionId: string = await fixture.openAsync();
+      await fixture.host.handleAsync("terminal.attach", { sessionId, paneId: "p1" }, new RequestClient(1, 1, true, 1));
+
+      await fixture.host.handleAsync("terminal.windowStarted", null, new RequestClient(1, 1, true, 2));
+      fixture.process.emitData("\r".repeat(1_048_577));
+
+      await vi.waitFor(() => assert.equal(fixture.process.resumes, fixture.process.pauses), { timeout: 5_000 });
+      await fixture.endAllAsync();
+    });
+
+    it("detaches the panes of a window's earlier pages when its next page starts, and all of a window's panes when it closes for good, but not another window's", async () => {
+      const detach = vi.spyOn(TerminalSession.prototype, "detach");
+      const detached = (): readonly string[] => detach.mock.calls.map(t => t[0]);
+      const fixture: HostFixture = await HostFixture.createAsync();
+      const sessionId: string = await fixture.openAsync();
+      const otherWindow: RequestClient = new RequestClient(1, 2, true, 1);
+      const panes: readonly (readonly [string, RequestClient])[] = [["p1", new RequestClient(1, 1, true, 1)], ["p2", new RequestClient(1, 1, true, 2)],
+        ["p3", otherWindow]];
+      for (const [paneId, client] of panes)
+        await fixture.host.handleAsync("terminal.attach", { sessionId, paneId }, client);
+
+      await fixture.host.handleAsync("terminal.windowStarted", null, new RequestClient(1, 1, true, 2));
+      const started: readonly string[] = detached();
+      await fixture.host.closeConnectionAsync(1, 1);
+      const closed: readonly string[] = detached();
+      await fixture.host.handleAsync("terminal.detach", { sessionId, paneId: "p3" }, otherWindow);
+      await fixture.host.closeConnectionAsync(1, 2);
+
+      assert.deepEqual([started, closed, detached()], [["p1"], ["p1", "p2"], ["p1", "p2", "p3"]]);
+      await fixture.endAllAsync();
+    });
+
     it("answers a window's start without waiting for another window's launch under way", async () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       const hold: PromiseWithResolvers<void> = Promise.withResolvers<void>();
