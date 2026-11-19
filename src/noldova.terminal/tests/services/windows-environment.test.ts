@@ -451,7 +451,7 @@ describe("WindowsEnvironment", () => {
 
     const logged: readonly unknown[] = fixture.log.callsOf("write").map(t => t[0]);
     fixture.source.end();
-    const ended: Readonly<Record<string, string | undefined>> = await reading;
+    const ended: Readonly<Record<string, string | undefined>> | null = await reading;
     await new Promise<void>(resolve => setImmediate(resolve));
 
     assert.equal(ended, INHERITED);
@@ -506,7 +506,7 @@ describe("WindowsEnvironment", () => {
     assert.ok(await isWaitingAsync(waiting));
 
     fixture.source.end();
-    const ended: Readonly<Record<string, string | undefined>> = await waiting;
+    const ended: Readonly<Record<string, string | undefined>> | null = await waiting;
     const later: Readonly<Record<string, string | undefined>> | null = await fixture.source.readAsync();
 
     assert.deepEqual([ended, later], [INHERITED, INHERITED]);
@@ -523,7 +523,7 @@ describe("WindowsEnvironment", () => {
     await fixture.reader.held.promise;
 
     fixture.source.end();
-    const ended: Readonly<Record<string, string | undefined>> = await reading;
+    const ended: Readonly<Record<string, string | undefined>> | null = await reading;
     if (isGone)
       fixture.reader.folders.delete(FOLDER);
     else
@@ -546,7 +546,7 @@ describe("WindowsEnvironment", () => {
       await fixture.runner.entered.promise;
 
       fixture.source.end();
-      const ended: Readonly<Record<string, string | undefined>> = await reading;
+      const ended: Readonly<Record<string, string | undefined>> | null = await reading;
       await new Promise<void>(resolve => setImmediate(resolve));
       const removedAtEnd: readonly string[] = [...fixture.writer.removed];
       fixture.runner.held.resolve();
