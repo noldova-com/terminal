@@ -594,7 +594,7 @@ describe("the runtime part with real shells", () => {
 `);
       if (interrupted.outcome !== "Typed") {
         await fixture.typeAsync(sessionId, "");
-        await new Promise<void>(t => setTimeout(t, 500));
+        await fixture.waitForPromptAfterAsync(sessionId, "^C");
         await fixture.typeAsync(sessionId, `echo "probe=$((${index}+1000))."`);
       }
       await fixture.waitForTextAsync(sessionId, `probe=${index + 1000}.`);
