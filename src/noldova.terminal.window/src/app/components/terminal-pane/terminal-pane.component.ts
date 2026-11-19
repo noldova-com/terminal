@@ -229,7 +229,7 @@ export class TerminalPaneComponent {
     terminal.onBinary(t => pager.type(t));
     terminal.onScroll(t => pager.scroll(t));
 
-    const paste = (event: ClipboardEvent): void => this.paste(terminal, event);
+    const paste = (event: ClipboardEvent): void => this.paste(pager, event);
     this.host.addEventListener(Resources.pasteEvent, paste, { capture: true });
     const removeSelection: () => void = this.context.registerSelectionSource(this.host,
       { hasSelection: () => terminal.hasSelection(), readSelection: () => terminal.getSelection() });
@@ -519,12 +519,12 @@ export class TerminalPaneComponent {
     }
   }
 
-  private paste(terminal: Terminal, event: ClipboardEvent): void {
+  private paste(pager: TerminalPager, event: ClipboardEvent): void {
     event.preventDefault();
     event.stopPropagation();
     const text: string = event.clipboardData?.getData(Resources.plainTextType) ?? "";
     if (text !== "")
-      terminal.paste(PasteFilter.clean(text));
+      pager.paste(PasteFilter.clean(text));
   }
 
   private openLink(event: MouseEvent, url: string): void {

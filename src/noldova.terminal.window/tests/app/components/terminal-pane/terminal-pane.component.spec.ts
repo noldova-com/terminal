@@ -407,6 +407,29 @@ describe("TerminalPaneComponent", () => {
     expect(host.inputs).toEqual(["\u001b[200~echo hi[201~x\u001b[201~"]);
   });
 
+  it("holds a paste made while it attaches, and the keys after it, until the snapshot's modes are back, then sends them in order, the paste bracketed as the program asked", async () => {
+    const host: PaneHost<TerminalPaneComponent> = createPane();
+    host.runtime.snapshot = "ready\u001b[?2004h";
+    host.runtime.holdAttaches();
+    await host.startAsync();
+    const paste = (text: string): void => {
+      const data: DataTransfer = new DataTransfer();
+      data.setData("text/plain", text);
+      host.textarea.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
+    };
+
+    host.press({ key: "Enter", code: "Enter", keyCode: 13 });
+    paste("echo a");
+    host.press({ key: "Enter", code: "Enter", keyCode: 13 });
+    paste("echo b");
+    const held: readonly string[] = [...host.inputs];
+    host.runtime.releaseAttaches();
+
+    await vi.waitFor(() => expect(host.inputs).toEqual(["\r", "\u001b[200~echo a\u001b[201~", "\r", "\u001b[200~echo b\u001b[201~"]), { timeout: SpecWait.milliseconds });
+    expect(held).toEqual(["\r"]);
+    await vi.waitFor(() => expect(host.text).toContain("ready"), { timeout: SpecWait.milliseconds });
+  });
+
   it("leaves status and attribute queries to the runtime", async () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     await host.attachedAsync();

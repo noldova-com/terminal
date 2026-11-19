@@ -212,16 +212,44 @@ describe("ShellCommand", () => {
     assert.equal(command.status, "Running");
   });
 
-  it("takes no mark or prompt from the shell a restart started after its typing", () => {
+  it("ends a command as killed where a restart started a new shell, taking no mark, prompt or output from it, and interrupts nothing in it", async () => {
     const fixture: CommandFixture = new CommandFixture();
     fixture.process.emitData(`${mark("A")}$ ${mark("B")}`);
-    const command: ShellCommand = fixture.run(0, "ls");
+    const command: ShellCommand = fixture.run(0, "npm test");
+    fixture.process.emitData(`npm test\r\n${mark("C")}running\r\n`);
+    const before: string = command.readSince(0).text;
     const next: FakePtyProcess = new FakePtyProcess(4_243);
     fixture.session.restart(next, "n1", new TerminalSize(80, 24));
 
-    next.emitData(`${mark("A")}$ ${mark("B")}ls\r\n${mark("C")}notes.txt\r\n${mark("D", "0")}${mark("A")}$ ${mark("B")}`);
+    next.emitData(`banner\r\n${mark("A")}$ ${mark("B")}ls\r\n${mark("C")}notes.txt\r\n${mark("D", "0")}${mark("A")}$ ${mark("B")}`);
+    const interrupted: boolean = command.interrupt();
+    await command.waitForEndAsync(1_000, SIGNAL);
 
-    assert.deepEqual([command.status, command.exitCode], ["Running", null]);
+    assert.deepEqual([command.status, command.exitCode, command.readSince(0).text, interrupted, next.writes], ["Killed", null, before, false, []]);
+  });
+
+  it("ends a command a restart cut short at its time limit without interrupting the new shell", async () => {
+    vi.useFakeTimers();
+    const fixture: CommandFixture = new CommandFixture();
+    fixture.process.emitData(`${mark("A")}$ ${mark("B")}`);
+    const command: ShellCommand = fixture.run(1_000, "sleep 9");
+    const next: FakePtyProcess = new FakePtyProcess(4_243);
+    fixture.session.restart(next, "n1", new TerminalSize(80, 24));
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    assert.deepEqual([command.status, next.writes], ["Killed", []]);
+  });
+
+  it("keeps a command that ended before a restart exited, with its code", () => {
+    const fixture: CommandFixture = new CommandFixture();
+    fixture.process.emitData(`${mark("A")}$ ${mark("B")}`);
+    const command: ShellCommand = fixture.run(0, "ls");
+    fixture.process.emitData(`ls\r\n${mark("C")}notes.txt\r\n${mark("D", "0")}${mark("A")}$ ${mark("B")}`);
+
+    fixture.session.restart(new FakePtyProcess(4_243), "n1", new TerminalSize(80, 24));
+
+    assert.deepEqual([command.status, command.exitCode], ["Exited", 0]);
   });
 
   it("keeps a command with its own start mark running through a prompt before its end mark, and ended once its end mark came", () => {

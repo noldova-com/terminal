@@ -47,6 +47,7 @@ export class HostedTerminal {
   public pendingCommand: AbortController | null = null;
   public launchCommandOffset: number | null = null;
   public readonly runs: Map<string, Promise<MirrorLine>> = new Map<string, Promise<MirrorLine>>();
+  public readonly paneClients: Map<string, RequestClient> = new Map<string, RequestClient>();
   public name: string | null = null;
   public isRunStarting: boolean = false;
   public waitingRun: WaitingRun | null = null;

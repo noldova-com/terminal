@@ -9,7 +9,7 @@
 import { FailureCode } from "@noldova/desktop.protocol";
 import type { JsonValue } from "@noldova/context.json";
 import { EndedBy, TerminalExit, TerminalLine, TerminalLineRange, TerminalNames, TerminalSize, TerminalTextRun, WindowsPty, type TerminalAttachment, TerminalInputEdge, TerminalInputMark, type TerminalLinePage } from "@noldova/terminal.protocol";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type { ITerminalSink } from "../../../src/app/interfaces/i-terminal-sink.ts";
 import { TerminalConnection } from "../../../src/app/services/terminal-connection.ts";
@@ -250,7 +250,7 @@ describe("TerminalConnection", () => {
     await vi.waitFor(() => expect(harness.runtime.attachCount).toBe(2), { timeout: SpecWait.milliseconds });
   });
 
-  it("sends input, sizes and visibility only while attached, and nothing for empty input or an unchanged visibility", async () => {
+  it("sends input typed while the attach is held at once, sizes and visibility only once attached, and nothing for empty input or an unchanged visibility", async () => {
     const harness: ConnectionHarness = createHarness();
     harness.runtime.holdAttaches();
     const opening: Promise<void> = harness.connection.openAsync();
@@ -266,10 +266,46 @@ describe("TerminalConnection", () => {
     harness.connection.setVisible(true);
     harness.connection.setVisible(false);
 
-    expect(harness.sent(TerminalNames.inputMethod)).toEqual([{ sessionId: "s1", data: "ls\r" }]);
+    expect(harness.sent(TerminalNames.inputMethod)).toEqual(["early", "ls\r"].map(t => ({ sessionId: "s1", data: t })));
     expect(harness.sent(TerminalNames.resizeMethod)).toEqual([{ sessionId: "s1", size: { cols: 120, rows: 40 } }]);
     expect(harness.sent(TerminalNames.visibilityMethod).map(t => (t as { visible: boolean }).visible)).toEqual([true, false]);
     expect(harness.runtime.attachCount).toBe(1);
+  });
+
+  it("sends keys and a paste typed while a new pane draws its first attach at once, in order, before the keys after it", async () => {
+    const harness: ConnectionHarness = createHarness();
+    let draw: () => void = () => undefined;
+    harness.sink.drawn = new Promise<void>(resolve => {
+      draw = resolve;
+    });
+
+    const opening: Promise<void> = harness.openAsync();
+    await vi.waitFor(() => expect(harness.sink.events.at(-1)).toBe("reset 80x24 none"), { timeout: SpecWait.milliseconds });
+    harness.connection.input("e");
+    harness.connection.input("\u001b[200~paste\u001b[201~");
+    draw();
+    await opening;
+    harness.connection.input("\r");
+
+    expect(harness.sent(TerminalNames.inputMethod)).toEqual(["e", "\u001b[200~paste\u001b[201~", "\r"].map(t => ({ sessionId: "s1", data: t })));
+  });
+
+  it("sends what is typed into the pane a move opens while it attaches to the same terminal, after the old pane closed", async () => {
+    const harness: ConnectionHarness = createHarness();
+    await harness.openAsync();
+    harness.connection.close();
+    const moved: TerminalConnection = new TerminalConnection(harness.runtime.context, "s1", "p2", new SinkRecorder());
+    onTestFinished(() => moved.close());
+
+    harness.runtime.holdAttaches();
+    const opening: Promise<void> = moved.openAsync();
+    moved.setVisible(true);
+    moved.input("cd ..\r");
+    harness.runtime.releaseAttaches();
+    await opening;
+
+    expect([harness.sent(TerminalNames.attachMethod).map(t => (t as { paneId: string }).paneId), harness.sent(TerminalNames.inputMethod)])
+      .toEqual([["p1", "p2"], [{ sessionId: "s1", data: "cd ..\r" }]]);
   });
 
   it("keeps sending input and sizes while an attached pane's refresh draws, and detaches when it closes then", async () => {
@@ -305,7 +341,7 @@ describe("TerminalConnection", () => {
     expect(harness.sent(TerminalNames.inputMethod)).toHaveLength(3);
   });
 
-  it("sends nothing while a pane that isn't attached refreshes, nor once a newer attach takes over a refresh", async () => {
+  it("sends no sizes while a pane that isn't attached refreshes, nor once a newer attach takes over a refresh, and sends input throughout", async () => {
     const harness: ConnectionHarness = createHarness();
     harness.runtime.holdAttaches();
     const opening: Promise<void> = harness.openAsync();
@@ -324,7 +360,7 @@ describe("TerminalConnection", () => {
     harness.runtime.releaseAttaches();
     await overtaken;
 
-    expect(harness.sent(TerminalNames.inputMethod)).toEqual([{ sessionId: "s1", data: "a" }]);
+    expect(harness.sent(TerminalNames.inputMethod)).toEqual(["early", "a", "b"].map(t => ({ sessionId: "s1", data: t })));
     expect(harness.sent(TerminalNames.resizeMethod)).toEqual([]);
   });
 
@@ -354,17 +390,36 @@ describe("TerminalConnection", () => {
     expect(harness.sent(TerminalNames.ackMethod)).toEqual([]);
   });
 
-  it("does not detach a pane that never attached, and ignores an attach that finishes after it closed", async () => {
+  it("detaches a pane closed while its first attach is held once the attach answers, drawing nothing, so the runtime counts no pane that is gone", async () => {
     const harness: ConnectionHarness = createHarness();
     harness.runtime.holdAttaches();
     const opening: Promise<void> = harness.connection.openAsync();
 
     harness.connection.close();
+    const beforeAnswer: readonly unknown[] = [...harness.sent(TerminalNames.detachMethod)];
     harness.runtime.releaseAttaches();
     await opening;
 
-    expect(harness.sent(TerminalNames.detachMethod)).toEqual([]);
+    expect([beforeAnswer, harness.sent(TerminalNames.detachMethod)]).toEqual([[], [{ sessionId: "s1", paneId: "p1" }]]);
     expect(harness.sink.events).toEqual([]);
+  });
+
+  it("detaches a pane closed while it draws its first attach once, when the draw ends", async () => {
+    const harness: ConnectionHarness = createHarness();
+    let draw: () => void = () => undefined;
+    harness.sink.drawn = new Promise<void>(resolve => {
+      draw = resolve;
+    });
+    const opening: Promise<void> = harness.openAsync();
+    await vi.waitFor(() => expect(harness.sink.events.at(-1)).toBe("reset 80x24 none"), { timeout: SpecWait.milliseconds });
+
+    harness.connection.close();
+    const beforeDraw: readonly unknown[] = [...harness.sent(TerminalNames.detachMethod)];
+    draw();
+    await opening;
+    harness.connection.close();
+
+    expect([beforeDraw, harness.sent(TerminalNames.detachMethod)]).toEqual([[], [{ sessionId: "s1", paneId: "p1" }]]);
   });
 
   it("attaches again at once when the runtime detaches a shown pane", async () => {

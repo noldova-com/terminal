@@ -50,6 +50,7 @@ export class TerminalSession {
   private receivedOffset: number = 0;
   private reportedCwd: string | null = null;
   private readonly typedLines: Set<TypedLine> = new Set<TypedLine>();
+  private readonly restartOffsets: number[] = [];
   private readonly options: ShellOptionsQueue = new ShellOptionsQueue();
   private isPromptNew: boolean = false;
   private hasAnsweredOptions: boolean = false;
@@ -154,6 +155,14 @@ export class TerminalSession {
 
   public get prompts(): number {
     return this.commands.prompts;
+  }
+
+  public get run(): number {
+    return this.restartOffsets.length;
+  }
+
+  public endOfRun(run: number): number | null {
+    return this.restartOffsets[run] ?? null;
   }
 
   public get hasExited(): boolean {
@@ -267,6 +276,7 @@ export class TerminalSession {
   }
 
   public restart(process: IPtyProcess, nonce: string | null, size: TerminalSize): void {
+    this.restartOffsets.push(this.text.endOffset);
     this.wakeup?.stop();
     this.terminal = this.startTerminal(process);
     if (this.flow.isPaused)

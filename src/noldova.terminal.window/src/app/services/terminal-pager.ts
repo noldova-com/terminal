@@ -23,6 +23,7 @@ export class TerminalPager {
   private drawPagesAsync: ((attachment: TerminalAttachment) => Promise<void>) | null = null;
   private drawing: Promise<void> = Promise.resolve();
   private followed: TerminalLineRange | null = null;
+  private held: (() => void)[] | null = [];
   private isLoaded: boolean = false;
   private isAttached: boolean = true;
   private isRebuilding: boolean = false;
@@ -67,6 +68,10 @@ export class TerminalPager {
   }
 
   public type(data: string): void {
+    if (this.held !== null && this.held.length > 0) {
+      this.held.push(() => this.type(data));
+      return;
+    }
     this.connection.input(data);
     if (this.isAttached)
       return;
@@ -74,6 +79,13 @@ export class TerminalPager {
     this.isReturning = true;
     if (!this.isRebuilding)
       void this.extendAsync(() => this.comeBackAsync());
+  }
+
+  public paste(text: string): void {
+    if (this.held === null)
+      this.terminal.paste(text);
+    else
+      this.held.push(() => this.terminal.paste(text));
   }
 
   public scroll(viewportY: number): void {
@@ -100,6 +112,7 @@ export class TerminalPager {
     await this.writeAsync("");
     this.window.reset(attachment.stored);
     this.onReset(attachment.size, attachment.windowsPty);
+    this.restoreModes(attachment);
     this.keepRows(0);
     this.terminal.write(attachment.snapshot + attachment.pending);
     this.isAttached = true;
@@ -205,8 +218,10 @@ export class TerminalPager {
     await this.writeAsync("");
     if (attachment === null)
       this.terminal.reset();
-    else
+    else {
       this.onReset(attachment.size, attachment.windowsPty);
+      this.restoreModes(attachment);
+    }
     this.keepRows(this.pagedRows());
     if (this.window.first === this.window.stored.start && this.window.stored.dropped > 0)
       await this.writeAsync(`${Resources.noteAttributes}${Resources.formatDroppedLines(this.window.stored.dropped)}${Resources.resetAttributes}${Resources.lineBreak}`);
@@ -230,6 +245,17 @@ export class TerminalPager {
     const bottom: number = this.terminal.buffer.active.baseY;
     this.terminal.scrollToLine(this.isReturning && this.isAttached ? bottom : Math.min(Math.max(0, anchorRow + offset), bottom));
     this.isReturning = this.isReturning && !this.isAttached;
+  }
+
+  private restoreModes(attachment: TerminalAttachment): void {
+    const held: (() => void)[] = this.held ?? [];
+    this.held = held;
+    const tail: string = attachment.snapshot.slice(attachment.snapshot.search(Resources.modesTail));
+    this.terminal.write((tail.match(Resources.inputModes) ?? []).join(""), () => {
+      this.held = null;
+      for (const send of held)
+        send();
+    });
   }
 
   private pagedRows(): number {
