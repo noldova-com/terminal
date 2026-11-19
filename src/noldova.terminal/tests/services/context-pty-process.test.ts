@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { constants } from "node:os";
 
-import { PseudoTerminal } from "@noldova/desktop.runtime";
+import { PseudoTerminal, type PseudoTerminalForeground } from "@noldova/desktop.runtime";
 import { describe, it, vi } from "vitest";
 
 import type { IDisposable } from "../../src/interfaces/i-disposable.ts";
@@ -28,10 +28,10 @@ function waitForExitAsync(process: ContextPtyProcess): Promise<IPtyExitEvent> {
 }
 
 class GroupedTerminal extends PseudoTerminal {
-  public group: number | null = null;
+  public foreground: PseudoTerminalForeground | null = null;
 
-  public override readForegroundProcessGroupAsync(): Promise<number | null> {
-    return Promise.resolve(this.group);
+  public override readForegroundAsync(): Promise<PseudoTerminalForeground | null> {
+    return Promise.resolve(this.foreground);
   }
 }
 
@@ -53,14 +53,16 @@ describe("ContextPtyProcess", () => {
     assert.deepEqual([process.pid, output, handle.writes, handle.sizes, handle.pauses, handle.resumes], [4_343, ["first"], ["ls\r"], ["120x30"], 1, 1]);
   });
 
-  it("hands on the foreground process group that the runtime reads for the terminal", async () => {
+  it("hands on the foreground process group that the runtime reads, and the shell's own while that group still runs the shell's program", async () => {
     const terminal: GroupedTerminal = new GroupedTerminal(new FakePtyHandle(4_343), "/bin/bash", new Date(), () => Promise.resolve(true));
     const process: ContextPtyProcess = new ContextPtyProcess(terminal);
 
     const none: number | null = await process.readForegroundProcessGroupAsync();
-    terminal.group = 5_000;
+    terminal.foreground = { group: 5_000, runsOwnProgram: true };
+    const forked: number | null = await process.readForegroundProcessGroupAsync();
+    terminal.foreground = { group: 5_000, runsOwnProgram: false };
 
-    assert.deepEqual([none, await process.readForegroundProcessGroupAsync()], [null, 5_000]);
+    assert.deepEqual([none, forked, await process.readForegroundProcessGroupAsync()], [null, 4_343, 5_000]);
   });
 
   it("hands on the output that came before its listener once the listener has registered, before the output that follows", async () => {
