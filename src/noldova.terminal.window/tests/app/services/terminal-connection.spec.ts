@@ -354,17 +354,36 @@ describe("TerminalConnection", () => {
     expect(harness.sent(TerminalNames.ackMethod)).toEqual([]);
   });
 
-  it("does not detach a pane that never attached, and ignores an attach that finishes after it closed", async () => {
+  it("detaches a pane closed while its first attach is held once the attach answers, drawing nothing, so the runtime counts no pane that is gone", async () => {
     const harness: ConnectionHarness = createHarness();
     harness.runtime.holdAttaches();
     const opening: Promise<void> = harness.connection.openAsync();
 
     harness.connection.close();
+    const beforeAnswer: readonly unknown[] = [...harness.sent(TerminalNames.detachMethod)];
     harness.runtime.releaseAttaches();
     await opening;
 
-    expect(harness.sent(TerminalNames.detachMethod)).toEqual([]);
+    expect([beforeAnswer, harness.sent(TerminalNames.detachMethod)]).toEqual([[], [{ sessionId: "s1", paneId: "p1" }]]);
     expect(harness.sink.events).toEqual([]);
+  });
+
+  it("detaches a pane closed while it draws its first attach once, when the draw ends", async () => {
+    const harness: ConnectionHarness = createHarness();
+    let draw: () => void = () => undefined;
+    harness.sink.drawn = new Promise<void>(resolve => {
+      draw = resolve;
+    });
+    const opening: Promise<void> = harness.openAsync();
+    await vi.waitFor(() => expect(harness.sink.events.at(-1)).toBe("reset 80x24 none"), { timeout: SpecWait.milliseconds });
+
+    harness.connection.close();
+    const beforeDraw: readonly unknown[] = [...harness.sent(TerminalNames.detachMethod)];
+    draw();
+    await opening;
+    harness.connection.close();
+
+    expect([beforeDraw, harness.sent(TerminalNames.detachMethod)]).toEqual([[], [{ sessionId: "s1", paneId: "p1" }]]);
   });
 
   it("attaches again at once when the runtime detaches a shown pane", async () => {
