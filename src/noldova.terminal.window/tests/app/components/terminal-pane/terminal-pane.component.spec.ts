@@ -411,7 +411,7 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.runtime.snapshot = "\u001b[?2004hready";
     host.runtime.holdAttaches();
-    await host.attachedAsync();
+    await host.startAsync();
     const paste = (text: string): void => {
       const data: DataTransfer = new DataTransfer();
       data.setData("text/plain", text);
