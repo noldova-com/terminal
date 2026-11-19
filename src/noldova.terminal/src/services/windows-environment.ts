@@ -28,7 +28,7 @@ export class WindowsEnvironment implements IEnvironmentSource {
   private readonly log: IModuleLog;
   private readonly reg: string | null;
   private readonly ending: PromiseWithResolvers<void> = Promise.withResolvers<void>();
-  private reading: Promise<Readonly<Record<string, string | undefined>>> | null = null;
+  private reading: Promise<Readonly<Record<string, string | undefined>> | null> | null = null;
   private folder: Promise<string> | null = null;
   private readCount: number = 0;
   private ended: boolean = false;
@@ -45,11 +45,11 @@ export class WindowsEnvironment implements IEnvironmentSource {
     void this.readAsync();
   }
 
-  public readAsync(): Promise<Readonly<Record<string, string | undefined>>> {
+  public readAsync(): Promise<Readonly<Record<string, string | undefined>> | null> {
     if (this.ended)
       return Promise.resolve(this.environment);
     if (this.reading === null) {
-      const reading: Promise<Readonly<Record<string, string | undefined>>> = Promise.race([this.readNowAsync(), this.ending.promise.then(() => this.environment)]);
+      const reading: Promise<Readonly<Record<string, string | undefined>> | null> = Promise.race([this.readNowAsync(), this.ending.promise.then(() => this.environment)]);
       this.reading = reading;
       void reading.then(() => {
         this.reading = null;
@@ -66,7 +66,7 @@ export class WindowsEnvironment implements IEnvironmentSource {
     void folder?.then(t => this.tools.writer.removeFolderAsync(t)).catch((error: unknown) => this.logCleanupFailure(error));
   }
 
-  private async readNowAsync(): Promise<Readonly<Record<string, string | undefined>>> {
+  private async readNowAsync(): Promise<Readonly<Record<string, string | undefined>> | null> {
     try {
       const reg: string | null = this.reg;
       if (reg === null)
@@ -91,7 +91,7 @@ export class WindowsEnvironment implements IEnvironmentSource {
     }
     catch (error: unknown) {
       this.log.write(Resources.formatEnvironmentUnread(FailureText.read(error)));
-      return this.environment;
+      return null;
     }
   }
 

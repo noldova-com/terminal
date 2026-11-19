@@ -734,6 +734,30 @@ describe("TerminalHost", () => {
     await fixture.endAllAsync();
   });
 
+  it("completes from the last good environment read when a later read gives nothing, as a failed Windows read does", async () => {
+    let reads: number = 0;
+    const source: IEnvironmentSource = {
+      start: () => undefined,
+      readAsync: () => Promise.resolve(++reads === 1 ? { SHELL: "/bin/bash", PATH: "/opt/bin" } : null),
+      end: () => undefined
+    };
+    const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", { SHELL: "/bin/bash", PATH: "/usr/bin" }, source);
+    fixture.fileSystem.files.set("/usr/bin/grep", "");
+    fixture.fileSystem.files.set("/opt/bin/grepx", "");
+    const sessionId: string = await fixture.openAsync();
+    const completeAsync = async (): Promise<readonly string[]> =>
+      TerminalCompletion.fromJson(await fixture.host.handleAsync("terminal.complete", { sessionId, line: "gr", cursor: 2 }, APP)).items.map(t => t.label);
+
+    const before: readonly string[] = await completeAsync();
+    await vi.waitFor(async () => {
+      await completeAsync();
+      assert.equal(reads, 3);
+    });
+
+    assert.deepEqual([before, await completeAsync()], [["grepx"], ["grepx"]]);
+    await fixture.endAllAsync();
+  });
+
   it("completes a Windows terminal's commands from its reported PATH, in place of the start Path whatever its case", async () => {
     const fixture: HostFixture = await HostFixture.createAsync("win32", "10.0.26100", { SystemRoot: "C:\\Windows", Path: "C:\\Windows", PATHEXT: ".EXE;.CMD" });
     fixture.fileSystem.files.set("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "");

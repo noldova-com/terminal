@@ -16,13 +16,13 @@ import { LatestEnvironment } from "../../src/services/latest-environment.ts";
 type Environment = Readonly<Record<string, string | undefined>>;
 
 class HeldSource implements IEnvironmentSource {
-  public readonly reads: PromiseWithResolvers<Environment>[] = [];
+  public readonly reads: PromiseWithResolvers<Environment | null>[] = [];
 
   public start(): void {
   }
 
-  public readAsync(): Promise<Environment> {
-    const read: PromiseWithResolvers<Environment> = Promise.withResolvers<Environment>();
+  public readAsync(): Promise<Environment | null> {
+    const read: PromiseWithResolvers<Environment | null> = Promise.withResolvers<Environment | null>();
     this.reads.push(read);
     return read.promise;
   }
@@ -56,6 +56,20 @@ describe("LatestEnvironment", () => {
     });
 
     assert.deepEqual(latest.read(), { NAME: "inherited" });
+  });
+
+  it("keeps the last finished read when a later read gives nothing, and gives a read asked for directly the inherited environment then", async () => {
+    const source: HeldSource = new HeldSource();
+    const latest: LatestEnvironment = new LatestEnvironment(source, { NAME: "inherited" });
+
+    const first: Promise<Environment> = latest.readAsync();
+    source.reads[0]?.resolve({ NAME: "read" });
+    const read: Environment = await first;
+    const second: Promise<Environment> = latest.readAsync();
+    source.reads[1]?.resolve(null);
+    const unread: Environment = await second;
+
+    assert.deepEqual([read, unread, latest.read()], [{ NAME: "read" }, { NAME: "inherited" }, { NAME: "read" }]);
   });
 
   it("waits for a read asked for directly, gives it from then on, and passes on a read's failure", async () => {
