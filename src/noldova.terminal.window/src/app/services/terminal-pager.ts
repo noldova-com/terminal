@@ -23,7 +23,7 @@ export class TerminalPager {
   private drawPagesAsync: ((attachment: TerminalAttachment) => Promise<void>) | null = null;
   private drawing: Promise<void> = Promise.resolve();
   private followed: TerminalLineRange | null = null;
-  private heldPastes: string[] | null = [];
+  private held: (() => void)[] | null = [];
   private isLoaded: boolean = false;
   private isAttached: boolean = true;
   private isRebuilding: boolean = false;
@@ -68,6 +68,10 @@ export class TerminalPager {
   }
 
   public type(data: string): void {
+    if (this.held !== null && this.held.length > 0) {
+      this.held.push(() => this.type(data));
+      return;
+    }
     this.connection.input(data);
     if (this.isAttached)
       return;
@@ -78,10 +82,10 @@ export class TerminalPager {
   }
 
   public paste(text: string): void {
-    if (this.heldPastes === null)
+    if (this.held === null)
       this.terminal.paste(text);
     else
-      this.heldPastes.push(text);
+      this.held.push(() => this.terminal.paste(text));
   }
 
   public scroll(viewportY: number): void {
@@ -244,13 +248,13 @@ export class TerminalPager {
   }
 
   private restoreModes(attachment: TerminalAttachment): void {
-    const pastes: string[] = this.heldPastes ?? [];
-    this.heldPastes = pastes;
+    const held: (() => void)[] = this.held ?? [];
+    this.held = held;
     const tail: string = attachment.snapshot.slice(attachment.snapshot.search(Resources.modesTail));
     this.terminal.write((tail.match(Resources.inputModes) ?? []).join(""), () => {
-      this.heldPastes = null;
-      for (const text of pastes)
-        this.terminal.paste(text);
+      this.held = null;
+      for (const send of held)
+        send();
     });
   }
 
