@@ -758,6 +758,44 @@ describe("TerminalHost", () => {
     await fixture.endAllAsync();
   });
 
+  it("runs at most two of a completion's folder reads while two run past their deadline, drops the rest, and still starts a shell", async () => {
+    const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", { SHELL: "/bin/bash", PATH: "/slow1:/slow2:/usr/bin:/opt/bin" });
+    const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    fixture.fileSystem.stalled.set("/slow1", stall.promise);
+    fixture.fileSystem.stalled.set("/slow2", stall.promise);
+    fixture.fileSystem.files.set("/usr/bin/grep", "");
+    const folders: ReadonlySet<string> = new Set<string>(["/slow1", "/slow2", "/usr/bin", "/opt/bin"]);
+    const sessionId: string = await fixture.openAsync();
+
+    const completion: JsonValue = await fixture.host.handleAsync("terminal.complete", { sessionId, line: "gr", cursor: 2 }, APP);
+    const listed: readonly string[] = fixture.fileSystem.listed.filter(t => folders.has(t));
+    const started: string = await fixture.openAsync();
+    stall.resolve();
+
+    assert.deepEqual([TerminalCompletion.fromJson(completion).items, listed, started.length > 0], [[], ["/slow1", "/slow2"], true]);
+    await fixture.endAllAsync();
+  });
+
+  it("lists the command a PATH change adds once the folder reads held past their deadline end", async () => {
+    const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", { SHELL: "/bin/bash", PATH: "/slow1:/slow2:/usr/bin" });
+    const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    fixture.fileSystem.stalled.set("/slow1", stall.promise);
+    fixture.fileSystem.stalled.set("/slow2", stall.promise);
+    fixture.fileSystem.files.set("/usr/bin/grep", "");
+    fixture.fileSystem.files.set("/opt/bin/grepx", "");
+    const sessionId: string = await fixture.openAsync();
+    const completeAsync = async (): Promise<readonly string[]> =>
+      TerminalCompletion.fromJson(await fixture.host.handleAsync("terminal.complete", { sessionId, line: "gr", cursor: 2 }, APP)).items.map(t => t.label);
+
+    const held: readonly string[] = await completeAsync();
+    fixture.reportPath(fixture.process, "/opt/bin:/slow1:/slow2:/usr/bin");
+    stall.resolve();
+    await vi.waitFor(async () => assert.deepEqual(await completeAsync(), ["grep", "grepx"]));
+
+    assert.deepEqual(held, []);
+    await fixture.endAllAsync();
+  });
+
   it("completes a Windows terminal's commands from its reported PATH, in place of the start Path whatever its case", async () => {
     const fixture: HostFixture = await HostFixture.createAsync("win32", "10.0.26100", { SystemRoot: "C:\\Windows", Path: "C:\\Windows", PATHEXT: ".EXE;.CMD" });
     fixture.fileSystem.files.set("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "");
