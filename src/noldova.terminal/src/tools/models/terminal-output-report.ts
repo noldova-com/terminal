@@ -22,13 +22,15 @@ export class TerminalOutputReport {
     type: Resources.jsonObjectType,
     additionalProperties: false,
     required: [
-      Resources.terminalIdField, Resources.titleField, Resources.terminalOutputReportMethodField, Resources.terminalOutputReportStatusField,
+      Resources.terminalIdField, Resources.titleField, Resources.nameField, Resources.shellNameField, Resources.terminalOutputReportMethodField, Resources.terminalOutputReportStatusField,
       Resources.terminalOutputReportExitCodeField, Resources.cwdField, Resources.terminalOutputReportOutputField,
       Resources.terminalOutputReportOmittedCharactersField, Resources.terminalOutputReportLogFileField, Resources.terminalOutputReportIsAwaitingSecretField
     ],
     properties: {
       [Resources.terminalIdField]: { type: Resources.jsonStringType },
       [Resources.titleField]: { type: Resources.jsonStringType },
+      [Resources.nameField]: { type: [Resources.jsonStringType, Resources.jsonNullType], description: Resources.nameFieldDescription },
+      [Resources.shellNameField]: { type: Resources.jsonStringType, description: Resources.shellNameFieldDescription },
       [Resources.terminalOutputReportMethodField]: { type: [Resources.jsonStringType, Resources.jsonNullType], enum: [...Object.values(RunMethod), null], description: Resources.methodFieldDescription },
       [Resources.terminalOutputReportStatusField]: { type: [Resources.jsonStringType, Resources.jsonNullType], enum: [...Object.values(CommandStatus), null], description: Resources.statusFieldDescription },
       [Resources.terminalOutputReportExitCodeField]: { type: [Resources.jsonIntegerType, Resources.jsonNullType] },
@@ -61,6 +63,8 @@ export class TerminalOutputReport {
       {
         [Resources.terminalIdField]: this.access.terminal.id,
         [Resources.titleField]: this.access.terminal.title,
+        [Resources.nameField]: this.access.terminal.name,
+        [Resources.shellNameField]: this.access.terminal.shellName,
         [Resources.terminalOutputReportMethodField]: this.command === null ? null : this.command.method,
         [Resources.terminalOutputReportStatusField]: status,
         [Resources.terminalOutputReportExitCodeField]: exitCode,
