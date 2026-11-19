@@ -15,9 +15,11 @@ import type { TerminalSession } from "../services/terminal-session.ts";
 import type { MirrorLine } from "./mirror-line.ts";
 import type { RequestClient } from "./request-client.ts";
 import type { Shell } from "./shell.ts";
+import { TerminalOpening } from "./terminal-opening.ts";
 import type { WaitingRun } from "./waiting-run.ts";
 
 export class HostedTerminal {
+  private readonly opening: TerminalOpening;
   private pendingInterrupt: AbortController | null = null;
 
   public readonly session: TerminalSession;
@@ -64,6 +66,7 @@ export class HostedTerminal {
     this.owner = owner;
     this.connection = connection;
     this.environment = environment;
+    this.opening = new TerminalOpening(owner, connection);
   }
 
   public get hasRecentInput(): boolean {
@@ -124,7 +127,7 @@ export class HostedTerminal {
   }
 
   public isReachedBy(connection: number, isApp: boolean): boolean {
-    return this.connection === null ? this.owner !== null && isApp : this.connection === connection;
+    return this.opening.isReachedBy(connection, isApp);
   }
 
   private record(prompt: number | null): void {
