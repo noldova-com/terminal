@@ -43,6 +43,7 @@ const OPTIONS_POLL_MS: number = 10;
 const OUTPUT_TAIL: number = 1_500;
 const QUIET_MS: number = 1_000;
 const WORK_FOLDER: string = "work-folder";
+const READY_FILE: string = "noldovaready";
 const C1_FOLDER: string = "c1-\u009c-folder";
 const ESCAPED_FOLDER: string = process.platform === "win32" ? "escaped-;-folder" : "escaped-;-\\-\t-folder";
 const SCRIPT_FOLDER: string = "gone \u0219\u0434 '$(echo ran-a)' \"`echo ran-b`\" $(echo ran-c) %s \\a \u0007 ;exit";
@@ -166,6 +167,15 @@ class RuntimeFixture {
     }, { timeout: timeoutMilliseconds, interval: TEXT_POLL_MS });
   }
 
+  public async waitForCompletionsAsync(sessionId: string, isPowerShell: boolean): Promise<void> {
+    const line: string = `${isPowerShell ? "Get-Item -Path " : "printf '[%s]\\n' "}${READY_FILE.slice(0, -1)}`;
+    await vi.waitFor(async () => {
+      const labels: readonly string[] = TerminalCompletion.fromJson(await this.callAsync("terminal.complete", { sessionId, line, cursor: line.length }))
+        .items.map(t => t.label);
+      assert.deepEqual(labels, [READY_FILE], `${JSON.stringify(line)} did not complete ${READY_FILE}, so a folder read may still be running.`);
+    }, { timeout: WAIT_MS, interval: TEXT_POLL_MS });
+  }
+
   public async waitForPromptAsync(sessionId: string, marked: number, description: string): Promise<void> {
     await this.waitForAsync(sessionId, () => this.kinds(sessionId).length > marked && this.kinds(sessionId).endsWith("B"), description);
   }
@@ -239,6 +249,7 @@ function defineRealShellTests(covered: readonly string[]): void {
     workFolder = join(folder, WORK_FOLDER);
     await mkdir(home);
     await mkdir(workFolder);
+    await writeFile(join(workFolder, READY_FILE), "", "utf8");
     await writeFile(join(home, ".bashrc"), BASH_STARTUP, "utf8");
     await writeFile(join(home, ".bash_profile"), ". ~/.bashrc\n", "utf8");
     await writeFile(join(home, ".zshrc"), ZSH_STARTUP, "utf8");
@@ -660,8 +671,10 @@ function defineRealShellTests(covered: readonly string[]): void {
         { encoding: "utf8", mode: 0o755 });
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
       await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
-      const completeAsync = async (): Promise<readonly string[]> =>
-        TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line: "noldovapro", cursor: 10 })).items.map(t => t.label);
+      const completeAsync = async (): Promise<readonly string[]> => {
+        await fixture.waitForCompletionsAsync(sessionId, POWERSHELL_IDS.includes(shellId));
+        return TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line: "noldovapro", cursor: 10 })).items.map(t => t.label);
+      };
       assert.deepEqual(await completeAsync(), []);
 
       const changePathAsync = async (line: string): Promise<readonly string[]> => {
@@ -803,10 +816,14 @@ function defineRealShellTests(covered: readonly string[]): void {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const sessionId: string = await fixture.openAsync(shellId, workFolder);
       await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
-      const findAsync = async (): Promise<readonly string[]> => TerminalMissingCommands.fromJson(await fixture.callAsync("terminal.findCommands",
-        { sessionId, names: ["if", "cd", "ls", "noldovaalias", "noldovafunction", "noldovanone"] })).names;
+      const findAsync = async (): Promise<readonly string[]> => {
+        await fixture.waitForCompletionsAsync(sessionId, false);
+        return TerminalMissingCommands.fromJson(await fixture.callAsync("terminal.findCommands",
+          { sessionId, names: ["if", "cd", "ls", "noldovaalias", "noldovafunction", "noldovanone"] })).names;
+      };
       if (shellId === "git-bash" && !fixture.marks(sessionId).some(t => t.value?.startsWith("Names=") === true)) {
         assert.deepEqual(await findAsync(), []);
+        await fixture.waitForCompletionsAsync(sessionId, false);
         const builtins: readonly string[] = TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line: "expor", cursor: 5 }))
           .items.map(t => t.label);
         assert.deepEqual(builtins, ["export"]);
@@ -823,6 +840,7 @@ function defineRealShellTests(covered: readonly string[]): void {
       const names: readonly string[] = (fixture.marks(sessionId).findLast(t => t.value?.startsWith("Names=") === true)?.value ?? "").split(" ");
       assert.deepEqual([before, await findAsync()], [["noldovaalias", "noldovafunction", "noldovanone"], ["noldovanone"]]);
       assert.deepEqual([names.includes("noldovafunction"), names.includes("_noldovahelper")], [true, false]);
+      await fixture.waitForCompletionsAsync(sessionId, false);
       const completion: TerminalCompletion = TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line: "noldovaf", cursor: 8 }));
       assert.deepEqual(completion.items.map(t => t.label), ["noldovafunction"]);
       await fixture.callAsync("terminal.close", { sessionId });
@@ -879,14 +897,18 @@ function defineRealShellTests(covered: readonly string[]): void {
       context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
       const folder: string = join(dirname(workFolder), `autocd-${shellId}`);
       await mkdir(join(folder, "noldovafolder"), { recursive: true });
+      await writeFile(join(folder, READY_FILE), "", "utf8");
       const sessionId: string = await fixture.openAsync(shellId, folder);
       await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
       if (shellId === "git-bash" && !fixture.marks(sessionId).some(t => t.value?.startsWith("Names=") === true)) {
         await fixture.callAsync("terminal.close", { sessionId });
         context.skip("Git Bash before bash 5.3 sends no names, since its subshell at each prompt would be slow.");
       }
-      const findAsync = async (): Promise<readonly string[]> => TerminalMissingCommands.fromJson(await fixture.callAsync("terminal.findCommands",
-        { sessionId, names: ["noldovafolder", "notes.noldovasuffix", "noldovanone"] })).names;
+      const findAsync = async (): Promise<readonly string[]> => {
+        await fixture.waitForCompletionsAsync(sessionId, false);
+        return TerminalMissingCommands.fromJson(await fixture.callAsync("terminal.findCommands",
+          { sessionId, names: ["noldovafolder", "notes.noldovasuffix", "noldovanone"] })).names;
+      };
       const before: readonly string[] = await findAsync();
 
       const marked: number = fixture.kinds(sessionId).length;
@@ -940,6 +962,7 @@ function defineRealShellTests(covered: readonly string[]): void {
         await fixture.typeAsync(sessionId, `export PATH="$(cygpath -u '${added}'):$PATH"\r`);
         await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).length > marked && fixture.kinds(sessionId).endsWith("B"),
           "Git Bash did not prompt again after PATH changed.");
+        await fixture.waitForCompletionsAsync(sessionId, false);
         return TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line: "noldovapro", cursor: 10 })).items.map(t => t.label);
       };
 
