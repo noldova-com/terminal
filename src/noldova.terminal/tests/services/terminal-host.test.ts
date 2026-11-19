@@ -16,7 +16,7 @@ import { JsonException, type JsonValue } from "@noldova/context.json";
 import { FailureCode } from "@noldova/desktop.protocol";
 import { MethodFailureException } from "@noldova/desktop.runtime";
 import { TerminalAttachment, TerminalCompletion, TerminalLaunched, TerminalLinePage, TerminalMissingCommands, TerminalOutput, TerminalReference, TerminalRunResult, TerminalSessions, TerminalShellKind, TerminalSize, TerminalSummary } from "@noldova/terminal.protocol";
-import { afterEach, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, type MockInstance, vi } from "vitest";
 
 import { AgentTerminalRestartException } from "../../src/exceptions/agent-terminal-restart.exception.ts";
 import { DefaultShellNotFoundException } from "../../src/exceptions/default-shell-not-found.exception.ts";
@@ -35,6 +35,7 @@ import { TerminalEvents } from "../../src/models/terminal-events.ts";
 import { CompletionSource } from "../../src/services/completion-source.ts";
 import { FileSystemWriter } from "../../src/services/file-system-writer.ts";
 import { FileSystemReader } from "../../src/services/file-system.reader.ts";
+import { FlowController } from "../../src/services/flow-controller.ts";
 import { InheritedEnvironment } from "../../src/services/inherited-environment.ts";
 import { ProcessSignaller } from "../../src/services/process-signaller.ts";
 import { SavedTerminals } from "../../src/services/saved-terminals.ts";
@@ -232,6 +233,20 @@ class HostFixture {
       vi.useRealTimers();
     }
   }
+}
+
+function holdAttach(): PromiseWithResolvers<void> {
+  const hold: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+  const attachAsync: TerminalSession["attachAsync"] = TerminalSession.prototype.attachAsync;
+  vi.spyOn(TerminalSession.prototype, "attachAsync").mockImplementationOnce(async function (this: TerminalSession, paneId: string, commands: readonly string[]): Promise<TerminalAttachment> {
+    await hold.promise;
+    return attachAsync.call(this, paneId, commands);
+  });
+  return hold;
+}
+
+function flowDetached(spy: MockInstance<FlowController["detach"]>): readonly string[] {
+  return spy.mock.calls.filter((_t, index) => spy.mock.results[index]?.value === true).map(t => t[0]);
 }
 
 describe("TerminalHost", () => {
@@ -2110,16 +2125,40 @@ describe("TerminalHost", () => {
     });
 
     it("detaches a pane an earlier page of the window attached when its next page starts, as on a reload, so 1 MiB of output pauses its shell only while the mirror parses it", async () => {
+      const flowDetach = vi.spyOn(FlowController.prototype, "detach");
       const fixture: HostFixture = await HostFixture.createAsync();
       const sessionId: string = await fixture.openAsync();
       await fixture.host.handleAsync("terminal.attach", { sessionId, paneId: "p1" }, new RequestClient(1, 1, true, 1));
 
       await fixture.host.handleAsync("terminal.windowStarted", null, new RequestClient(1, 1, true, 2));
+      const left: readonly string[] = flowDetached(flowDetach);
       fixture.process.emitData("\r".repeat(1_048_577));
+      await vi.waitFor(() => assert.equal(fixture.process.pauses, 1), { timeout: 5_000 });
+      await vi.waitFor(() => assert.equal(fixture.process.resumes, 1), { timeout: 5_000 });
 
-      await vi.waitFor(() => assert.equal(fixture.process.resumes, fixture.process.pauses), { timeout: 5_000 });
+      assert.deepEqual([left, fixture.process.pauses, fixture.detached.published], [["p1"], 1, []]);
       await fixture.endAllAsync();
     });
+
+    for (const [leaving, leave] of [
+      ["its window's next page starts", (fixture: HostFixture) => fixture.host.handleAsync("terminal.windowStarted", null, new RequestClient(1, 1, true, 2))],
+      ["its window closes", (fixture: HostFixture) => fixture.host.closeConnectionAsync(1, 1)]
+    ] as const)
+      it(`detaches a pane whose attach was under way when ${leaving}, once the attach is done`, async () => {
+        const flowDetach = vi.spyOn(FlowController.prototype, "detach");
+        const fixture: HostFixture = await HostFixture.createAsync();
+        const sessionId: string = await fixture.openAsync();
+        const hold: PromiseWithResolvers<void> = holdAttach();
+
+        const attaching: Promise<unknown> = fixture.host.handleAsync("terminal.attach", { sessionId, paneId: "p1" }, new RequestClient(1, 1, true, 1));
+        await leave(fixture);
+        const whileAttaching: readonly string[] = flowDetached(flowDetach);
+        hold.resolve();
+        await attaching;
+
+        assert.deepEqual([whileAttaching, flowDetached(flowDetach), fixture.detached.published], [[], ["p1"], []]);
+        await fixture.endAllAsync();
+      });
 
     it("detaches the panes of a window's earlier pages when its next page starts, and all of a window's panes when it closes for good, but not another window's", async () => {
       const detach = vi.spyOn(TerminalSession.prototype, "detach");

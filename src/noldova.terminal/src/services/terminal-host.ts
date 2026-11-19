@@ -902,9 +902,11 @@ export class TerminalHost {
 
   private async attachAsync(reference: TerminalPaneReference, client: RequestClient): Promise<TerminalAttachment> {
     const terminal: HostedTerminal = this.findHosted(reference.sessionId, client);
+    terminal.paneClients.set(reference.paneId, client);
     const attachment: TerminalAttachment = await terminal.session.attachAsync(reference.paneId, terminal.ownerSessionId === null && this.isSuggesting()
       ? this.commandHistory.list(terminal.shell.id) : []);
-    terminal.paneClients.set(reference.paneId, client);
+    if (!terminal.paneClients.has(reference.paneId))
+      terminal.session.detach(reference.paneId);
     return attachment;
   }
 
