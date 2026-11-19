@@ -37,6 +37,7 @@ import { ShellOptionsReply } from "../models/shell-options-reply.ts";
 import { StartedShell } from "../models/started-shell.ts";
 import type { TerminalEvents } from "../models/terminal-events.ts";
 import type { TerminalHistoryPaths } from "../models/terminal-history-paths.ts";
+import { TerminalOpening } from "../models/terminal-opening.ts";
 import { WaitingRun } from "../models/waiting-run.ts";
 import { Resources } from "../resources.ts";
 import { CommandHistory } from "./command-history.ts";
@@ -68,7 +69,7 @@ export class TerminalHost {
   private readonly sessions: Map<string, HostedTerminal> = new Map<string, HostedTerminal>();
   private readonly commandHistory: CommandHistory = new CommandHistory();
   private readonly disposals: Set<Promise<void>> = new Set<Promise<void>>();
-  private readonly opens: Set<Promise<unknown>> = new Set<Promise<unknown>>();
+  private readonly opens: Map<Promise<unknown>, TerminalOpening> = new Map<Promise<unknown>, TerminalOpening>();
   private readonly launches: Map<Promise<unknown>, RequestClient> = new Map<Promise<unknown>, RequestClient>();
   private readonly agentSessionOwners: Map<string, string> = new Map<string, string>();
   private readonly audience: TerminalAudience = new TerminalAudience();
@@ -153,9 +154,12 @@ export class TerminalHost {
         await this.closeOwnerAsync(TerminalOwnerReference.fromJson(payload).owner, client);
         return null;
       case TerminalNames.launchMethod:
-        return (await this.trackLaunchAsync(this.trackAsync(this.launchAsync(TerminalLaunchParams.fromJson(payload), client)), client)).toJson();
-      case TerminalNames.runMethod:
-        return (await this.trackAsync(this.runAsync(TerminalRunParams.fromJson(payload), client))).toJson();
+        return (await this.trackLaunchAsync(this.trackAsync(this.launchAsync(TerminalLaunchParams.fromJson(payload), client),
+          new TerminalOpening(null, client.connection)), client)).toJson();
+      case TerminalNames.runMethod: {
+        const params: TerminalRunParams = TerminalRunParams.fromJson(payload);
+        return (await this.trackAsync(this.runAsync(params, client), new TerminalOpening(params.owner, client.connection))).toJson();
+      }
       case TerminalNames.runOutputMethod:
         return (await this.readRunOutputAsync(TerminalRunOutputParams.fromJson(payload), client))?.toJson() ?? null;
       case TerminalNames.renameMethod:
@@ -214,7 +218,7 @@ export class TerminalHost {
     owner: string | null = null, client: RequestClient | null = null, sessionId: string = randomUUID(),
     environment: Readonly<Record<string, string>> | null = null, startsAtFit: boolean = false, opensTab: boolean = true): Promise<HostedTerminal> {
     return this.trackAsync(this.startTerminalAsync(shellId, folder, size, ownerSessionId, storedLimit, note, isPanelTerminal, owner, client, sessionId,
-      environment, startsAtFit, opensTab));
+      environment, startsAtFit, opensTab), new TerminalOpening(owner, client?.connection ?? null));
   }
 
   public bindAgentSession(agentSessionId: string, owner: string): void {
@@ -240,12 +244,12 @@ export class TerminalHost {
       for (const [agentSessionId, bound] of this.agentSessionOwners)
         if (bound === owner)
           this.agentSessionOwners.delete(agentSessionId);
-    const isOwned = (terminal: HostedTerminal): boolean => terminal.owner === owner
+    const isOwned = (terminal: HostedTerminal | TerminalOpening): boolean => terminal.owner === owner
       && (client === null || terminal.isReachedBy(client.connection, client.isApp));
     for (const terminal of this.terminals.filter(isOwned))
       terminal.cancelCommand();
     await Promise.allSettled([this.restoring]);
-    await Promise.allSettled(this.opens);
+    await this.settleOpensAsync(isOwned);
     this.ensureRunning();
     const owned: readonly HostedTerminal[] = this.terminals.filter(isOwned);
     if (isApp)
@@ -373,12 +377,12 @@ export class TerminalHost {
   }
 
   private async endConnectionAsync(connection: number, wasApp: boolean): Promise<void> {
-    const isEnding = (terminal: HostedTerminal): boolean => terminal.connection === null ? wasApp && terminal.owner !== null
+    const isEnding = (terminal: HostedTerminal | TerminalOpening): boolean => terminal.connection === null ? wasApp && terminal.owner !== null
       : terminal.connection === connection;
     for (const terminal of this.terminals.filter(isEnding))
       terminal.cancelCommand();
     await Promise.allSettled([this.restoring]);
-    await Promise.allSettled(this.opens);
+    await this.settleOpensAsync(isEnding);
     if (this.hasEnded)
       return;
     const ending: readonly HostedTerminal[] = this.terminals.filter(isEnding);
@@ -391,11 +395,15 @@ export class TerminalHost {
     await Promise.all(ending.map(t => this.endAsync(t.session)));
   }
 
-  private trackAsync<TResult>(opening: Promise<TResult>): Promise<TResult> {
-    this.opens.add(opening);
+  private trackAsync<TResult>(opening: Promise<TResult>, place: TerminalOpening): Promise<TResult> {
+    this.opens.set(opening, place);
     const settled: () => void = () => void this.opens.delete(opening);
     void opening.then(settled, settled);
     return opening;
+  }
+
+  private async settleOpensAsync(isTheirs: (opening: TerminalOpening) => boolean): Promise<void> {
+    await Promise.allSettled([...this.opens].filter(([, t]) => isTheirs(t)).map(([t]) => t));
   }
 
   private async launchAsync(params: TerminalLaunchParams, client: RequestClient): Promise<TerminalLaunched> {
@@ -653,7 +661,7 @@ export class TerminalHost {
   }
 
   private openAsync(params: TerminalOpenParams, client: RequestClient): Promise<TerminalReference> {
-    return this.trackAsync(this.openRequestedAsync(params, client));
+    return this.trackAsync(this.openRequestedAsync(params, client), new TerminalOpening(params.owner, client.connection));
   }
 
   private async openRequestedAsync(params: TerminalOpenParams, client: RequestClient): Promise<TerminalReference> {
