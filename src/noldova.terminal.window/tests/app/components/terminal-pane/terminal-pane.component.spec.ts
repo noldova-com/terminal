@@ -409,7 +409,7 @@ describe("TerminalPaneComponent", () => {
 
   it("holds a paste made while it attaches until the snapshot's modes are back, then brackets it as the program asked", async () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
-    host.runtime.snapshot = "\u001b[?2004hready";
+    host.runtime.snapshot = "ready\u001b[?2004h";
     host.runtime.holdAttaches();
     await host.startAsync();
     const paste = (text: string): void => {
