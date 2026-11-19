@@ -1036,6 +1036,22 @@ describe("TerminalHost", () => {
     assert.deepEqual(fixture.saved.list(), []);
   });
 
+  it("closes an owner's terminals without waiting for another owner's open under way, and leaves that terminal open", async () => {
+    const fixture: HostFixture = await HostFixture.createAsync();
+    const started: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    fixture.spawner.hold = started.promise;
+    const steps: string[] = [];
+
+    const opening: Promise<string> = fixture.openAsync(ownedOpen("example.chat/7"));
+    await fixture.spawner.held.promise;
+    void fixture.host.handleAsync("terminal.closeOwner", { owner: "example.chat/42" }, APP).then(() => steps.push("closed"));
+    await vi.waitFor(() => assert.deepEqual(steps, ["closed"]));
+    started.resolve();
+    const sessionId: string = await opening;
+
+    assert.deepEqual([(await fixture.listAsync()).map(t => t.sessionId), fixture.closed.published, fixture.process.ends], [[sessionId], [], 0]);
+  });
+
   it("gives an agent's terminal the owner its session is bound to, keeps it for no next run, and closes it with that owner", async () => {
     const fixture: HostFixture = await HostFixture.createAsync();
     fixture.host.bindAgentSession("agent-1", "example.chat/42");
@@ -1486,6 +1502,22 @@ describe("TerminalHost", () => {
 
       assert.equal(fixture.process.ends, 1);
       assert.deepEqual(await fixture.listAsync(), []);
+    });
+
+    it("ends a connection's terminals without waiting for another connection's open under way, and leaves that terminal open", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      const started: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.spawner.hold = started.promise;
+      const steps: string[] = [];
+
+      const opening: Promise<string> = openFromAsync(fixture, COMMAND_LINE);
+      await fixture.spawner.held.promise;
+      void fixture.host.closeConnectionAsync(1, null).then(() => steps.push("closed"));
+      await vi.waitFor(() => assert.deepEqual(steps, ["closed"]));
+      started.resolve();
+      await opening;
+
+      assert.equal(fixture.process.ends, 0);
     });
 
     it("restores the person's terminals for a reconnected app whose restore came while the old connection's close waited on an open", async () => {
