@@ -12,6 +12,8 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
+  schedule:
+    - cron: '0 3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -30,7 +32,7 @@ jobs:
       packages: read
     with:
       targets: ${{ github.event_name != 'pull_request' && 'linux-x64 linux-arm64 windows-x64 windows-arm64 macos-x64 macos-arm64' || 'linux-x64 windows-x64 macos-arm64' }}
-      test-targets: linux-x64 windows-x64 macos-arm64
+      test-targets: ${{ github.event_name != 'schedule' && 'linux-x64 windows-x64 macos-arm64' || '' }}
       publishes: true
       timeout-minutes: 20
 
@@ -43,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: [{"target":"linux-x64","runner":"ubuntu-24.04","shells":"bash pwsh zsh fish"},{"target":"macos-arm64","runner":"macos-15","shells":"bash pwsh zsh"}]
+        include: ${{ fromJSON(github.event_name == 'schedule' && '[{"target":"linux-x64","runner":"ubuntu-24.04","shells":"bash pwsh zsh fish"},{"target":"linux-arm64","runner":"ubuntu-24.04-arm","shells":"bash pwsh zsh fish"},{"target":"macos-x64","runner":"macos-15-intel","shells":"bash pwsh zsh"},{"target":"macos-arm64","runner":"macos-15","shells":"bash pwsh zsh"}]' || '[{"target":"linux-x64","runner":"ubuntu-24.04","shells":"bash pwsh zsh fish"},{"target":"macos-arm64","runner":"macos-15","shells":"bash pwsh zsh"}]') }}
     steps:
       - name: Check out the revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -159,4 +161,31 @@ jobs:
           if [ "$RESULT" != "success" ]; then
             echo "::error::The Shells jobs ended with $RESULT, not success."
             exit 1
+          fi
+
+  report:
+    name: Report a failing nightly run
+    needs: [build-and-test, all-shells]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT: ${{ github.sha }}
+          TITLE: The nightly run fails on a target that pushes to main only build
+          BODY: ${{ runner.temp }}/nightly-issue.md
+        run: |
+          echo "The nightly run $RUN_URL tested $COMMIT on all six targets and the Shells jobs on all four, and it failed; its log says which target." > "$BODY"
+          number=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title --jq '.[] | select(.title == env.TITLE) | .number' | head -n 1)
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body-file "$BODY"
+          else
+            url=$(gh issue create --title "$TITLE" --body-file "$BODY")
+            gh api -X PATCH "repos/$GH_REPO/issues/${url##*/}" -f type=Bug > /dev/null
           fi
