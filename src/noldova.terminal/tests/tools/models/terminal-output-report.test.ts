@@ -25,12 +25,15 @@ describe("TerminalOutputReport", () => {
     command.method = RunMethod.OneShot;
     command.finish(2, "/work/project");
     terminal.title = "make - project";
+    terminal.name = "Build";
     const result: ToolResult = new TerminalOutputReport(new AgentTerminalAccess(terminal, false), command, new OutputExcerpt("fail\n", 100), "/work/project").toResult();
 
     assert.equal(ToolHarness.textOf(result), "fail\n\n\n[Status: Exited. Exit code: 2. Working folder: /work/project.]");
     assert.deepEqual(result.structured, {
       terminal_id: "t1",
       title: "make - project",
+      name: "Build",
+      shell_name: "Bash",
       method: "OneShot",
       status: "Exited",
       exit_code: 2,
@@ -59,6 +62,8 @@ describe("TerminalOutputReport", () => {
     assert.equal(
       ToolHarness.textOf(result),
       "Password: \n\n[Status: no command. Exit code: none. Working folder: unknown. The terminal waits for a password or another secret: only the person types it, so ask them to.]");
+    assert.equal(result.structured?.["name"], null);
+    assert.equal(result.structured?.["shell_name"], "Bash");
     assert.equal(result.structured?.["method"], null);
     assert.equal(result.structured?.["status"], null);
     assert.equal(result.structured?.["exit_code"], null);
@@ -76,7 +81,7 @@ describe("TerminalOutputReport", () => {
 
   it("describes its output for agents", () => {
     assert.deepEqual(TerminalOutputReport.outputSchema["required"], [
-      "terminal_id", "title", "method", "status", "exit_code", "cwd", "output", "omitted_characters", "log_file", "is_awaiting_secret"
+      "terminal_id", "title", "name", "shell_name", "method", "status", "exit_code", "cwd", "output", "omitted_characters", "log_file", "is_awaiting_secret"
     ]);
   });
 });

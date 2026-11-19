@@ -33,10 +33,12 @@ export class TerminalOpenTool extends TerminalTool<TerminalOpenInput> {
     outputSchema: {
       type: Resources.jsonObjectType,
       additionalProperties: false,
-      required: [Resources.terminalIdField, Resources.titleField, Resources.shellField, Resources.cwdField, Resources.terminalOpenToolHasShellIntegrationField],
+      required: [Resources.terminalIdField, Resources.titleField, Resources.nameField, Resources.shellNameField, Resources.shellField, Resources.cwdField, Resources.terminalOpenToolHasShellIntegrationField],
       properties: {
         [Resources.terminalIdField]: { type: Resources.jsonStringType },
         [Resources.titleField]: { type: Resources.jsonStringType },
+        [Resources.nameField]: { type: [Resources.jsonStringType, Resources.jsonNullType], description: Resources.nameFieldDescription },
+        [Resources.shellNameField]: { type: Resources.jsonStringType, description: Resources.shellNameFieldDescription },
         [Resources.shellField]: { type: Resources.jsonStringType },
         [Resources.cwdField]: { type: Resources.jsonStringType },
         [Resources.terminalOpenToolHasShellIntegrationField]: { type: Resources.jsonBooleanType, description: Resources.integrationFieldDescription }
@@ -73,6 +75,8 @@ export class TerminalOpenTool extends TerminalTool<TerminalOpenInput> {
       {
         [Resources.terminalIdField]: terminal.id,
         [Resources.titleField]: terminal.title,
+        [Resources.nameField]: terminal.name,
+        [Resources.shellNameField]: terminal.shellName,
         [Resources.shellField]: terminal.shellId,
         [Resources.cwdField]: context.workingFolder,
         [Resources.terminalOpenToolHasShellIntegrationField]: terminal.hasShellIntegration

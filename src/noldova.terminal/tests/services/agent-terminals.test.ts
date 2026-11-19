@@ -71,6 +71,17 @@ describe("AgentTerminals", () => {
     assert.equal(terminal.readOneShotLine("make"), null);
   });
 
+  it("names a terminal as its tab does: by its shell's name until it is renamed, then by its name", async () => {
+    const fixture: TerminalsFixture = new TerminalsFixture();
+    fixture.host.bindAgentSession("session-1", "example.chat/42");
+    const terminal: IAgentTerminal = await fixture.openBashAsync();
+    const unnamed: readonly (string | null)[] = [terminal.name, terminal.shellName];
+
+    await fixture.host.handleAsync("terminal.rename", { sessionId: terminal.id, name: "Server" }, APP);
+
+    assert.deepEqual([unnamed, [terminal.name, terminal.shellName]], [[null, "bash"], ["Server", "bash"]]);
+  });
+
   it("opens a terminal with the owner its session is bound to, which it keeps when the session ends and forgets the binding", async () => {
     const fixture: TerminalsFixture = new TerminalsFixture();
     fixture.host.bindAgentSession("session-1", "example.chat/42");

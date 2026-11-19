@@ -58,6 +58,8 @@ describe("TerminalOpenTool", () => {
     assert.deepEqual(result.structured, {
       terminal_id: "opened-1",
       title: "bash - project",
+      name: null,
+      shell_name: "Bash",
       shell: "bash",
       cwd: "/work/project",
       has_shell_integration: true

@@ -9,10 +9,11 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 
-import { TerminalSize } from "@noldova/terminal.protocol";
+import { TerminalShellKind, TerminalSize } from "@noldova/terminal.protocol";
 import { describe, it, vi } from "vitest";
 
-import type { HostedTerminal } from "../../src/models/hosted-terminal.ts";
+import { HostedTerminal } from "../../src/models/hosted-terminal.ts";
+import { Shell } from "../../src/models/shell.ts";
 import { TerminalPrompt } from "../../src/models/terminal-prompt.ts";
 import { AgentTerminal } from "../../src/services/agent-terminal.ts";
 import { StaleTerminalException } from "../../src/tools/exceptions/stale-terminal.exception.ts";
@@ -47,6 +48,21 @@ class AgentTerminalFixture extends AgentHostFixture {
 }
 
 describe("AgentTerminal", () => {
+  it("names its terminal by the hosted terminal's name and its shell's name, which differs from the shell's id", async () => {
+    const fixture: AgentTerminalFixture = new AgentTerminalFixture();
+    const opened: AgentTerminal = await fixture.openAsync(null);
+    const found: HostedTerminal | undefined = fixture.host.findTerminal(opened.id);
+    assert.ok(found !== undefined);
+    const shell: Shell = new Shell("pwsh", "PowerShell", TerminalShellKind.PowerShell, "/usr/bin/pwsh", [], false);
+    const hosted: HostedTerminal = new HostedTerminal(found.session, shell, "/work", "session-1", false, "example.chat/42", null);
+    const terminal: AgentTerminal = new AgentTerminal(hosted, fixture.host, fixture.writer, LOGS, fixture.log);
+    const unnamed: readonly (string | null)[] = [terminal.name, terminal.shellName, terminal.shellId];
+
+    hosted.name = "Server";
+
+    assert.deepEqual([unnamed, [terminal.name, terminal.shellName]], [[null, "PowerShell", "pwsh"], ["Server", "PowerShell"]]);
+  });
+
   it("tells its hosted terminal's id, title, shell, start folder, session and owner", async () => {
     const fixture: AgentTerminalFixture = new AgentTerminalFixture();
 
