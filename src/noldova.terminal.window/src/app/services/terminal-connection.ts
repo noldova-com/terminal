@@ -72,7 +72,7 @@ export class TerminalConnection {
   }
 
   public input(data: string): void {
-    if (this.isSending() && data.length > 0)
+    if (!this.hasClosed && !this.isGone() && data.length > 0)
       this.send(TerminalNames.inputMethod, new TerminalInputParams(this.sessionId, data).toJson());
   }
 
