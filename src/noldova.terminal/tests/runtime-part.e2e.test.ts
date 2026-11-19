@@ -565,9 +565,15 @@ describe("the runtime part with real shells", () => {
     const refused: TerminalRunResult = await run(sum("refused", 4, 4), sessionId);
     assert.equal(refused.outcome, "Busy");
     const isStarted: boolean = fixture.countMarks(sessionId, "\u001b]6973;C;") > starts;
+    const ends: number = fixture.countMarks(sessionId, "]6973;D;");
     const interruptedAt: number = performance.now();
     const interrupted: TerminalRunResult = await run(sum("interrupted", 5, 5), sessionId, "Interrupt");
     const answeredIn: number = performance.now() - interruptedAt;
+    if (interrupted.outcome !== "Typed") {
+      await vi.waitFor(() => assert.ok(fixture.countMarks(sessionId, "]6973;D;") > ends), { timeout: 40_000, interval: 100 });
+      process.stderr.write(`PROBE-LOST prompt ${Math.round(performance.now() - interruptedAt)} ms after the interrupt RAW ${JSON.stringify(fixture.text(sessionId).slice(-400))}
+`);
+    }
     assert.equal(interrupted.outcome, "Typed", `The interrupt answered ${interrupted.outcome} after ${Math.round(answeredIn)} ms, the sleep ` +
       `${isStarted ? "had" : "hadn't"} started when it came. RAW ${JSON.stringify(fixture.text(sessionId).slice(-1500))}`);
     await fixture.waitForTextAsync(sessionId, "interrupted=10.");
@@ -575,7 +581,7 @@ describe("the runtime part with real shells", () => {
     assert.doesNotMatch(fixture.text(sessionId), /refused/u);
     await fixture.callAsync("terminal.close", { sessionId });
     await fixture.part.deactivateAsync();
-  });
+  }, 120_000);
 
   it.skipIf(IS_WINDOWS)("trial only: interrupts a sleep the moment it starts", async () => {
     const fixture: RuntimeFixture = new RuntimeFixture();
@@ -593,6 +599,11 @@ describe("the runtime part with real shells", () => {
       process.stderr.write(`PROBE-RUN ${index} ${interrupted.outcome} ${Math.round(performance.now() - at)}ms
 `);
       if (interrupted.outcome !== "Typed") {
+        const lostAt: number = performance.now();
+        await vi.waitFor(() => assert.ok(fixture.text(sessionId).lastIndexOf("]6973;D;") > fixture.text(sessionId).lastIndexOf("sleep 30")),
+          { timeout: 40_000, interval: 100 });
+        process.stderr.write(`PROBE-LOST loop prompt ${Math.round(performance.now() - lostAt)} ms after Busy
+`);
         await fixture.typeAsync(sessionId, "");
         await fixture.waitForPromptAfterAsync(sessionId, "^C");
         await fixture.typeAsync(sessionId, `echo "probe=$((${index}+1000))."`);
