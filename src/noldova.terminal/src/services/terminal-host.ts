@@ -166,8 +166,10 @@ export class TerminalHost {
       case TerminalNames.findCommandsMethod:
         return (await this.findCommandsAsync(TerminalFindCommandsParams.fromJson(payload), client)).toJson();
       case TerminalNames.windowStartedMethod:
-        if (client.window !== null)
+        if (client.window !== null) {
+          this.detachLeftPanes(t => t.connection === client.connection && t.window === client.window && t.page !== client.page);
           await this.endLaunchesWithoutTabAsync(client.connection, client.window, client.page);
+        }
         return null;
       case TerminalNames.showOwnerMethod: {
         const shown: TerminalShowOwnerParams = TerminalShowOwnerParams.fromJson(payload);
@@ -259,6 +261,7 @@ export class TerminalHost {
 
   public async closeConnectionAsync(connection: number, window: number | null): Promise<void> {
     const wasApp: boolean = this.audience.forget(connection, window);
+    this.detachLeftPanes(t => t.connection === connection && (window === null || t.window === window));
     this.startUnshownShells();
     if (window !== null) {
       await this.endLaunchesWithoutTabAsync(connection, window, null);
@@ -897,9 +900,14 @@ export class TerminalHost {
         this.audience.publish(this.events.commandAdded, terminal, new TerminalCommandAdded(terminal.session.sessionId, command).toJson());
   }
 
-  private attachAsync(reference: TerminalPaneReference, client: RequestClient): Promise<TerminalAttachment> {
+  private async attachAsync(reference: TerminalPaneReference, client: RequestClient): Promise<TerminalAttachment> {
     const terminal: HostedTerminal = this.findHosted(reference.sessionId, client);
-    return terminal.session.attachAsync(reference.paneId, terminal.ownerSessionId === null && this.isSuggesting() ? this.commandHistory.list(terminal.shell.id) : []);
+    terminal.paneClients.set(reference.paneId, client);
+    const attachment: TerminalAttachment = await terminal.session.attachAsync(reference.paneId, terminal.ownerSessionId === null && this.isSuggesting()
+      ? this.commandHistory.list(terminal.shell.id) : []);
+    if (!terminal.paneClients.has(reference.paneId))
+      terminal.session.detach(reference.paneId);
+    return attachment;
   }
 
   private isSuggesting(): boolean {
@@ -933,9 +941,22 @@ export class TerminalHost {
 
   private detach(reference: TerminalPaneReference, client: RequestClient): void {
     const terminal: HostedTerminal | null = this.reachable(reference.sessionId, client);
+    terminal?.paneClients.delete(reference.paneId);
     terminal?.session.detach(reference.paneId);
     if (terminal !== null && !terminal.isSized)
       this.startShell(terminal);
+  }
+
+  private detachLeftPanes(isLeft: (client: RequestClient) => boolean): void {
+    for (const terminal of this.terminals) {
+      const left: readonly string[] = [...terminal.paneClients].filter(([, t]) => isLeft(t)).map(([t]) => t);
+      for (const paneId of left) {
+        terminal.paneClients.delete(paneId);
+        terminal.session.detach(paneId);
+      }
+      if (left.length > 0 && !terminal.isSized)
+        this.startShell(terminal);
+    }
   }
 
   private startUnshownShells(): void {
