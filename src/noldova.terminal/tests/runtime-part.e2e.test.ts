@@ -577,6 +577,33 @@ describe("the runtime part with real shells", () => {
     await fixture.part.deactivateAsync();
   });
 
+  it.skipIf(IS_WINDOWS)("trial only: interrupts a sleep the moment it starts", async () => {
+    const fixture: RuntimeFixture = new RuntimeFixture();
+    await fixture.part.activateAsync(fixture.context);
+    const run = async (command: string, sessionId: string | null, whenBusy: string = "Refuse"): Promise<TerminalRunResult> =>
+      fixture.runAsync({ owner: OWNER, command, folder, shellKinds: [], shellId: null,
+        size: { cols: 400, rows: 30 }, storedLimit: 104_857_600, sessionId, whenBusy, opensTab: true });
+    const first: TerminalRunResult = await run("echo \"start=$((1+1)).\"", null);
+    const sessionId: string = first.sessionId ?? "";
+    await fixture.waitForPromptAfterAsync(sessionId, "start=2.");
+    for (let index: number = 0; index < 40; index++) {
+      assert.equal((await run("sleep 30", sessionId)).outcome, "Typed");
+      const at: number = performance.now();
+      const interrupted: TerminalRunResult = await run(`echo "probe=$((${index}+1000))."`, sessionId, "Interrupt");
+      process.stderr.write(`PROBE-RUN ${index} ${interrupted.outcome} ${Math.round(performance.now() - at)}ms
+`);
+      if (interrupted.outcome !== "Typed") {
+        await fixture.typeAsync(sessionId, "");
+        await new Promise<void>(t => setTimeout(t, 500));
+        await fixture.typeAsync(sessionId, `echo "probe=$((${index}+1000))."`);
+      }
+      await fixture.waitForTextAsync(sessionId, `probe=${index + 1000}.`);
+      await fixture.waitForPromptAfterAsync(sessionId, `probe=${index + 1000}.`);
+    }
+    await fixture.callAsync("terminal.close", { sessionId });
+    await fixture.part.deactivateAsync();
+  }, 300_000);
+
   it("sends 4 MiB in order with nothing lost to a pane that keeps up", async () => {
     const fixture: RuntimeFixture = new RuntimeFixture();
     await fixture.part.activateAsync(fixture.context);
