@@ -568,8 +568,13 @@ export class TerminalHost {
       const group: number | null = await session.readForegroundProcessGroupAsync();
       if (!isStarted() || signal.aborted)
         return false;
-      if (group !== session.pid)
+      if (group !== session.pid) {
+        let comm: string = "?";
+        try { comm = (await import("node:fs")).readFileSync(`/proc/${group}/comm`, "utf8").trim(); } catch { comm = "gone"; }
+        process.stderr.write(`INTERRUPT-AT group=${group} shell=${session.pid} comm=${comm}
+`);
         return true;
+      }
       if (Date.now() >= deadline)
         return false;
       await session.changes.waitUntilAsync(() => !isStarted(), Math.min(Resources.foregroundPollMilliseconds, deadline - Date.now()), signal);
