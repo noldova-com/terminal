@@ -37,6 +37,7 @@ import { FileSystemWriter } from "../../src/services/file-system-writer.ts";
 import { FileSystemReader } from "../../src/services/file-system.reader.ts";
 import { FlowController } from "../../src/services/flow-controller.ts";
 import { InheritedEnvironment } from "../../src/services/inherited-environment.ts";
+import { LatestEnvironment } from "../../src/services/latest-environment.ts";
 import { ProcessSignaller } from "../../src/services/process-signaller.ts";
 import { SavedTerminals } from "../../src/services/saved-terminals.ts";
 import { ShellIntegration } from "../../src/services/shell-integration.ts";
@@ -144,7 +145,7 @@ class HostFixture {
       new ShellLocator(platform, "x64", environment, null, this.fileSystem, this.runner, this.log),
       platform,
       osRelease,
-      environmentSource,
+      new LatestEnvironment(environmentSource, environment),
       "/home/a",
       this.log,
       new TerminalEvents(this.output, this.exited, this.restarted, this.titleChanged, this.cwdChanged, this.detached, this.closed, this.opened,
@@ -707,6 +708,136 @@ describe("TerminalHost", () => {
     fixture.reportPath(fixture.process, "");
 
     assert.deepEqual([reported, reset, await completeAsync()], [["grepx"], ["grep"], []]);
+  });
+
+  it("completes at once from the last finished environment read while a new one is held, starts no other read meanwhile, and completes from the new one once it finishes", async () => {
+    const held: PromiseWithResolvers<Readonly<Record<string, string | undefined>>> = Promise.withResolvers<Readonly<Record<string, string | undefined>>>();
+    let reads: number = 0;
+    const source: IEnvironmentSource = {
+      start: () => undefined,
+      readAsync: () => ++reads === 1 ? Promise.resolve({ SHELL: "/bin/bash", PATH: "/usr/bin" }) : held.promise,
+      end: () => undefined
+    };
+    const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", { SHELL: "/bin/bash", PATH: "/usr/bin" }, source);
+    fixture.fileSystem.files.set("/usr/bin/grep", "");
+    fixture.fileSystem.files.set("/opt/bin/grepx", "");
+    const sessionId: string = await fixture.openAsync();
+    const completeAsync = async (): Promise<readonly string[]> =>
+      TerminalCompletion.fromJson(await fixture.host.handleAsync("terminal.complete", { sessionId, line: "gr", cursor: 2 }, APP)).items.map(t => t.label);
+
+    const whileHeld: readonly (readonly string[])[] = [await completeAsync(), await completeAsync()];
+    const readsWhileHeld: number = reads;
+    held.resolve({ SHELL: "/bin/bash", PATH: "/opt/bin" });
+    await vi.waitFor(async () => assert.deepEqual(await completeAsync(), ["grepx"]));
+
+    assert.deepEqual([whileHeld, readsWhileHeld], [[["grep"], ["grep"]], 2]);
+    await fixture.endAllAsync();
+  });
+
+  it("completes from the last good environment read when a later read gives nothing, as a failed Windows read does", async () => {
+    let reads: number = 0;
+    const source: IEnvironmentSource = {
+      start: () => undefined,
+      readAsync: () => Promise.resolve(++reads === 1 ? { SHELL: "/bin/bash", PATH: "/opt/bin" } : null),
+      end: () => undefined
+    };
+    const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", { SHELL: "/bin/bash", PATH: "/usr/bin" }, source);
+    fixture.fileSystem.files.set("/usr/bin/grep", "");
+    fixture.fileSystem.files.set("/opt/bin/grepx", "");
+    const sessionId: string = await fixture.openAsync();
+    const completeAsync = async (): Promise<readonly string[]> =>
+      TerminalCompletion.fromJson(await fixture.host.handleAsync("terminal.complete", { sessionId, line: "gr", cursor: 2 }, APP)).items.map(t => t.label);
+
+    const before: readonly string[] = await completeAsync();
+    await vi.waitFor(async () => {
+      await completeAsync();
+      assert.equal(reads, 3);
+    });
+
+    assert.deepEqual([before, await completeAsync()], [["grepx"], ["grepx"]]);
+    await fixture.endAllAsync();
+  });
+
+  it("runs at most two of a completion's folder reads while two run past their deadline, and drops the rest", async () => {
+    const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", { SHELL: "/bin/bash", PATH: "/slow1:/slow2:/usr/bin:/opt/bin" });
+    const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    fixture.fileSystem.stalled.set("/slow1", stall.promise);
+    fixture.fileSystem.stalled.set("/slow2", stall.promise);
+    fixture.fileSystem.files.set("/usr/bin/grep", "");
+    const folders: ReadonlySet<string> = new Set<string>(["/slow1", "/slow2", "/usr/bin", "/opt/bin"]);
+    const sessionId: string = await fixture.openAsync();
+
+    const completion: JsonValue = await fixture.host.handleAsync("terminal.complete", { sessionId, line: "gr", cursor: 2 }, APP);
+    const listed: readonly string[] = fixture.fileSystem.listed.filter(t => folders.has(t));
+    stall.resolve();
+
+    assert.deepEqual([TerminalCompletion.fromJson(completion).items, listed], [[], ["/slow1", "/slow2"]]);
+    await fixture.endAllAsync();
+  });
+
+  it("starts a shell, whose environment read needs one of the four file threads, while two of a completion's folder reads hold theirs past the deadline", async () => {
+    const threads: { free: number; readonly waiting: (() => void)[] } = { free: 4, waiting: [] };
+    const takeThreadAsync = async (): Promise<void> => {
+      if (threads.free > 0) {
+        threads.free--;
+        return;
+      }
+      await new Promise<void>(resolve => threads.waiting.push(resolve));
+    };
+    const giveThread = (): void => {
+      const next: (() => void) | undefined = threads.waiting.shift();
+      if (next === undefined)
+        threads.free++;
+      else
+        next();
+    };
+    const environment: Readonly<Record<string, string | undefined>> = { SHELL: "/bin/bash", PATH: "/slow1:/slow2:/slow3:/slow4:/usr/bin" };
+    let reads: number = 0;
+    const source: IEnvironmentSource = {
+      start: () => undefined,
+      readAsync: async () => {
+        if (++reads === 1)
+          return environment;
+        await takeThreadAsync();
+        giveThread();
+        return environment;
+      },
+      end: () => undefined
+    };
+    const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", environment, source);
+    const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    vi.spyOn(fixture.fileSystem.stalled, "get").mockImplementation((path: string) => path.startsWith("/slow") ? takeThreadAsync().then(() => stall.promise) : undefined);
+    fixture.fileSystem.files.set("/usr/bin/grep", "");
+    const sessionId: string = await fixture.openAsync();
+    await fixture.host.handleAsync("terminal.complete", { sessionId, line: "gr", cursor: 2 }, APP);
+
+    await fixture.openAsync();
+    await vi.waitFor(() => assert.equal(fixture.spawner.spawned.length, 2));
+    const slow: readonly string[] = fixture.fileSystem.listed.filter(t => t.startsWith("/slow"));
+    stall.resolve();
+
+    assert.deepEqual([slow, threads.free], [["/slow1", "/slow2"], 2]);
+    await fixture.endAllAsync();
+  });
+
+  it("lists the command a PATH change adds once the folder reads held past their deadline end", async () => {
+    const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", { SHELL: "/bin/bash", PATH: "/slow1:/slow2:/usr/bin" });
+    const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    fixture.fileSystem.stalled.set("/slow1", stall.promise);
+    fixture.fileSystem.stalled.set("/slow2", stall.promise);
+    fixture.fileSystem.files.set("/usr/bin/grep", "");
+    fixture.fileSystem.files.set("/opt/bin/grepx", "");
+    const sessionId: string = await fixture.openAsync();
+    const completeAsync = async (): Promise<readonly string[]> =>
+      TerminalCompletion.fromJson(await fixture.host.handleAsync("terminal.complete", { sessionId, line: "gr", cursor: 2 }, APP)).items.map(t => t.label);
+
+    const held: readonly string[] = await completeAsync();
+    fixture.reportPath(fixture.process, "/opt/bin:/slow1:/slow2:/usr/bin");
+    stall.resolve();
+    await vi.waitFor(async () => assert.deepEqual(await completeAsync(), ["grep", "grepx"]));
+
+    assert.deepEqual(held, []);
+    await fixture.endAllAsync();
   });
 
   it("completes a Windows terminal's commands from its reported PATH, in place of the start Path whatever its case", async () => {

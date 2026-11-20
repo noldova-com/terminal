@@ -69,6 +69,37 @@ describe("BoundedReads", () => {
     assert.deepEqual(reads.listPendingReads(), []);
   });
 
+  it("answers a read still waiting for its turn when its time ends as empty, is cut short, and drops it, so only the started reads stay pending", async () => {
+    const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    reader.stalled.set("/a", stall.promise);
+    reader.stalled.set("/b", stall.promise);
+    const reads: BoundedReads = new BoundedReads(new SharedReads(reader), 100);
+    const entries: readonly Promise<readonly FolderEntry[]>[] = ["/a", "/b", "/work"].map(t => reads.readEntriesAsync(t));
+
+    await vi.advanceTimersByTimeAsync(100);
+    const answers: readonly (readonly FolderEntry[])[] = await Promise.all(entries);
+    const pending: number = reads.listPendingReads().length;
+    stall.resolve();
+    await Promise.all(reads.listPendingReads());
+
+    assert.deepEqual([answers, pending, reads.wasCutShort, reader.listed], [[[], [], []], 2, true, ["/a", "/b"]]);
+  });
+
+  it("answers a read still waiting for its turn when it ends as empty and cut short, starting nothing more", async () => {
+    const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    reader.stalled.set("/a", stall.promise);
+    reader.stalled.set("/b", stall.promise);
+    const reads: BoundedReads = new BoundedReads(new SharedReads(reader), 100);
+    const entries: readonly Promise<readonly FolderEntry[]>[] = ["/a", "/b", "/work"].map(t => reads.readEntriesAsync(t));
+
+    reads.end();
+    const waiting: readonly FolderEntry[] = await (entries[2] ?? Promise.resolve([]));
+    stall.resolve();
+    await Promise.all(entries);
+
+    assert.deepEqual([waiting, reads.wasCutShort, reader.listed], [[], true, ["/a", "/b"]]);
+  });
+
   it("answers a real path that ends before its time, and none for one still running when its time ends", async () => {
     const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
     reader.realPaths.set("C:\\PROGRA~1", "C:\\Program Files");
@@ -83,6 +114,17 @@ describe("BoundedReads", () => {
     assert.deepEqual([quick, await slow, reads.wasCutShort], ["C:\\Program Files", null, true]);
     stall.resolve();
     await Promise.all(reads.listPendingReads());
+  });
+
+  it("passes on a read's own failure before its time ends, and is not cut short", async () => {
+    const failure: Error = new Error("EACCES");
+    reader.realPathFailures.set("/work/run.sh", failure);
+    const reads: BoundedReads = new BoundedReads(new SharedReads(reader), 100);
+
+    await assert.rejects(reads.readRealPathOrNullAsync("/work/run.sh"), failure);
+    reads.end();
+
+    assert.equal(reads.wasCutShort, false);
   });
 
   it("answers a read started after its time ended at once with the late answer, without reading", async () => {

@@ -299,6 +299,7 @@ export class Resources {
   public static readonly packageFile: string = "package.json";
   public static readonly completionCommandMilliseconds: number = 2_000;
   public static readonly completionReadMilliseconds: number = 1_000;
+  public static readonly completionConcurrentReads: number = 2;
   public static readonly optionsKeys: ReadonlyMap<TerminalShellKind, string> = new Map<TerminalShellKind, string>([
     [TerminalShellKind.PowerShell, "\u001b[24~o"],
     [TerminalShellKind.Zsh, "\u001b[24;7~"]
@@ -388,6 +389,7 @@ export class Resources {
   public static readonly vswhereInstallationPathField: string = "installationPath";
   public static readonly shellListMilliseconds: number = 60_000;
   public static readonly wslDistributionsUnreadable: string = "The shell list leaves out the WSL distributions, which could not be read.";
+  public static readonly readDropped: string = "The read was dropped before it started, since no one waits for it any more.";
   public static readonly visualStudioUnreadable: string = "The shell list leaves out Visual Studio's developer shells, since its installations could not be read.";
   public static readonly developerToolsPath: readonly string[] = ["Common7", "Tools"];
   public static readonly developerCommandScript: string = "VsDevCmd.bat";

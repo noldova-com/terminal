@@ -46,9 +46,9 @@ describe("WindowsEnvironment on Windows", () => {
       new FileSystemReader(), new FileSystemWriter(), FolderAccess.create(process.platform, runner, process.env), parent), log);
     try {
       const started: number = performance.now();
-      const first: Readonly<Record<string, string | undefined>> = await source.readAsync();
+      const first: Readonly<Record<string, string | undefined>> | null = await source.readAsync();
       const firstRead: number = performance.now();
-      const second: Readonly<Record<string, string | undefined>> = await source.readAsync();
+      const second: Readonly<Record<string, string | undefined>> | null = await source.readAsync();
       const secondRead: number = performance.now();
       const folders: readonly string[] = await readdir(parent);
       const exports: readonly string[] = (await Promise.all(folders.map(t => readdir(path.join(parent, t))))).flat();
@@ -57,8 +57,8 @@ describe("WindowsEnvironment on Windows", () => {
       assert.deepEqual(log.callsOf("write"), []);
       assert.deepEqual([folders.length, exports], [1, []]);
       for (const environment of [first, second]) {
-        assert.equal(environment["ComSpec"]?.toLowerCase(), path.win32.join(systemRoot, "system32", "cmd.exe").toLowerCase());
-        assert.ok((environment["Path"] ?? "").toLowerCase().split(";").includes(path.win32.join(systemRoot, "system32").toLowerCase()), String(environment["Path"]));
+        assert.equal(environment?.["ComSpec"]?.toLowerCase(), path.win32.join(systemRoot, "system32", "cmd.exe").toLowerCase());
+        assert.ok((environment?.["Path"] ?? "").toLowerCase().split(";").includes(path.win32.join(systemRoot, "system32").toLowerCase()), String(environment?.["Path"]));
       }
     }
     finally {
