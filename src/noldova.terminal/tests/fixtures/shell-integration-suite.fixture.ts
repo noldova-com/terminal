@@ -709,6 +709,8 @@ function defineRealShellTests(covered: readonly string[]): void {
         const historyLine: string = isPowerShell ? "echo \"[history-$(@(Get-History).Count)]\"\r" : "echo \"[history-$(fc -l 1 | wc -l | tr -d ' ')]\"\r";
         await promptAsync(isPowerShell ? "function noldovaprobe { param([switch] $Alpha, [string] $Beta) }\r"
           : "autoload -Uz compinit && compinit -u -D && _noldova_probe() { compadd -- --alpha --beta gamma } && compdef _noldova_probe noldovaprobe\r");
+        if (isPowerShell)
+          await promptAsync("$null = TabExpansion2 -inputScript 'noldovaprobe -' -cursorColumn 14\r");
         await promptAsync(historyLine);
         assert.equal(fixture.marks(sessionId).findLast(t => t.value?.startsWith("Options=") === true)?.value, "Options=1");
         await fixture.typeAsync(sessionId, "noldovaprobe -");
@@ -751,6 +753,36 @@ function defineRealShellTests(covered: readonly string[]): void {
         assert.equal(Number(counts.at(-1)) - Number(counts.at(-2)), 1, `The history grew by more than the line that counts it: ${counts.join(", ")}.`);
         await fixture.callAsync("terminal.close", { sessionId });
       });
+
+  for (const shellId of powerShells)
+    it(`[${shellId}] answers a fresh ${shellId}'s first ask for options with its options and the screen unchanged, or with the shell's own Tab`, async context => {
+      context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
+      const sessionId: string = await fixture.openAsync(shellId, workFolder);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
+      const marked: number = fixture.kinds(sessionId).length;
+      await fixture.typeAsync(sessionId, "function noldovaprobe { param([switch] $Alpha, [string] $Beta) }\r");
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).length > marked && fixture.kinds(sessionId).endsWith("B"), `${shellId} did not prompt again.`);
+      assert.equal(fixture.marks(sessionId).findLast(t => t.value?.startsWith("Options=") === true)?.value, "Options=1");
+      await fixture.typeAsync(sessionId, "noldovaprobe -");
+      await fixture.waitForQuietAsync(sessionId);
+      const screen = async (paneId: string): Promise<string> =>
+        TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId })).snapshot;
+      const before: string = await screen("p1");
+
+      const completion: TerminalCompletion = TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete",
+        { sessionId, line: "noldovaprobe -", cursor: 14, asksShell: true }));
+      await fixture.waitForQuietAsync(sessionId);
+      const after: string = await screen("p2");
+
+      const answer: string = `It answered ${JSON.stringify(completion.toJson())}. Output ends with: ${JSON.stringify(fixture.text(sessionId).slice(-OUTPUT_TAIL))}`;
+      if (completion.isShellTab)
+        assert.deepEqual(completion.items, [], answer);
+      else {
+        assert.deepEqual(completion.items.map(t => [t.label, t.kind]), [["-Alpha", "Option"], ["-Beta", "Option"]], answer);
+        assert.equal(after, before, "The binding changed the screen.");
+      }
+      await fixture.callAsync("terminal.close", { sessionId });
+    });
 
   for (const shellId of posixShells.filter(t => t !== "zsh"))
     it(`[${shellId}] registers no completion binding in ${shellId}, whose request for options sends it nothing`, async context => {
