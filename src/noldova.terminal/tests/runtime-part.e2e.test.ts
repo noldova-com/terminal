@@ -42,6 +42,7 @@ const LARGE_OUTPUT: number = 4 * HIGH_WATERMARK;
 const LARGE_OUTPUT_COMMAND: string = largeOutputCommand(LARGE_OUTPUT);
 const OWNER: string = "example.chat/42";
 const PROMPT_END_MARK: string = "\u001b]6973;B;";
+const PROMPT_END_PATTERN: RegExp = /\u001b\]6973;B;[^\u0007]*\u0007/g;
 const COMMAND_END_MARK: string = "\u001b]6973;D;";
 const COMMAND_END_PATTERN: RegExp = /\u001b\]6973;D;[^;\u0007]*;(\d+)\u0007/g;
 const RESTORE: JsonValue = { size: { cols: 80, rows: 24 }, shellId: null, storedLimit: 104_857_600 };
@@ -91,6 +92,10 @@ class RuntimeFixture {
     return this.text(sessionId).split(mark).length - 1;
   }
 
+  public countPromptEnds(sessionId: string): number {
+    return [...this.text(sessionId).matchAll(PROMPT_END_PATTERN)].length;
+  }
+
   public channel(event: string): FakeEventChannel {
     const channel: FakeEventChannel | undefined = this.context.events.get(event);
     assert.ok(channel !== undefined, `The part declared no event ${event}.`);
@@ -113,7 +118,7 @@ class RuntimeFixture {
     await this.waitForOutputAsync(`Terminal ${sessionId}'s prompt after ${output}`, () => {
       const text: string = this.text(sessionId);
       const end: number = text.indexOf(COMMAND_END_MARK, text.lastIndexOf(output));
-      return text.includes(output) && end >= 0 && text.includes(PROMPT_END_MARK, end);
+      return text.includes(output) && end >= 0 && hasPromptEnd(text, end);
     });
   }
 
@@ -232,6 +237,10 @@ function largeOutputCommand(bytes: number): string {
     : `head -c ${bytes} /dev/zero | tr '\\0' x; printf 'done-%s' marker\r`;
 }
 
+function hasPromptEnd(text: string, from: number): boolean {
+  return [...text.matchAll(PROMPT_END_PATTERN)].some(t => t.index >= from);
+}
+
 async function drawAsync(snapshot: string, columns: number, rows: number): Promise<readonly string[]> {
   const screen: XtermTerminal = XtermHeadlessLoader.createTerminal({ allowProposedApi: true, cols: columns, rows });
   await new Promise<void>(resolve => screen.write(snapshot, resolve));
@@ -249,6 +258,14 @@ async function drawAsync(snapshot: string, columns: number, rows: number): Promi
   screen.dispose();
   return drawn;
 }
+
+describe("the wait for a shell's prompt", () => {
+  it("counts a prompt end only once its mark is whole, as bash 3.2 breaks a long prompt's mark with a line break where a read can end", () => {
+    const start: string = "first=2.\r\n\u001b]6973;D;n1;0\u0007\u001b]6973;A;n1\u0007wrapped\r\n\r> \u001b]6973;B;n1n1n1\r\n";
+
+    assert.deepEqual([hasPromptEnd(start, 0), hasPromptEnd(`${start}\r0\u0007`, 0), hasPromptEnd(`${start}\r0\u0007`, start.length)], [false, true, false]);
+  });
+});
 
 describe("the runtime part with real shells", () => {
   let folder: string = "";
@@ -497,7 +514,7 @@ describe("the runtime part with real shells", () => {
           await fixture.waitForOutputAsync(`Terminal ${sessionId}'s prompt after a run that exited ${previousCode}`, () => {
             const text: string = fixture.text(sessionId).slice(since);
             const end: RegExpExecArray | undefined = [...text.matchAll(COMMAND_END_PATTERN)].findLast(t => t[1] === String(previousCode));
-            return end !== undefined && text.includes(PROMPT_END_MARK, end.index);
+            return end !== undefined && hasPromptEnd(text, end.index);
           });
           since = fixture.text(sessionId).length;
           const result: TerminalRunResult = await run(command, sessionId, whenBusy);
@@ -759,7 +776,7 @@ describe("the runtime part with real shells", () => {
     const opened: unknown = await session.callAsync("terminal_open", { shell: "bash" });
     assert.ok(opened instanceof ToolResult, `The agent's open failed: ${JSON.stringify(opened)}`);
     const sessionId: string = String(opened.structured?.["terminal_id"]);
-    const prompts = (): number => fixture.countMarks(sessionId, PROMPT_END_MARK);
+    const prompts = (): number => fixture.countPromptEnds(sessionId);
     const drawn: number = prompts();
     const resizedAsync = async (): Promise<PermissionDecision> => {
       await fixture.callAsync("terminal.resize", { sessionId, size: { cols: 132, rows: 43 } });
@@ -801,7 +818,7 @@ describe("the runtime part with real shells", () => {
       await fixture.callAsync("terminal.resize", { sessionId, size: pane });
       await running;
       await fixture.waitForTextAsync(sessionId, `${word}\r\n`);
-      await fixture.waitForOutputAsync(`Terminal ${sessionId}'s second prompt`, () => fixture.countMarks(sessionId, PROMPT_END_MARK) > 1);
+      await fixture.waitForOutputAsync(`Terminal ${sessionId}'s second prompt`, () => fixture.countPromptEnds(sessionId) > 1);
       const attachment: TerminalAttachment = TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId: "p1" }));
       const lines: readonly string[] = await drawAsync(attachment.snapshot, pane.cols, pane.rows);
 
