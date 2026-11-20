@@ -95,10 +95,8 @@ export class TerminalPager {
       if (!this.isRebuilding)
         void this.extendAsync(() => this.comeBackAsync());
     }
-    else if (this.held === null)
-      this.terminal.paste(text);
     else
-      this.held.push(() => this.terminal.paste(text));
+      this.sendOrHold(() => this.terminal.paste(text));
   }
 
   public scroll(viewportY: number): void {
@@ -284,10 +282,14 @@ export class TerminalPager {
     const waiting: readonly (() => void)[] = this.waiting ?? [];
     this.waiting = null;
     for (const send of waiting)
-      if (this.held === null)
-        send();
-      else
-        this.held.push(send);
+      this.sendOrHold(send);
+  }
+
+  private sendOrHold(send: () => void): void {
+    if (this.held === null)
+      send();
+    else
+      this.held.push(send);
   }
 
   private keyModes(): string {

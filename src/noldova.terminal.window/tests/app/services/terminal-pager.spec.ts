@@ -570,6 +570,21 @@ describe("TerminalPager", () => {
     expect([lines()[0], lines().length]).toEqual(["stored 0", 6000]);
   });
 
+  it("sends a key typed while the screen is left behind and keeps its pages when the screen can't come back", async () => {
+    await leaveScreenAsync();
+    runtime.linesFailure = new Error("unreadable");
+    terminal.scrollToLine(terminal.buffer.active.baseY);
+    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["Paging the terminal's stored lines failed: unreadable"]), { timeout: SpecWait.milliseconds });
+    runtime.attachFailure = new Error("refused");
+
+    terminal.input("x");
+
+    await vi.waitFor(() => expect(runtime.context.logs.at(-1)).toBe("terminal.attach failed: refused"), { timeout: SpecWait.milliseconds });
+    await parsedAsync();
+    expect(runtime.context.sent(TerminalNames.inputMethod)).toEqual([{ sessionId: "s1", data: "x" }]);
+    expect([lines()[0], lines().length]).toEqual(["stored 0", 6000]);
+  });
+
   it("shows the live screen when a page can't be read", async () => {
     await startAsync(1300);
     runtime.linesFailure = new Error("unreadable");
