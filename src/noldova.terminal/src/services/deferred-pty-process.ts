@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { ForegroundProcess } from "@noldova/desktop.runtime";
+
 import type { IDisposable } from "../interfaces/i-disposable.ts";
 import type { IPtyExitEvent } from "../interfaces/i-pty-exit-event.ts";
 import type { IPtyProcess } from "../interfaces/i-pty-process.ts";
@@ -71,8 +73,8 @@ export class DeferredPtyProcess implements IPtyProcess {
     this.process?.resume();
   }
 
-  public readForegroundProcessGroupAsync(): Promise<number | null> {
-    return this.process?.readForegroundProcessGroupAsync() ?? Promise.resolve(null);
+  public readForegroundProcessAsync(): Promise<ForegroundProcess | null> {
+    return this.process?.readForegroundProcessAsync() ?? Promise.resolve(null);
   }
 
   public async endAsync(): Promise<boolean> {

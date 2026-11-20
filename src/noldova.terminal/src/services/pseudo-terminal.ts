@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { ForegroundProcess } from "@noldova/desktop.runtime";
 import type { TerminalSize } from "@noldova/terminal.protocol";
 
 import type { IPseudoTerminalListener } from "../interfaces/i-pseudo-terminal-listener.ts";
@@ -71,8 +72,8 @@ export class PseudoTerminal {
       this.process.resize(size.columns, size.rows);
   }
 
-  public async readForegroundProcessGroupAsync(): Promise<number | null> {
-    return this.hasExited ? null : await this.process.readForegroundProcessGroupAsync();
+  public async readForegroundProcessAsync(): Promise<ForegroundProcess | null> {
+    return this.hasExited ? null : await this.process.readForegroundProcessAsync();
   }
 
   public pause(): void {
