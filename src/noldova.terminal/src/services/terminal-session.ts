@@ -106,7 +106,7 @@ export class TerminalSession {
       onResume: () => this.terminal.resume(),
       onStalled: t => this.listener.onDetached(new TerminalPaneReference(this.sessionId, t))
     });
-    this.wakeup = windowsPty !== null && shellKind === TerminalShellKind.Bash ? new ResizeWakeup(t => this.terminal.write(t)) : null;
+    this.wakeup = this.isMsys ? new ResizeWakeup(t => this.terminal.write(t)) : null;
     this.terminal = this.startTerminal(process);
   }
 
@@ -172,6 +172,10 @@ export class TerminalSession {
 
   public get receivedLength(): number {
     return this.receivedOffset;
+  }
+
+  private get isMsys(): boolean {
+    return this.windowsPty !== null && this.shellKind === TerminalShellKind.Bash;
   }
 
   public write(data: string, isKey: boolean = true): void {
@@ -427,7 +431,7 @@ export class TerminalSession {
         if (this.terminal === terminal)
           this.end(t);
       }
-    }, this.windowsPty !== null);
+    }, this.windowsPty !== null, this.isMsys);
     return terminal;
   }
 

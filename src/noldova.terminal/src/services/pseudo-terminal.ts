@@ -18,17 +18,21 @@ export class PseudoTerminal {
   private readonly process: IPtyProcess;
   private readonly listener: IPseudoTerminalListener;
   private readonly isConPty: boolean;
+  private readonly holdsKeysAfterResize: boolean;
   private readonly heldKeys: string[] = [];
+  private isResized: boolean = false;
+  private resizeHold: NodeJS.Timeout | undefined = undefined;
   private hasExited: boolean = false;
   private isEnding: boolean = false;
   private openRequests: number = 0;
   private outputEnd: string = "";
   private answerLimit: NodeJS.Timeout | undefined = undefined;
 
-  public constructor(process: IPtyProcess, listener: IPseudoTerminalListener, isConPty: boolean = false) {
+  public constructor(process: IPtyProcess, listener: IPseudoTerminalListener, isConPty: boolean = false, holdsKeysAfterResize: boolean = false) {
     this.process = process;
     this.listener = listener;
     this.isConPty = isConPty;
+    this.holdsKeysAfterResize = holdsKeysAfterResize;
     this.process.onData(t => {
       if (this.isConPty)
         this.watchCursorRequests(t);
@@ -36,6 +40,8 @@ export class PseudoTerminal {
     });
     this.process.onExit(t => {
       this.hasExited = true;
+      clearTimeout(this.resizeHold);
+      this.resizeHold = undefined;
       this.releaseKeys();
       if (!this.isEnding)
         void this.endAsync();
@@ -50,10 +56,12 @@ export class PseudoTerminal {
   public write(data: string): void {
     if (this.hasExited)
       return;
-    if (this.openRequests === 0)
-      this.process.write(data);
-    else
+    if (this.openRequests > 0 || this.resizeHold !== undefined)
       this.heldKeys.push(data);
+    else if (this.isResized)
+      this.leadIn(data);
+    else
+      this.process.write(data);
   }
 
   public answer(data: string): void {
@@ -68,8 +76,10 @@ export class PseudoTerminal {
   }
 
   public resize(size: TerminalSize): void {
-    if (!this.hasExited)
-      this.process.resize(size.columns, size.rows);
+    if (this.hasExited)
+      return;
+    this.process.resize(size.columns, size.rows);
+    this.isResized = this.holdsKeysAfterResize;
   }
 
   public async readForegroundProcessAsync(): Promise<ForegroundProcess | null> {
@@ -103,10 +113,25 @@ export class PseudoTerminal {
     this.openRequests += requests;
   }
 
+  private leadIn(data: string): void {
+    this.isResized = false;
+    this.process.write(Resources.resizeLeadIn);
+    this.heldKeys.push(data);
+    this.resizeHold = setTimeout(() => {
+      this.resizeHold = undefined;
+      if (this.openRequests === 0)
+        this.writeHeldKeys();
+    }, Resources.resizeKeyHoldMilliseconds);
+  }
+
   private releaseKeys(): void {
     clearTimeout(this.answerLimit);
     this.answerLimit = undefined;
     this.openRequests = 0;
+    this.writeHeldKeys();
+  }
+
+  private writeHeldKeys(): void {
     for (const key of this.heldKeys.splice(0))
       this.write(key);
   }

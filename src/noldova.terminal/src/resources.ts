@@ -28,6 +28,7 @@ export class Resources {
   public static readonly promptDrawWaitMilliseconds: number = 10_000;
   public static readonly foregroundPollMilliseconds: number = 50;
   public static readonly cursorAnswerMilliseconds: number = 500;
+  public static readonly resizeKeyHoldMilliseconds: number = 50;
   public static readonly maximumKeptRuns: number = 100;
   public static readonly scrollback: number = 1_000;
   public static readonly terminalHistoryFlags: string = "w+";
@@ -104,6 +105,7 @@ export class Resources {
   public static readonly escapesOnly: RegExp = /^(?:\u001b\[[0-9;?]*[A-Za-z])*(?:\u001b(?:\[[0-9;?]*)?)?$/u;
   public static readonly resizeStall: RegExp = /^(?:\u001b\[[0-9;?]*[A-Za-z])*\u001b\[6n\u001b\[\d+;\d+H$/u;
   public static readonly cursorRequest: string = "\u001b[6n";
+  public static readonly resizeLeadIn: string = "\u001b[16;42;0;1;16;1_\u001b[16;42;0;0;0;1_";
   public static readonly cursorAnswers: RegExp = /\u001b\[\d+;\d+R/gu;
   public static readonly whiteSpace: RegExp = /\s+/gu;
   public static readonly controlCharacters: RegExp = /[\u0000-\u001f\u007f-\u009f]/gu;

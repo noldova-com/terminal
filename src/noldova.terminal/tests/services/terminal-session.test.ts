@@ -683,7 +683,7 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
   }
 
   function keysOf(writes: readonly string[]): readonly string[] {
-    return writes.filter(t => !/^\u001b\[\d+;\d+R$/u.test(t));
+    return writes.filter(t => !/^\u001b\[\d+;\d+R$/u.test(t) && t !== Resources.resizeLeadIn);
   }
 
   it("sends the shell no Ctrl+G and holds no timer when the output after the resize stops at the cursor request and move and no key comes", async () => {
@@ -780,6 +780,28 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
 
     assert.deepEqual([resized, exited, restarted, replacement].map(t => bellsOf(t)), [[], [], [], []]);
     for (const session of [resizedSession, exitedSession, restartedSession])
+      await session.disposeAsync();
+  });
+
+  it("leads the first key after a resize in with a Shift press and holds it in Git Bash, and sends it at once to another shell or to bash elsewhere", async () => {
+    vi.useFakeTimers();
+    const gitBash: FakePtyProcess = new FakePtyProcess();
+    const gitBashSession: TerminalSession = createWindowsBash(gitBash);
+    const powerShell: FakePtyProcess = new FakePtyProcess();
+    const powerShellSession: TerminalSession = createWindowsBash(powerShell, TerminalShellKind.PowerShell);
+    const posix: FakePtyProcess = new FakePtyProcess();
+    const posixSession: TerminalSession = createWindowsBash(posix, TerminalShellKind.Bash, null);
+
+    for (const session of [gitBashSession, powerShellSession, posixSession]) {
+      session.resize(new TerminalSize(100, 24));
+      session.write("e");
+    }
+    const held: readonly string[] = [...gitBash.writes];
+    vi.advanceTimersByTime(Resources.resizeKeyHoldMilliseconds);
+
+    assert.deepEqual(held, [Resources.resizeLeadIn]);
+    assert.deepEqual([gitBash.writes, powerShell.writes, posix.writes], [[Resources.resizeLeadIn, "e"], ["e"], ["e"]]);
+    for (const session of [gitBashSession, powerShellSession, posixSession])
       await session.disposeAsync();
   });
 

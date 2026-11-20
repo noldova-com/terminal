@@ -23,8 +23,8 @@ class Recorder {
   public readonly data: string[] = [];
   public readonly exits: (number | null)[] = [];
 
-  public create(process: FakePtyProcess, isConPty: boolean = false): PseudoTerminal {
-    return new PseudoTerminal(process, { onData: t => this.data.push(t), onExit: t => this.exits.push(t) }, isConPty);
+  public create(process: FakePtyProcess, isConPty: boolean = false, holdsKeysAfterResize: boolean = false): PseudoTerminal {
+    return new PseudoTerminal(process, { onData: t => this.data.push(t), onExit: t => this.exits.push(t) }, isConPty, holdsKeysAfterResize);
   }
 }
 
@@ -278,6 +278,113 @@ describe("PseudoTerminal's cursor requests on ConPTY", () => {
     vi.advanceTimersByTime(Resources.cursorAnswerMilliseconds);
 
     assert.deepEqual(process.writes, []);
+    assert.equal(vi.getTimerCount(), 0);
+  });
+});
+
+describe("PseudoTerminal's keys after a resize in an msys bash", () => {
+  const HOLD: number = Resources.resizeKeyHoldMilliseconds;
+  const LEAD_IN: string = Resources.resizeLeadIn;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("sends the first key after a resize as a Shift press and holds the typed keys for the hold, then sends keys at once", () => {
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = new Recorder().create(process, true, true);
+
+    terminal.write("l");
+    terminal.resize(new TerminalSize(100, 30));
+    terminal.write("e");
+    terminal.write("c");
+    vi.advanceTimersByTime(HOLD - 1);
+    const held: readonly string[] = [...process.writes];
+    vi.advanceTimersByTime(1);
+    terminal.write("ho");
+
+    assert.deepEqual(held, ["l", LEAD_IN]);
+    assert.deepEqual(process.writes, ["l", LEAD_IN, "e", "c", "ho"]);
+    assert.equal(vi.getTimerCount(), 0);
+  });
+
+  it("leads in once for two resizes before a key, and again for the held keys when a resize comes during the hold", () => {
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = new Recorder().create(process, true, true);
+
+    terminal.resize(new TerminalSize(100, 30));
+    terminal.resize(new TerminalSize(90, 30));
+    terminal.write("e");
+    vi.advanceTimersByTime(HOLD - 1);
+    terminal.resize(new TerminalSize(80, 30));
+    terminal.write("c");
+    vi.advanceTimersByTime(1);
+    const again: readonly string[] = [...process.writes];
+    vi.advanceTimersByTime(HOLD);
+
+    assert.deepEqual(again, [LEAD_IN, LEAD_IN]);
+    assert.deepEqual(process.writes, [LEAD_IN, LEAD_IN, "e", "c"]);
+  });
+
+  it("keeps the held keys past the hold while the shell's cursor request is open, and sends them after its answer", () => {
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = new Recorder().create(process, true, true);
+
+    terminal.resize(new TerminalSize(100, 30));
+    terminal.write("e");
+    process.emitData(REQUEST);
+    vi.advanceTimersByTime(HOLD);
+    const held: readonly string[] = [...process.writes];
+    terminal.answer(ANSWER);
+
+    assert.deepEqual(held, [LEAD_IN]);
+    assert.deepEqual(process.writes, [LEAD_IN, ANSWER, "e"]);
+  });
+
+  it("leads in a key held for a cursor request that came after a resize once the answer releases it", () => {
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = new Recorder().create(process, true, true);
+
+    terminal.resize(new TerminalSize(100, 30));
+    process.emitData(REQUEST);
+    terminal.write("e");
+    terminal.answer(ANSWER);
+    const led: readonly string[] = [...process.writes];
+    vi.advanceTimersByTime(HOLD);
+
+    assert.deepEqual(led, [ANSWER, LEAD_IN]);
+    assert.deepEqual(process.writes, [ANSWER, LEAD_IN, "e"]);
+  });
+
+  it("drops the held keys and stops the hold when the shell exits during it", () => {
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = new Recorder().create(process, true, true);
+
+    terminal.resize(new TerminalSize(100, 30));
+    terminal.write("e");
+    process.exit(0);
+    vi.advanceTimersByTime(HOLD);
+
+    assert.deepEqual(process.writes, [LEAD_IN]);
+    assert.equal(vi.getTimerCount(), 0);
+  });
+
+  it("sends keys at once after a resize in any other shell", () => {
+    const conPty: FakePtyProcess = new FakePtyProcess();
+    const conPtyTerminal: PseudoTerminal = new Recorder().create(conPty, true);
+    const posix: FakePtyProcess = new FakePtyProcess();
+    const posixTerminal: PseudoTerminal = new Recorder().create(posix);
+
+    for (const terminal of [conPtyTerminal, posixTerminal]) {
+      terminal.resize(new TerminalSize(100, 30));
+      terminal.write("e");
+    }
+
+    assert.deepEqual([conPty.writes, posix.writes], [["e"], ["e"]]);
     assert.equal(vi.getTimerCount(), 0);
   });
 });
