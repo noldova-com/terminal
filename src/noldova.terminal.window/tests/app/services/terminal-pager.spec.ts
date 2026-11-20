@@ -7,8 +7,8 @@
  */
 
 import { TerminalLine, TerminalLineRange, TerminalLinesParams, TerminalNames, TerminalTextRun, TerminalTextStyle } from "@noldova/terminal.protocol";
-import { Terminal, type IBuffer } from "@xterm/xterm";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Terminal, type IBuffer, type IModes } from "@xterm/xterm";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { TerminalConnection } from "../../../src/app/services/terminal-connection.ts";
 import { TerminalPager } from "../../../src/app/services/terminal-pager.ts";
@@ -479,6 +479,110 @@ describe("TerminalPager", () => {
 
     expect(terminal.buffer.active.viewportY).toBe(terminal.buffer.active.baseY);
     expect([runtime.attachCount, runtime.context.sent(TerminalNames.inputMethod)]).toEqual([15, [{ sessionId: "s1", data: "x" }]]);
+  });
+
+  it("keeps the program's key modes but not its mouse or focus reports while the screen is left behind", async () => {
+    runtime.snapshot = `${screenRows.join("\r\n")}\u001b[?1h\u001b[?66h\u001b[?1000h\u001b[?1004h\u001b[?2004h`;
+
+    await leaveScreenAsync();
+
+    const modes: IModes = terminal.modes;
+    expect([modes.applicationCursorKeysMode, modes.applicationKeypadMode, modes.sendFocusMode, modes.bracketedPasteMode, modes.mouseTrackingMode])
+      .toEqual([true, true, false, true, "none"]);
+  });
+
+  it("sends a paste made while the screen is left behind bracketed when the program asked for it", async () => {
+    runtime.snapshot = `${screenRows.join("\r\n")}\u001b[?2004h`;
+    await leaveScreenAsync();
+    const host: HTMLElement = document.body.appendChild(document.createElement("div"));
+    onTestFinished(() => host.remove());
+    terminal.open(host);
+
+    pager.paste("echo a\necho b");
+
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.inputMethod)).toEqual([{ sessionId: "s1", data: "\u001b[200~echo a\recho b\u001b[201~" }]),
+      { timeout: SpecWait.milliseconds });
+  });
+
+  it("brings the screen back before sending a paste made while it is left behind, so the paste follows bracketed paste turned on meanwhile, with the keys after it", async () => {
+    await leaveScreenAsync();
+    runtime.snapshot = `${screenRows.join("\r\n")}\u001b[?2004h`;
+    const host: HTMLElement = document.body.appendChild(document.createElement("div"));
+    onTestFinished(() => host.remove());
+    terminal.open(host);
+
+    pager.paste("echo a\necho b");
+    terminal.input("x");
+    pager.paste("y");
+
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.inputMethod)).toEqual([{ sessionId: "s1", data: "\u001b[200~echo a\recho b\u001b[201~" },
+      { sessionId: "s1", data: "x" }, { sessionId: "s1", data: "\u001b[200~y\u001b[201~" }]), { timeout: SpecWait.milliseconds });
+    expect(lines().slice(-30)).toEqual(screenRows);
+  });
+
+  it("sends a paste made while the screen is left behind unbracketed when the program turned bracketed paste off meanwhile", async () => {
+    runtime.snapshot = `${screenRows.join("\r\n")}\u001b[?2004h`;
+    await leaveScreenAsync();
+    runtime.snapshot = `${screenRows.join("\r\n")}\u001b[?2004l`;
+    const host: HTMLElement = document.body.appendChild(document.createElement("div"));
+    onTestFinished(() => host.remove());
+    terminal.open(host);
+
+    pager.paste("echo a\necho b");
+
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.inputMethod)).toEqual([{ sessionId: "s1", data: "echo a\recho b" }]),
+      { timeout: SpecWait.milliseconds });
+    expect(lines().slice(-30)).toEqual(screenRows);
+  });
+
+  it("brings the screen back for a paste made while a page loads behind it, once the page is in", async () => {
+    await startAsync(7000);
+    for (let page: number = 1; page <= 13; page++)
+      await scrollToTopAsync(page < 13 ? 500 * page + 30 : 6000);
+    runtime.snapshot = `${screenRows.join("\r\n")}\u001b[?2004h`;
+    const host: HTMLElement = document.body.appendChild(document.createElement("div"));
+    onTestFinished(() => host.remove());
+    runtime.holdLines();
+    terminal.open(host);
+
+    terminal.scrollToLine(0);
+    await vi.waitFor(() => expect(pageRequests().at(-1)).toEqual([0, 500]), { timeout: SpecWait.milliseconds });
+    pager.paste("echo a");
+    runtime.releaseLines();
+
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.inputMethod)).toEqual([{ sessionId: "s1", data: "\u001b[200~echo a\u001b[201~" }]),
+      { timeout: SpecWait.milliseconds });
+    expect(lines().slice(-30)).toEqual(screenRows);
+  });
+
+  it("sends a paste made while the screen is left behind with the modes it kept when the screen can't come back", async () => {
+    runtime.snapshot = `${screenRows.join("\r\n")}\u001b[?2004h`;
+    await leaveScreenAsync();
+    runtime.attachFailure = new Error("refused");
+    const host: HTMLElement = document.body.appendChild(document.createElement("div"));
+    onTestFinished(() => host.remove());
+    terminal.open(host);
+
+    pager.paste("echo a");
+
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.inputMethod)).toEqual([{ sessionId: "s1", data: "\u001b[200~echo a\u001b[201~" }]),
+      { timeout: SpecWait.milliseconds });
+    expect([lines()[0], lines().length]).toEqual(["stored 0", 6000]);
+  });
+
+  it("sends a key typed while the screen is left behind and keeps its pages when the screen can't come back", async () => {
+    await leaveScreenAsync();
+    runtime.linesFailure = new Error("unreadable");
+    terminal.scrollToLine(terminal.buffer.active.baseY);
+    await vi.waitFor(() => expect(runtime.context.logs).toEqual(["Paging the terminal's stored lines failed: unreadable"]), { timeout: SpecWait.milliseconds });
+    runtime.attachFailure = new Error("refused");
+
+    terminal.input("x");
+
+    await vi.waitFor(() => expect(runtime.context.logs.at(-1)).toBe("terminal.attach failed: refused"), { timeout: SpecWait.milliseconds });
+    await parsedAsync();
+    expect(runtime.context.sent(TerminalNames.inputMethod)).toEqual([{ sessionId: "s1", data: "x" }]);
+    expect([lines()[0], lines().length]).toEqual(["stored 0", 6000]);
   });
 
   it("shows the live screen when a page can't be read", async () => {
