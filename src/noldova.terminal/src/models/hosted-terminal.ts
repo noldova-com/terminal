@@ -85,6 +85,11 @@ export class HostedTerminal {
       && this.session.commands.hasMarks && !this.hasUnreadInput && this.session.readPromptLine() === "";
   }
 
+  public get isDrawingPrompt(): boolean {
+    return this.ownerSessionId === null && !this.session.hasExited && !this.isRestarting && this.pendingCommand === null
+      && this.session.commands.isDrawingPrompt;
+  }
+
   public recordInput(isReply: boolean = false, data: string = ""): void {
     this.inputReceivedLength = this.session.receivedLength;
     if (isReply)

@@ -24,6 +24,7 @@ export class CommandTracker {
 
   public hasMarks: boolean = false;
   public isAtPrompt: boolean = false;
+  public isDrawingPrompt: boolean = false;
   public hasEnteredLine: boolean = false;
   public cwd: string | null = null;
   public path: string | null = null;
@@ -78,21 +79,25 @@ export class CommandTracker {
         this.redrawFrom = this.canRedraw ? this.lineOffset : null;
         this.canRedraw = false;
         this.isAtPrompt = false;
+        this.isDrawingPrompt = true;
         this.promptStart = mark.offset;
         this.prompts++;
         break;
       case MarkKind.PromptEnd:
+        this.isDrawingPrompt = false;
         this.endPrompt(mark.offset);
         break;
       case MarkKind.OutputStart:
         this.stopRedraws();
         this.isAtPrompt = false;
+        this.isDrawingPrompt = false;
         this.current = new TrackedCommand(mark.offset, true);
         this.commandMarks++;
         break;
       case MarkKind.CommandEnd:
         this.stopRedraws();
         this.commandMarks++;
+        this.isDrawingPrompt = true;
         this.end(mark);
         break;
       case MarkKind.Property:

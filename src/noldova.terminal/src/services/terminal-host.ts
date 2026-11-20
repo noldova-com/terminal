@@ -512,8 +512,12 @@ export class TerminalHost {
       const target: HostedTerminal | null = this.findRunTarget(params.sessionId, params, client);
       return target === null ? new TerminalRunResult(params.sessionId, TerminalRunOutcome.Ended) : this.runIntoAsync(params, target, client);
     }
-    let terminal: HostedTerminal | undefined = this.terminals.findLast(t => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp)
-      && (params.shellKinds.length === 0 || params.shellKinds.includes(t.shell.kind)) && t.isFree && !t.isRunStarting);
+    const isCandidate = (t: HostedTerminal): boolean => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp)
+      && (params.shellKinds.length === 0 || params.shellKinds.includes(t.shell.kind)) && !t.isRunStarting;
+    const newest: HostedTerminal | undefined = this.terminals.findLast(t => isCandidate(t) && (t.isFree || t.isDrawingPrompt));
+    if (newest !== undefined && !newest.isFree)
+      await this.waitForPromptAsync(newest);
+    let terminal: HostedTerminal | undefined = this.terminals.findLast(t => isCandidate(t) && t.isFree);
     const isNew: boolean = terminal === undefined;
     if (terminal === undefined) {
       const shell: Shell | undefined = params.shellKinds.length === 0 ? await this.findFallbackShellAsync(params.shellId)
@@ -533,6 +537,18 @@ export class TerminalHost {
     return this.typeRunAsync(terminal, params.command, client, isNew);
   }
 
+  private async waitForPromptAsync(terminal: HostedTerminal): Promise<void> {
+    const wasStarting: boolean = terminal.isRunStarting;
+    terminal.isRunStarting = true;
+    try {
+      await terminal.session.changes.waitUntilAsync(() => !terminal.isDrawingPrompt, Resources.promptDrawWaitMilliseconds, terminal.beginInterrupt());
+    }
+    finally {
+      terminal.endInterrupt();
+      terminal.isRunStarting = wasStarting;
+    }
+  }
+
   private findRunTarget(sessionId: string, params: TerminalRunParams, client: RequestClient): HostedTerminal | null {
     const terminal: HostedTerminal | undefined = this.sessions.get(sessionId);
     return terminal === undefined || !terminal.isReachedBy(client.connection, client.isApp) || terminal.ownerSessionId !== null
@@ -546,6 +562,8 @@ export class TerminalHost {
     terminal.isRunStarting = true;
     try {
       const isBusy = (): boolean => !terminal.isFree && !session.hasExited && this.sessions.get(session.sessionId) === terminal;
+      if (isBusy() && terminal.isDrawingPrompt)
+        await this.waitForPromptAsync(terminal);
       if (isBusy() && params.whenBusy === TerminalRunBusy.Interrupt && terminal.pendingCommand === null) {
         const isStarted = (): boolean => isBusy() && session.commands.runningCommand !== null;
         const signal: AbortSignal = terminal.beginInterrupt();
