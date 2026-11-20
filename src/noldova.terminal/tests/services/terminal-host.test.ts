@@ -3662,17 +3662,22 @@ describe("TerminalHost", () => {
         await next.catch(() => null);
       });
 
-      it("answers Ended for its terminal closed while the run waits for the shell's prompt after the last run's end", async () => {
+      it("answers Ended at once for its terminal closed while the run waits for the shell's prompt after the last run's end, leaving no timer", async () => {
         const fixture: HostFixture = await HostFixture.createAsync();
         const { sessionId, process } = await openFreeAsync(fixture);
         await runAsync(fixture, { sessionId });
         endRun(fixture, process);
+        vi.useFakeTimers();
 
         const next: Promise<TerminalRunResult> = runAsync(fixture, { sessionId });
-        await waitForRunStartAsync(fixture, sessionId);
+        await vi.advanceTimersByTimeAsync(0);
+        const waiting: boolean | undefined = fixture.host.findTerminal(sessionId)?.isRunStarting;
         await fixture.host.handleAsync("terminal.close", { sessionId }, APP);
+        const result: TerminalRunResult = await next;
+        const timers: number = vi.getTimerCount();
+        vi.useRealTimers();
 
-        assert.deepEqual([(await next).outcome, process.writes], ["Ended", [PASTE]]);
+        assert.deepEqual([waiting, result.outcome, timers, process.writes], [true, "Ended", 0, [PASTE]]);
         await fixture.endAllAsync();
       });
 
