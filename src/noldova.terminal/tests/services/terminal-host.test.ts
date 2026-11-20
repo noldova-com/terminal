@@ -3597,8 +3597,10 @@ describe("TerminalHost", () => {
         const next: Promise<TerminalRunResult> = runAsync(fixture, { sessionId, whenBusy: "Refuse" });
         await waitForRunStartAsync(fixture, sessionId);
         process.emitData(prompt(fixture, process));
+        const result: TerminalRunResult = await next;
+        vi.useRealTimers();
 
-        assert.deepEqual([ended, (await next).outcome, process.writes], [1, "Typed", [PASTE, PASTE]]);
+        assert.deepEqual([ended, result.outcome, process.writes], [1, "Typed", [PASTE, PASTE]]);
         await fixture.endAllAsync();
       });
 
@@ -3613,6 +3615,7 @@ describe("TerminalHost", () => {
         await waitForRunStartAsync(fixture, sessionId);
         process.emitData(prompt(fixture, process));
         const result: TerminalRunResult = await next;
+        vi.useRealTimers();
 
         assert.deepEqual([result.sessionId, result.outcome, process.writes, fixture.spawner.spawned.length], [sessionId, "Typed", [PASTE, PASTE], 1]);
         await fixture.endAllAsync();
