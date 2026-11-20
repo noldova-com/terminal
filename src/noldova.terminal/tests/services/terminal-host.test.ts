@@ -775,6 +775,51 @@ describe("TerminalHost", () => {
     await fixture.endAllAsync();
   });
 
+  it("starts a shell, whose environment read needs one of the four file threads, while two of a completion's folder reads hold theirs past the deadline", async () => {
+    const threads: { free: number; readonly waiting: (() => void)[] } = { free: 4, waiting: [] };
+    const takeThreadAsync = async (): Promise<void> => {
+      if (threads.free > 0) {
+        threads.free--;
+        return;
+      }
+      await new Promise<void>(resolve => threads.waiting.push(resolve));
+    };
+    const giveThread = (): void => {
+      const next: (() => void) | undefined = threads.waiting.shift();
+      if (next === undefined)
+        threads.free++;
+      else
+        next();
+    };
+    const environment: Readonly<Record<string, string | undefined>> = { SHELL: "/bin/bash", PATH: "/slow1:/slow2:/slow3:/slow4:/usr/bin" };
+    let reads: number = 0;
+    const source: IEnvironmentSource = {
+      start: () => undefined,
+      readAsync: async () => {
+        if (++reads === 1)
+          return environment;
+        await takeThreadAsync();
+        giveThread();
+        return environment;
+      },
+      end: () => undefined
+    };
+    const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", environment, source);
+    const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    vi.spyOn(fixture.fileSystem.stalled, "get").mockImplementation((path: string) => path.startsWith("/slow") ? takeThreadAsync().then(() => stall.promise) : undefined);
+    fixture.fileSystem.files.set("/usr/bin/grep", "");
+    const sessionId: string = await fixture.openAsync();
+    await fixture.host.handleAsync("terminal.complete", { sessionId, line: "gr", cursor: 2 }, APP);
+
+    await fixture.openAsync();
+    await vi.waitFor(() => assert.equal(fixture.spawner.spawned.length, 2));
+    const slow: readonly string[] = fixture.fileSystem.listed.filter(t => t.startsWith("/slow"));
+    stall.resolve();
+
+    assert.deepEqual([slow, threads.free], [["/slow1", "/slow2"], 2]);
+    await fixture.endAllAsync();
+  });
+
   it("lists the command a PATH change adds once the folder reads held past their deadline end", async () => {
     const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", { SHELL: "/bin/bash", PATH: "/slow1:/slow2:/usr/bin" });
     const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
