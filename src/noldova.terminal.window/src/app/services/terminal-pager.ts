@@ -7,7 +7,7 @@
  */
 
 import { TerminalLinePage, TerminalLineRange, type TerminalAttachment, type TerminalSize, type WindowsPty } from "@noldova/terminal.protocol";
-import type { IBuffer, Terminal } from "@xterm/xterm";
+import type { IBuffer, IModes, Terminal } from "@xterm/xterm";
 
 import { Resources } from "../../resources.ts";
 import { StoredLinesWindow } from "../models/stored-lines-window.ts";
@@ -216,8 +216,11 @@ export class TerminalPager {
 
   private async rebuildAsync(attachment: TerminalAttachment | null, anchor: number, offset: number): Promise<void> {
     await this.writeAsync("");
-    if (attachment === null)
+    if (attachment === null) {
+      const modes: string = this.keyModes();
       this.terminal.reset();
+      this.writeModes(modes);
+    }
     else {
       this.onReset(attachment.size, attachment.windowsPty);
       this.restoreModes(attachment);
@@ -248,10 +251,20 @@ export class TerminalPager {
   }
 
   private restoreModes(attachment: TerminalAttachment): void {
+    const tail: string = attachment.snapshot.slice(attachment.snapshot.search(Resources.modesTail));
+    this.writeModes((tail.match(Resources.inputModes) ?? []).join(""));
+  }
+
+  private keyModes(): string {
+    const modes: IModes = this.terminal.modes;
+    return (modes.applicationCursorKeysMode ? Resources.applicationCursorKeysOn : "") + (modes.applicationKeypadMode ? Resources.applicationKeypadOn : "")
+      + (modes.bracketedPasteMode ? Resources.bracketedPasteOn : "");
+  }
+
+  private writeModes(modes: string): void {
     const held: (() => void)[] = this.held ?? [];
     this.held = held;
-    const tail: string = attachment.snapshot.slice(attachment.snapshot.search(Resources.modesTail));
-    this.terminal.write((tail.match(Resources.inputModes) ?? []).join(""), () => {
+    this.terminal.write(modes, () => {
       this.held = null;
       for (const send of held)
         send();

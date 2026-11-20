@@ -7,8 +7,8 @@
  */
 
 import { TerminalLine, TerminalLineRange, TerminalLinesParams, TerminalNames, TerminalTextRun, TerminalTextStyle } from "@noldova/terminal.protocol";
-import { Terminal, type IBuffer } from "@xterm/xterm";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Terminal, type IBuffer, type IModes } from "@xterm/xterm";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { TerminalConnection } from "../../../src/app/services/terminal-connection.ts";
 import { TerminalPager } from "../../../src/app/services/terminal-pager.ts";
@@ -479,6 +479,29 @@ describe("TerminalPager", () => {
 
     expect(terminal.buffer.active.viewportY).toBe(terminal.buffer.active.baseY);
     expect([runtime.attachCount, runtime.context.sent(TerminalNames.inputMethod)]).toEqual([15, [{ sessionId: "s1", data: "x" }]]);
+  });
+
+  it("keeps the program's key modes but not its mouse or focus reports while the screen is left behind", async () => {
+    runtime.snapshot = `${screenRows.join("\r\n")}\u001b[?1h\u001b[?66h\u001b[?1000h\u001b[?1004h\u001b[?2004h`;
+
+    await leaveScreenAsync();
+
+    const modes: IModes = terminal.modes;
+    expect([modes.applicationCursorKeysMode, modes.applicationKeypadMode, modes.sendFocusMode, modes.bracketedPasteMode, modes.mouseTrackingMode])
+      .toEqual([true, true, false, true, "none"]);
+  });
+
+  it("sends a paste made while the screen is left behind bracketed when the program asked for it", async () => {
+    runtime.snapshot = `${screenRows.join("\r\n")}\u001b[?2004h`;
+    await leaveScreenAsync();
+    const host: HTMLElement = document.body.appendChild(document.createElement("div"));
+    onTestFinished(() => host.remove());
+    terminal.open(host);
+
+    pager.paste("echo a\necho b");
+
+    await vi.waitFor(() => expect(runtime.context.sent(TerminalNames.inputMethod)).toEqual([{ sessionId: "s1", data: "\u001b[200~echo a\recho b\u001b[201~" }]),
+      { timeout: SpecWait.milliseconds });
   });
 
   it("shows the live screen when a page can't be read", async () => {

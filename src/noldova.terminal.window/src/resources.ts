@@ -110,6 +110,9 @@ export class Resources {
   public static readonly scrollback: number = 10_000;
   public static readonly storedPageLines: number = 500;
   public static readonly modesTail: RegExp = /(?:\u001b\[\??\d+[hl])*$/u;
+  public static readonly applicationCursorKeysOn: string = "\u001b[?1h";
+  public static readonly applicationKeypadOn: string = "\u001b[?66h";
+  public static readonly bracketedPasteOn: string = "\u001b[?2004h";
   public static readonly inputModes: RegExp = /\u001b\[\?(?:1|9|66|1000|1002|1003|1004|2004)h/gu;
   public static readonly storedLinesCap: number = 50_000;
   public static readonly wideCharacterStart: number = 0x1100;
