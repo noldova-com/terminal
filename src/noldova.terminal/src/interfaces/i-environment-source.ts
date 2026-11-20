@@ -9,7 +9,7 @@
 export interface IEnvironmentSource {
   start(): void;
 
-  readAsync(): Promise<Readonly<Record<string, string | undefined>>>;
+  readAsync(): Promise<Readonly<Record<string, string | undefined>> | null>;
 
   end(): void;
 }

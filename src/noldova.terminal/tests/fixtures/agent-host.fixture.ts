@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { TerminalEvents } from "../../src/models/terminal-events.ts";
 import { CompletionSource } from "../../src/services/completion-source.ts";
 import { InheritedEnvironment } from "../../src/services/inherited-environment.ts";
+import { LatestEnvironment } from "../../src/services/latest-environment.ts";
 import { SavedTerminals } from "../../src/services/saved-terminals.ts";
 import { ShellIntegration } from "../../src/services/shell-integration.ts";
 import { ShellLocator } from "../../src/services/shell-locator.ts";
@@ -50,7 +51,7 @@ export class AgentHostFixture {
       new ShellLocator("linux", "x64", { SHELL: "/bin/bash" }, null, this.fileSystem, new FakeCommandRunner(), this.log),
       "linux",
       "6.8.0",
-      new InheritedEnvironment({ SHELL: "/bin/bash" }),
+      new LatestEnvironment(new InheritedEnvironment({ SHELL: "/bin/bash" }), { SHELL: "/bin/bash" }),
       "/home/a",
       this.log,
       new TerminalEvents(new FakeEventChannel(), this.exited, new FakeEventChannel(), new FakeEventChannel(), new FakeEventChannel(), new FakeEventChannel(),

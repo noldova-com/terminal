@@ -26,6 +26,7 @@ import { ContextPtySpawner } from "./services/context-pty-spawner.ts";
 import { FileSystemWriter } from "./services/file-system-writer.ts";
 import { FileSystemReader } from "./services/file-system.reader.ts";
 import { FolderAccess } from "./services/folder-access.ts";
+import { LatestEnvironment } from "./services/latest-environment.ts";
 import { LineProcessStarter } from "./services/line-process-starter.ts";
 import { MacEnvironment } from "./services/mac-environment.ts";
 import { ProcessSignaller } from "./services/process-signaller.ts";
@@ -83,7 +84,7 @@ export class RuntimePart implements IRuntimePart {
         new ShellLocator(process.platform, process.arch, process.env, ShellLocator.readUserShell(), reader, runner, context.log),
         process.platform,
         release(),
-        environment,
+        new LatestEnvironment(environment, process.env),
         homedir(),
         context.log,
         events,

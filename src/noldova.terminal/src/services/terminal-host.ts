@@ -23,7 +23,6 @@ import { ShellKindNotFoundException } from "../exceptions/shell-kind-not-found.e
 import { ShellNotFoundException } from "../exceptions/shell-not-found.exception.ts";
 import { UnknownMethodException } from "../exceptions/unknown-method.exception.ts";
 import { UnsupportedSystemException } from "../exceptions/unsupported-system.exception.ts";
-import type { IEnvironmentSource } from "../interfaces/i-environment-source.ts";
 import type { IFileSystemReader } from "../interfaces/i-file-system-reader.ts";
 import type { IPtyProcess } from "../interfaces/i-pty-process.ts";
 import type { IPtySpawner } from "../interfaces/i-pty-spawner.ts";
@@ -44,6 +43,7 @@ import { CommandHistory } from "./command-history.ts";
 import type { CompletionSource } from "./completion-source.ts";
 import { DeferredPtyProcess } from "./deferred-pty-process.ts";
 import { FailureText } from "./failure-text.ts";
+import type { LatestEnvironment } from "./latest-environment.ts";
 import type { OutputLog } from "./output-log.ts";
 import type { SavedTerminals } from "./saved-terminals.ts";
 import type { ShellIntegration } from "./shell-integration.ts";
@@ -60,7 +60,7 @@ export class TerminalHost {
   private readonly historyFolder: TerminalHistoryFolder;
   private readonly locator: ShellLocator;
   private readonly windowsPty: WindowsPty | null;
-  private readonly environmentSource: IEnvironmentSource;
+  private readonly environment: LatestEnvironment;
   private readonly homeFolder: string;
   private readonly log: IModuleLog;
   private readonly events: TerminalEvents;
@@ -86,7 +86,7 @@ export class TerminalHost {
     locator: ShellLocator,
     platform: string,
     osRelease: string,
-    environmentSource: IEnvironmentSource,
+    environment: LatestEnvironment,
     homeFolder: string,
     log: IModuleLog,
     events: TerminalEvents,
@@ -104,7 +104,7 @@ export class TerminalHost {
     this.windowsPty = platform === Resources.windowsPlatform
       ? new WindowsPty(TerminalHost.readWindowsBuild(osRelease))
       : null;
-    this.environmentSource = environmentSource;
+    this.environment = environment;
     this.homeFolder = homeFolder;
     this.log = log;
     this.events = events;
@@ -796,8 +796,8 @@ export class TerminalHost {
     const keys: string | undefined = params.asksShell && this.completions.followsCommand(terminal.shell.kind, params.line, params.cursor)
       ? Resources.optionsKeys.get(terminal.shell.kind) : undefined;
     const [completion, reply] = await Promise.all([
-      this.readCompletionEnvironmentAsync(terminal).then(t => this.completions.completeAsync(params.sessionId, terminal.shell.kind, params.line,
-        params.cursor, terminal.session.cwd ?? terminal.folder, t, terminal.session.shellNames, terminal.session.shellBuiltins)),
+      this.completions.completeAsync(params.sessionId, terminal.shell.kind, params.line, params.cursor, terminal.session.cwd ?? terminal.folder,
+        this.readCompletionEnvironment(terminal), terminal.session.shellNames, terminal.session.shellBuiltins),
       keys === undefined ? Promise.resolve(ShellOptionsReply.none) : terminal.session.askOptionsAsync(keys)
     ]);
     if (reply.isTimedOut)
@@ -810,14 +810,14 @@ export class TerminalHost {
     const terminal: HostedTerminal = this.findHosted(params.sessionId, client);
     const shellNames: ReadonlySet<string> | null = terminal.session.isShellPathReset || terminal.session.isShellModulePathReset ? null
       : terminal.session.shellNames;
-    const environment: Readonly<Record<string, string>> = await this.readCompletionEnvironmentAsync(terminal);
+    const environment: Readonly<Record<string, string>> = this.readCompletionEnvironment(terminal);
     return terminal.shell.kind === TerminalShellKind.PowerShell
       ? this.completions.findMissingPowerShellAsync(terminal.session.commands, terminal.shell.file, params.names, shellNames, environment)
       : this.completions.findMissingAsync(params.sessionId, terminal.session.commands, terminal.session.prompts, terminal.shell.kind,
         terminal.session.cwd ?? terminal.folder, params.names, shellNames, environment);
   }
 
-  private async readCompletionEnvironmentAsync(terminal: HostedTerminal): Promise<Readonly<Record<string, string>>> {
+  private readCompletionEnvironment(terminal: HostedTerminal): Readonly<Record<string, string>> {
     const replaced: Record<string, string> = {};
     if (terminal.session.shellPath !== null)
       replaced[Resources.pathVariable] = terminal.session.shellPath;
@@ -827,7 +827,7 @@ export class TerminalHost {
     if (temporaryFolder !== null)
       replaced[Resources.temporaryFolderVariable] = temporaryFolder;
     const keys: ReadonlySet<string> = new Set(Object.keys(replaced).map(t => this.toVariableKey(t)));
-    return this.readShellEnvironmentAsync({
+    return this.withVariables(TerminalHost.toTerminalEnvironment(this.environment.read()), {
       ...Object.fromEntries(Object.entries(terminal.environment ?? {}).filter(([t]) => !keys.has(this.toVariableKey(t)))),
       ...replaced
     });
@@ -1038,7 +1038,7 @@ export class TerminalHost {
 
   private async startShellAsync(shell: Shell, folder: string, size: TerminalSize, note: string | null,
     variables: Readonly<Record<string, string>>, deferredSessionId: string | null = null): Promise<StartedShell> {
-    const environment: Readonly<Record<string, string>> = await this.readShellEnvironmentAsync(variables);
+    const environment: Readonly<Record<string, string>> = this.withVariables(await this.readEnvironmentAsync(), variables);
     const printedNote: string | null = note === null || this.windowsPty === null ? null
       : note.split(Resources.lineBreaks).map(t => TerminalSession.toNote(t)).join("");
     const launch: ShellLaunch = await this.integration.prepareAsync(shell, randomUUID().replaceAll(Resources.terminalHostUuidSeparator, ""), environment, printedNote);
@@ -1073,15 +1073,15 @@ export class TerminalHost {
       Object.entries(environment).find(([t]) => this.toVariableKey(t) === temporaryKey)?.[1] ?? null);
   }
 
-  private async readShellEnvironmentAsync(variables: Readonly<Record<string, string>>): Promise<Readonly<Record<string, string>>> {
+  private withVariables(environment: Readonly<Record<string, string>>, variables: Readonly<Record<string, string>>): Readonly<Record<string, string>> {
     const names: ReadonlySet<string> = new Set(Object.keys(variables).map(t => this.toVariableKey(t)));
     return Object.fromEntries([
-      ...Object.entries(await this.readEnvironmentAsync()).filter(([t]) => !names.has(this.toVariableKey(t))),
+      ...Object.entries(environment).filter(([t]) => !names.has(this.toVariableKey(t))),
       ...Object.entries(variables)]);
   }
 
   private async readEnvironmentAsync(): Promise<Readonly<Record<string, string>>> {
-    const environment: Readonly<Record<string, string | undefined>> = await this.environmentSource.readAsync();
+    const environment: Readonly<Record<string, string | undefined>> = await this.environment.readAsync();
     this.ensureRunning();
     return TerminalHost.toTerminalEnvironment(environment);
   }

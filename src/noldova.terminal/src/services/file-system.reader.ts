@@ -50,7 +50,10 @@ export class FileSystemReader implements IFileSystemReader {
 
   public async readEntriesAsync(path: string): Promise<readonly FolderEntry[]> {
     const entries: readonly Dirent[] = await FileSystemReader.readOrAsync(() => readdir(path, { withFileTypes: true }), [], Resources.unreadablePathCodes);
-    return Promise.all(entries.map(async t => new FolderEntry(t.name, t.isDirectory() || (t.isSymbolicLink() && await this.isFolderAsync(join(path, t.name))))));
+    const listed: FolderEntry[] = [];
+    for (const entry of entries)
+      listed.push(new FolderEntry(entry.name, entry.isDirectory() || entry.isSymbolicLink() && await this.isFolderAsync(join(path, entry.name))));
+    return listed;
   }
 
   public readRealPathOrNullAsync(path: string): Promise<string | null> {
