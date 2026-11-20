@@ -8,6 +8,7 @@
 
 import assert from "node:assert/strict";
 
+import type { ForegroundProcess } from "@noldova/desktop.runtime";
 import { TerminalSize } from "@noldova/terminal.protocol";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 
@@ -28,15 +29,15 @@ class Recorder {
 }
 
 describe("PseudoTerminal", () => {
-  it("hands on its shell's foreground process group, and null once the shell exited", async () => {
+  it("hands on its shell's foreground process, and null once the shell exited", async () => {
     const process: FakePtyProcess = new FakePtyProcess(7);
     const terminal: PseudoTerminal = new Recorder().create(process);
     process.foregroundProcessGroup = 9;
 
-    const running: number | null = await terminal.readForegroundProcessGroupAsync();
+    const running: ForegroundProcess | null = await terminal.readForegroundProcessAsync();
     process.exit(0);
 
-    assert.deepEqual([running, await terminal.readForegroundProcessGroupAsync()], [9, null]);
+    assert.deepEqual([running?.group, await terminal.readForegroundProcessAsync()], [9, null]);
   });
 
   it("reports output, and an exit code unless a signal ended the shell or none was given", () => {

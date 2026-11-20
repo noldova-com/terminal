@@ -7,7 +7,7 @@
  */
 import { constants } from "node:os";
 
-import type { PseudoTerminal, PseudoTerminalExit, Registration } from "@noldova/desktop.runtime";
+import type { ForegroundProcess, PseudoTerminal, PseudoTerminalExit, Registration } from "@noldova/desktop.runtime";
 
 import type { IDisposable } from "../interfaces/i-disposable.ts";
 import type { IPtyExitEvent } from "../interfaces/i-pty-exit-event.ts";
@@ -75,8 +75,8 @@ export class ContextPtyProcess implements IPtyProcess {
     this.terminal.resize(columns, rows);
   }
 
-  public readForegroundProcessGroupAsync(): Promise<number | null> {
-    return this.terminal.readForegroundProcessGroupAsync();
+  public readForegroundProcessAsync(): Promise<ForegroundProcess | null> {
+    return this.terminal.readForegroundProcessAsync();
   }
 
   public pause(): void {

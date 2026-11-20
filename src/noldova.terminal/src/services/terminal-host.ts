@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonValue } from "@noldova/context.json";
-import type { EventChannel, IModuleLog } from "@noldova/desktop.runtime";
+import type { EventChannel, ForegroundProcess, IModuleLog } from "@noldova/desktop.runtime";
 import { EndedBy, Resources as ProtocolResources, TerminalAckParams, TerminalCommandAdded, TerminalCommandEnded, TerminalCompleteParams, TerminalCompletion, TerminalExit, TerminalExited, TerminalFindCommandsParams, TerminalInputParams, TerminalLaunched, TerminalLaunchParams, TerminalLinesParams, TerminalName, TerminalNames, TerminalOpenParams, TerminalOwnerReference, TerminalPaneReference, TerminalReference, TerminalResizeParams, TerminalRestartParams, TerminalRestoreParams, TerminalRunBusy, TerminalRunEnded, TerminalRunEndedBy, TerminalRunOutcome, TerminalRunOutputParams, TerminalRunParams, TerminalRunResult, TerminalSessions, TerminalShellKind, TerminalShells, TerminalShowOwnerParams, TerminalSize, TerminalVisibilityParams, WindowsPty, type TerminalAttachment, type TerminalLinePage, type TerminalMissingCommands, type TerminalRunOutput } from "@noldova/terminal.protocol";
 
 import { AgentTerminalRestartException } from "../exceptions/agent-terminal-restart.exception.ts";
@@ -658,13 +658,14 @@ export class TerminalHost {
   private static async waitForCommandAsync(session: TerminalSession, isStarted: () => boolean, deadline: number, signal: AbortSignal):
     Promise<boolean> {
     for (;;) {
-      const group: number | null = await session.readForegroundProcessGroupAsync();
+      const foreground: ForegroundProcess | null = await session.readForegroundProcessAsync();
       if (!isStarted() || signal.aborted)
         return false;
-      if (group !== session.pid)
+      const isCommand: boolean = foreground === null || foreground.group !== session.pid;
+      if (isCommand && (foreground === null || !foreground.isTerminalProgram))
         return true;
       if (Date.now() >= deadline)
-        return false;
+        return isCommand;
       await session.changes.waitUntilAsync(() => !isStarted(), Math.min(Resources.foregroundPollMilliseconds, deadline - Date.now()), signal);
     }
   }

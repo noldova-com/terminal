@@ -8,6 +8,7 @@
 
 import assert from "node:assert/strict";
 
+import type { ForegroundProcess } from "@noldova/desktop.runtime";
 import { afterEach, describe, it, vi } from "vitest";
 
 import type { IPtyExitEvent } from "../../src/interfaces/i-pty-exit-event.ts";
@@ -66,16 +67,16 @@ describe("DeferredPtyProcess", () => {
     assert.equal(await deferred.endAsync(), true);
   });
 
-  it("has no foreground process group until its shell starts, then its shell's", async () => {
+  it("has no foreground process until its shell starts, then its shell's", async () => {
     const starter: Starter = new Starter();
     const [deferred] = starter.create();
     starter.process.foregroundProcessGroup = 42;
 
-    const before: number | null = await deferred.readForegroundProcessGroupAsync();
+    const before: ForegroundProcess | null = await deferred.readForegroundProcessAsync();
     deferred.resize(120, 30);
     await starter.startedAsync();
 
-    assert.deepEqual([before, deferred.pid, await deferred.readForegroundProcessGroupAsync()], [null, 7, 42]);
+    assert.deepEqual([before, deferred.pid, (await deferred.readForegroundProcessAsync())?.group], [null, 7, 42]);
     assert.equal(await deferred.endAsync(), true);
   });
 
