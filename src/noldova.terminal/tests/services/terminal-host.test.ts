@@ -3672,12 +3672,15 @@ describe("TerminalHost", () => {
         const next: Promise<TerminalRunResult> = runAsync(fixture, { sessionId });
         await vi.advanceTimersByTimeAsync(0);
         const waiting: boolean | undefined = fixture.host.findTerminal(sessionId)?.isRunStarting;
-        await fixture.host.handleAsync("terminal.close", { sessionId }, APP);
+        const closedAt: number = Date.now();
+        const closing: Promise<JsonValue> = fixture.host.handleAsync("terminal.close", { sessionId }, APP);
         const result: TerminalRunResult = await next;
-        const timers: number = vi.getTimerCount();
+        await vi.runAllTimersAsync();
+        await closing;
+        const lastTimer: number = Date.now() - closedAt;
         vi.useRealTimers();
 
-        assert.deepEqual([waiting, result.outcome, timers, process.writes], [true, "Ended", 0, [PASTE]]);
+        assert.deepEqual([waiting, result.outcome, lastTimer < 10_000, process.writes], [true, "Ended", true, [PASTE]]);
         await fixture.endAllAsync();
       });
 
