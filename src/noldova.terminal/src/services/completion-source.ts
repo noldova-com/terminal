@@ -73,7 +73,8 @@ export class CompletionSource {
     const prefix: string = toKey(line.slice(completion.replaceFrom, cursor));
     const labels: ReadonlySet<string> = new Set(completion.items.map(t => t.label));
     const added: readonly TerminalCompletionItem[] = [...new Set(options)]
-      .filter(t => t.trim().length > 0 && t.length <= ProtocolResources.maximumPathLength && !labels.has(t) && toKey(t).startsWith(prefix))
+      .filter(t => t.trim().length > 0 && t.length <= ProtocolResources.maximumPathLength && !ProtocolResources.controlCharacters.test(t) && !labels.has(t)
+        && toKey(t).startsWith(prefix))
       .map(t => new TerminalCompletionItem(t, t, TerminalCompletionKind.Option));
     if (added.length === 0)
       return completion;
@@ -200,7 +201,7 @@ export class CompletionSource {
       .sort((a, b) => a.label.localeCompare(b.label, Resources.sortLocale))
       .map((t): [string, CompletionCandidate] => [ShellWords.write(t.value, shellLine.quote, isPowerShell, t.closesQuote,
         escapesWildcards && (t.kind === TerminalCompletionKind.File || t.kind === TerminalCompletionKind.Folder), keepsHome), t])
-      .filter(([t]) => t.length <= ProtocolResources.maximumPathLength)
+      .filter(([t]) => t.length <= ProtocolResources.maximumPathLength && !ProtocolResources.controlCharacters.test(t))
       .map(([text, t]) => new TerminalCompletionItem(text, t.label, t.kind));
     return new TerminalCompletion(shellLine.start, items.slice(0, ProtocolResources.maximumCompletionItems));
   }

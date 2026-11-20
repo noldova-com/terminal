@@ -3414,10 +3414,10 @@ export declare class TerminalCompletionItem {
   /**
    * Creates the choice.
    *
-   * @param text The text: not blank, at most {@link Resources.maximumPathLength} UTF-16 code units.
+   * @param text The text: not blank, at most {@link Resources.maximumPathLength} UTF-16 code units, with no character {@link Resources.controlCharacters} matches.
    * @param label The name: not blank, at most {@link Resources.maximumPathLength} UTF-16 code units.
    * @param kind What it is.
-   * @throws {@link ArgumentException} Synchronously, when the text or the name is blank or too long.
+   * @throws {@link ArgumentException} Synchronously, when the text or the name is blank or too long, or the text holds a control character.
    *
    * @example
    * ```ts
