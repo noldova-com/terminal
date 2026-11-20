@@ -989,10 +989,6 @@ exit 0
   public static readonly completionSourceGitFolderArgument: string = "-C";
   public static readonly completionSourceGitBashDrivePrefixLength: number = 3;
 
-  public static formatProcessCommandLinePath(processId: number): string {
-    return `/proc/${processId}/cmdline`;
-  }
-
   public static formatCompletionSourceWindowsDrivePath(drive: string, rest: string): string {
     return `${drive}:${Resources.windowsSeparator}${rest}`;
   }

@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonValue } from "@noldova/context.json";
-import type { EventChannel, IModuleLog } from "@noldova/desktop.runtime";
+import type { EventChannel, ForegroundProcess, IModuleLog } from "@noldova/desktop.runtime";
 import { EndedBy, Resources as ProtocolResources, TerminalAckParams, TerminalCommandAdded, TerminalCommandEnded, TerminalCompleteParams, TerminalCompletion, TerminalExit, TerminalExited, TerminalFindCommandsParams, TerminalInputParams, TerminalLaunched, TerminalLaunchParams, TerminalLinesParams, TerminalName, TerminalNames, TerminalOpenParams, TerminalOwnerReference, TerminalPaneReference, TerminalReference, TerminalResizeParams, TerminalRestartParams, TerminalRestoreParams, TerminalRunBusy, TerminalRunEnded, TerminalRunEndedBy, TerminalRunOutcome, TerminalRunOutputParams, TerminalRunParams, TerminalRunResult, TerminalSessions, TerminalShellKind, TerminalShells, TerminalShowOwnerParams, TerminalSize, TerminalVisibilityParams, WindowsPty, type TerminalAttachment, type TerminalLinePage, type TerminalMissingCommands, type TerminalRunOutput } from "@noldova/terminal.protocol";
 
 import { AgentTerminalRestartException } from "../exceptions/agent-terminal-restart.exception.ts";
@@ -57,7 +57,6 @@ import { TerminalSession } from "./terminal-session.ts";
 export class TerminalHost {
   private readonly spawner: IPtySpawner;
   private readonly fileSystem: IFileSystemReader;
-  private readonly isLinux: boolean;
   private readonly integration: ShellIntegration;
   private readonly historyFolder: TerminalHistoryFolder;
   private readonly locator: ShellLocator;
@@ -106,7 +105,6 @@ export class TerminalHost {
     });
     this.historyFolder = historyFolder;
     this.locator = locator;
-    this.isLinux = platform === Resources.linuxPlatform;
     this.windowsPty = platform === Resources.windowsPlatform
       ? new WindowsPty(TerminalHost.readWindowsBuild(osRelease))
       : null;
@@ -635,7 +633,7 @@ export class TerminalHost {
         const signal: AbortSignal = terminal.beginInterrupt();
         const deadline: number = Date.now() + Resources.runInterruptWaitMilliseconds;
         await session.changes.waitUntilAsync(() => !isBusy() || isStarted(), Resources.runInterruptWaitMilliseconds, signal);
-        if (isStarted() && await this.waitForCommandAsync(session, isStarted, deadline, signal)) {
+        if (isStarted() && await TerminalHost.waitForCommandAsync(session, isStarted, deadline, signal)) {
           session.write(Resources.interruptKey);
           await session.changes.waitUntilAsync(() => !isBusy(), Resources.runInterruptWaitMilliseconds, signal);
         }
@@ -657,28 +655,19 @@ export class TerminalHost {
     return build;
   }
 
-  private async waitForCommandAsync(session: TerminalSession, isStarted: () => boolean, deadline: number, signal: AbortSignal):
+  private static async waitForCommandAsync(session: TerminalSession, isStarted: () => boolean, deadline: number, signal: AbortSignal):
     Promise<boolean> {
     for (;;) {
-      const group: number | null = await session.readForegroundProcessGroupAsync();
-      const shellId: number | null = session.pid;
-      const isShellCopy: boolean = group !== null && shellId !== null && group !== shellId && Date.now() < deadline
-        && await this.isShellCopyAsync(group, shellId);
+      const foreground: ForegroundProcess | null = await session.readForegroundProcessAsync();
       if (!isStarted() || signal.aborted)
         return false;
-      if (group !== session.pid && !isShellCopy)
+      const isCommand: boolean = foreground === null || foreground.group !== session.pid;
+      if (isCommand && (foreground === null || !foreground.isTerminalProgram))
         return true;
       if (Date.now() >= deadline)
-        return false;
+        return isCommand;
       await session.changes.waitUntilAsync(() => !isStarted(), Math.min(Resources.foregroundPollMilliseconds, deadline - Date.now()), signal);
     }
-  }
-
-  private async isShellCopyAsync(group: number, shellId: number): Promise<boolean> {
-    if (!this.isLinux)
-      return false;
-    const [command, shell]: (string | null)[] = await Promise.all([group, shellId].map(t => this.fileSystem.readTextOrNullAsync(Resources.formatProcessCommandLinePath(t))));
-    return command !== null && command === shell;
   }
 
   private async typeRunAsync(terminal: HostedTerminal, command: string, client: RequestClient, waitsForFit: boolean = false): Promise<TerminalRunResult> {

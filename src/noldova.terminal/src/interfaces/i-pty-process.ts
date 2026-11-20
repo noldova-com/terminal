@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { ForegroundProcess } from "@noldova/desktop.runtime";
+
 import type { IDisposable } from "./i-disposable.ts";
 import type { IPtyExitEvent } from "./i-pty-exit-event.ts";
 
@@ -26,5 +28,5 @@ export interface IPtyProcess {
 
   endAsync(): Promise<boolean>;
 
-  readForegroundProcessGroupAsync(): Promise<number | null>;
+  readForegroundProcessAsync(): Promise<ForegroundProcess | null>;
 }

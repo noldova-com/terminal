@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { ForegroundProcess } from "@noldova/desktop.runtime";
 import { EndedBy, Resources as ProtocolResources, TerminalAttachment, TerminalCommandEnded, TerminalCwd, TerminalExit, TerminalExited, TerminalInputEdge, TerminalInputMark, TerminalOutput, TerminalPaneReference, TerminalReference, TerminalShellKind, TerminalSize, TerminalSummary, TerminalTitle, type TerminalLinePage, type TerminalRunOutput, type WindowsPty } from "@noldova/terminal.protocol";
 
 import { MarkKind } from "../enums/mark-kind.ts";
@@ -113,8 +114,8 @@ export class TerminalSession {
     return this.terminal.pid;
   }
 
-  public readForegroundProcessGroupAsync(): Promise<number | null> {
-    return this.terminal.readForegroundProcessGroupAsync();
+  public readForegroundProcessAsync(): Promise<ForegroundProcess | null> {
+    return this.terminal.readForegroundProcessAsync();
   }
 
   public get title(): string {

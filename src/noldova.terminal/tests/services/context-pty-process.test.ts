@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { constants } from "node:os";
 
-import { PseudoTerminal } from "@noldova/desktop.runtime";
+import { ForegroundProcess, PseudoTerminal } from "@noldova/desktop.runtime";
 import { describe, it, vi } from "vitest";
 
 import type { IDisposable } from "../../src/interfaces/i-disposable.ts";
@@ -27,11 +27,11 @@ function waitForExitAsync(process: ContextPtyProcess): Promise<IPtyExitEvent> {
   return new Promise<IPtyExitEvent>(resolve => process.onExit(resolve));
 }
 
-class GroupedTerminal extends PseudoTerminal {
-  public group: number | null = null;
+class ForegroundTerminal extends PseudoTerminal {
+  public foreground: ForegroundProcess | null = null;
 
-  public override readForegroundProcessGroupAsync(): Promise<number | null> {
-    return Promise.resolve(this.group);
+  public override readForegroundProcessAsync(): Promise<ForegroundProcess | null> {
+    return Promise.resolve(this.foreground);
   }
 }
 
@@ -53,14 +53,15 @@ describe("ContextPtyProcess", () => {
     assert.deepEqual([process.pid, output, handle.writes, handle.sizes, handle.pauses, handle.resumes], [4_343, ["first"], ["ls\r"], ["120x30"], 1, 1]);
   });
 
-  it("hands on the foreground process group that the runtime reads for the terminal", async () => {
-    const terminal: GroupedTerminal = new GroupedTerminal(new FakePtyHandle(4_343), "/bin/bash", new Date(), () => Promise.resolve(true));
+  it("hands on the foreground process that the runtime reads for the terminal", async () => {
+    const terminal: ForegroundTerminal = new ForegroundTerminal(new FakePtyHandle(4_343), "/bin/bash", new Date(), () => Promise.resolve(true));
     const process: ContextPtyProcess = new ContextPtyProcess(terminal);
 
-    const none: number | null = await process.readForegroundProcessGroupAsync();
-    terminal.group = 5_000;
+    const foreground: ForegroundProcess = new ForegroundProcess(5_000, "/usr/bin/make", "make", "/bin/bash", "bash");
+    const none: ForegroundProcess | null = await process.readForegroundProcessAsync();
+    terminal.foreground = foreground;
 
-    assert.deepEqual([none, await process.readForegroundProcessGroupAsync()], [null, 5_000]);
+    assert.deepEqual([none, await process.readForegroundProcessAsync()], [null, foreground]);
   });
 
   it("hands on the output that came before its listener once the listener has registered, before the output that follows", async () => {

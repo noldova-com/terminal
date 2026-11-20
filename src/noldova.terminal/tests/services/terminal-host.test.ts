@@ -14,7 +14,7 @@ import path from "node:path";
 import { ArgumentException } from "@noldova/context.exceptions";
 import { JsonException, type JsonValue } from "@noldova/context.json";
 import { FailureCode } from "@noldova/desktop.protocol";
-import { MethodFailureException } from "@noldova/desktop.runtime";
+import { MethodFailureException, type ForegroundProcess } from "@noldova/desktop.runtime";
 import { TerminalAttachment, TerminalCompletion, TerminalLaunched, TerminalLinePage, TerminalMissingCommands, TerminalOutput, TerminalReference, TerminalRunResult, TerminalSessions, TerminalShellKind, TerminalSize, TerminalSummary } from "@noldova/terminal.protocol";
 import { afterEach, beforeEach, describe, it, type MockInstance, vi } from "vitest";
 
@@ -4187,20 +4187,19 @@ describe("TerminalHost", () => {
         await fixture.endAllAsync();
       });
 
-      it("sends Ctrl+C only once the process holding the terminal is no longer a copy of the shell, as bash hands the terminal over before the command starts, on Linux",
+      it("sends Ctrl+C only once the process holding the terminal is no longer a copy of the shell, as the shell hands the terminal over before the command starts",
         async () => {
         const fixture: HostFixture = await HostFixture.createAsync();
         const { sessionId, process } = await openFreeAsync(fixture);
-        fixture.fileSystem.files.set(`/proc/${process.pid}/cmdline`, "bash\0--rcfile\0/tmp/bashrc\0");
-        fixture.fileSystem.files.set("/proc/5000/cmdline", "bash\0--rcfile\0/tmp/bashrc\0");
         process.foregroundProcessGroup = 5_000;
+        process.isForegroundShellCopy = true;
         process.emitData(`make\r\n${mark(fixture, process, "C")}`);
         vi.useFakeTimers();
 
         const result: Promise<TerminalRunResult> = runAsync(fixture, { sessionId, whenBusy: "Interrupt", opensTab: true });
         await vi.advanceTimersByTimeAsync(1_500);
         const heldByCopy: readonly string[] = [...process.writes];
-        fixture.fileSystem.files.set("/proc/5000/cmdline", "make\0");
+        process.isForegroundShellCopy = false;
         await vi.advanceTimersByTimeAsync(50);
         const heldByCommand: readonly string[] = [...process.writes];
         vi.useRealTimers();
@@ -4213,9 +4212,8 @@ describe("TerminalHost", () => {
       it("sends Ctrl+C 2 seconds after the command's start mark to a copy of the shell that still holds the terminal, as a subshell does", async () => {
         const fixture: HostFixture = await HostFixture.createAsync();
         const { sessionId, process } = await openFreeAsync(fixture);
-        fixture.fileSystem.files.set(`/proc/${process.pid}/cmdline`, "bash\0");
-        fixture.fileSystem.files.set("/proc/5000/cmdline", "bash\0");
         process.foregroundProcessGroup = 5_000;
+        process.isForegroundShellCopy = true;
         process.emitData(`( sleep 30 )\r\n${mark(fixture, process, "C")}`);
         vi.useFakeTimers();
 
@@ -4231,22 +4229,31 @@ describe("TerminalHost", () => {
         await fixture.endAllAsync();
       });
 
-      it("sends Ctrl+C at once to another process group on macOS, where no process's command line is read", async () => {
-        const fixture: HostFixture = await HostFixture.createAsync("darwin", "24.0.0");
+      it("sends Ctrl+C to a copy of the shell whose last read before the deadline ends after it", async () => {
+        const fixture: HostFixture = await HostFixture.createAsync();
         const { sessionId, process } = await openFreeAsync(fixture);
-        fixture.fileSystem.files.set(`/proc/${process.pid}/cmdline`, "bash\0");
-        fixture.fileSystem.files.set("/proc/5000/cmdline", "bash\0");
         process.foregroundProcessGroup = 5_000;
-        process.emitData(`make\r\n${mark(fixture, process, "C")}`);
+        process.isForegroundShellCopy = true;
+        process.emitData(`( sleep 30 )\r\n${mark(fixture, process, "C")}`);
         vi.useFakeTimers();
+        const start: number = Date.now();
+        const read: () => Promise<ForegroundProcess | null> = process.readForegroundProcessAsync.bind(process);
+        let isLate: boolean = false;
+        vi.spyOn(process, "readForegroundProcessAsync").mockImplementation(async () => {
+          if (!isLate && Date.now() - start >= 1_950) {
+            isLate = true;
+            vi.setSystemTime(Date.now() + 100);
+          }
+          return read();
+        });
 
         const result: Promise<TerminalRunResult> = runAsync(fixture, { sessionId, whenBusy: "Interrupt", opensTab: true });
-        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(1_950);
         const sent: readonly string[] = [...process.writes];
         vi.useRealTimers();
         process.emitData(`^C\r\n${mark(fixture, process, "D", "130")}${prompt(fixture, process)}`);
 
-        assert.deepEqual([sent, (await result).outcome], [["\u0003"], "Typed"]);
+        assert.deepEqual([isLate, sent, (await result).outcome], [true, ["\u0003"], "Typed"]);
         await fixture.endAllAsync();
       });
 
