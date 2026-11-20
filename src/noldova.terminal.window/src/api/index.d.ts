@@ -392,8 +392,8 @@ export declare class TerminalOwners {
    * 10 seconds for it, holding it as a run that is starting, and types there once it is free; the wait ends when the terminal closes, and a
    * terminal still not free after it is passed over.
    * While the owner's terminals or the connection's are closing, a run that names none types nothing and fails as `Ended`, naming the newest
-   * of them; when the owner has none yet, as while its only terminal is still opening, the run waits for the close to end and then runs as
-   * usual, in a new terminal. A shell
+   * of them. When there is none yet, as while the owner's only terminal is still opening, a run caught by its owner's close waits for the close
+   * to end and then runs as usual, in a new terminal, and a run whose own connection is closing fails at once and opens nothing. A shell
    * without the integration, such as Command Prompt, can't be told free, so each run there opens a new terminal. With no free terminal, it
    * opens one for the owner in the folder, with the window's default shell when it is of the kinds or none are given, else the first installed
    * shell of the kinds, and types them once the shell is ready; with no shell of the kinds installed, nothing opens or is typed, since a shell

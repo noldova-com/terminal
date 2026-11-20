@@ -19,6 +19,7 @@ import { TerminalAttachment, TerminalCompletion, TerminalLaunched, TerminalLineP
 import { afterEach, beforeEach, describe, it, type MockInstance, vi } from "vitest";
 
 import { AgentTerminalRestartException } from "../../src/exceptions/agent-terminal-restart.exception.ts";
+import { ConnectionClosingException } from "../../src/exceptions/connection-closing.exception.ts";
 import { DefaultShellNotFoundException } from "../../src/exceptions/default-shell-not-found.exception.ts";
 import { FolderNotFoundException } from "../../src/exceptions/folder-not-found.exception.ts";
 import { HostEndedException } from "../../src/exceptions/host-ended.exception.ts";
@@ -3926,6 +3927,79 @@ describe("TerminalHost", () => {
 
         assert.deepEqual([result?.outcome ?? "no answer within 2 s", result?.sessionId === sessionId, process.writes, fixture.spawner.spawned.length],
           ["Ended", true, [PASTE], 1]);
+        await fixture.endAllAsync();
+      });
+
+      it("waits out its owner's close, opening nothing during it, for a run that names none whose shell lookup was under way when the close started with no terminal to name, then types into a new terminal", async () => {
+        const fixture: HostFixture = await HostFixture.createAsync();
+        const findAsync: ShellLocator["findAsync"] = ShellLocator.prototype.findAsync;
+        const looking: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+        const found: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+        vi.spyOn(ShellLocator.prototype, "findAsync").mockImplementationOnce(async function (this: ShellLocator,
+          ...args: Parameters<ShellLocator["findAsync"]>): ReturnType<ShellLocator["findAsync"]> {
+          looking.resolve();
+          await found.promise;
+          return findAsync.apply(this, args);
+        });
+
+        const next: Promise<TerminalRunResult> = runAsync(fixture);
+        await looking.promise;
+        const closing: Promise<JsonValue> = fixture.host.handleAsync("terminal.closeOwner", { owner: OWNER }, APP);
+        found.resolve();
+        await closing;
+        await vi.waitFor(() => assert.equal(fixture.spawner.spawned.length, 1));
+        const opened: FakePtyProcess | undefined = fixture.spawner.spawned.at(0);
+        const openedId: string | undefined = (await fixture.listAsync()).at(-1)?.sessionId;
+        if (opened !== undefined && openedId !== undefined) {
+          await fixture.host.handleAsync("terminal.resize", { sessionId: openedId, size: PANE_SIZE }, APP);
+          await vi.waitFor(() => assert.ok(opened.isRead));
+          showPrompt(fixture, opened);
+        }
+        const result: TerminalRunResult | null = await withinAsync(next, 2_000);
+
+        assert.deepEqual([result?.outcome ?? "no answer within 2 s", result?.sessionId === openedId, fixture.closed.published, opened?.writes],
+          ["Typed", true, [], [PASTE]]);
+        await fixture.endAllAsync();
+      });
+
+      it("answers Ended at once naming the terminal a run that names none opened, when its owner's terminals start to close while it opens, typing nothing", async () => {
+        const fixture: HostFixture = await HostFixture.createAsync();
+        const openTerminalAsync: TerminalHost["openTerminalAsync"] = fixture.host.openTerminalAsync.bind(fixture.host);
+        const opening: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+        const open: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+        vi.spyOn(fixture.host, "openTerminalAsync").mockImplementationOnce(async (...args: Parameters<TerminalHost["openTerminalAsync"]>):
+          ReturnType<TerminalHost["openTerminalAsync"]> => {
+          opening.resolve();
+          await open.promise;
+          return openTerminalAsync(...args);
+        });
+
+        const next: Promise<TerminalRunResult> = runAsync(fixture);
+        await opening.promise;
+        const closing: Promise<JsonValue> = fixture.host.handleAsync("terminal.closeOwner", { owner: OWNER }, APP);
+        open.resolve();
+        const result: TerminalRunResult | null = await withinAsync(next, 2_000);
+        await closing;
+
+        assert.deepEqual([result?.outcome ?? "no answer within 2 s", fixture.closed.published, fixture.spawner.spawned.length],
+          ["Ended", [{ sessionId: result?.sessionId }], 0]);
+        await fixture.endAllAsync();
+      });
+
+      it("fails a run that names none at once with ConnectionClosingException while its own connection's terminals close and none is open yet, opening none", async () => {
+        const fixture: HostFixture = await HostFixture.createAsync();
+        const started: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+        fixture.spawner.hold = started.promise;
+        const opening: Promise<string> = fixture.openAsync(ownedOpen(OWNER));
+        await fixture.spawner.held.promise;
+
+        const closing: Promise<void> = fixture.host.closeConnectionAsync(APP.connection, null);
+        const failure: unknown = await withinAsync(runAsync(fixture).then(() => "answered", (error: unknown) => error), 2_000);
+        started.resolve();
+        await opening;
+        await closing;
+
+        assert.deepEqual([failure instanceof ConnectionClosingException, fixture.spawner.spawned.length], [true, 1]);
         await fixture.endAllAsync();
       });
 

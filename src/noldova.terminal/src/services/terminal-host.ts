@@ -15,6 +15,7 @@ import { EndedBy, Resources as ProtocolResources, TerminalAckParams, TerminalCom
 
 import { AgentTerminalRestartException } from "../exceptions/agent-terminal-restart.exception.ts";
 import { SystemRequirement } from "../enums/system-requirement.ts";
+import { ConnectionClosingException } from "../exceptions/connection-closing.exception.ts";
 import { DefaultShellNotFoundException } from "../exceptions/default-shell-not-found.exception.ts";
 import { FolderNotFoundException } from "../exceptions/folder-not-found.exception.ts";
 import { HostEndedException } from "../exceptions/host-ended.exception.ts";
@@ -79,6 +80,7 @@ export class TerminalHost {
   private readonly appCloses: Set<Promise<void>> = new Set<Promise<void>>();
   private readonly closings: Map<(terminal: HostedTerminal | TerminalOpening) => boolean, PromiseWithResolvers<void>> =
     new Map<(terminal: HostedTerminal | TerminalOpening) => boolean, PromiseWithResolvers<void>>();
+  private readonly closingConnections: Set<number> = new Set<number>();
 
   public constructor(
     spawner: IPtySpawner,
@@ -391,6 +393,7 @@ export class TerminalHost {
       : terminal.connection === connection;
     const closed: PromiseWithResolvers<void> = Promise.withResolvers<void>();
     this.closings.set(isEnding, closed);
+    this.closingConnections.add(connection);
     try {
       for (const terminal of this.terminals.filter(isEnding))
         terminal.cancelCommand();
@@ -409,12 +412,18 @@ export class TerminalHost {
     }
     finally {
       this.closings.delete(isEnding);
+      this.closingConnections.delete(connection);
       closed.resolve();
     }
   }
 
   private isClosing(terminal: HostedTerminal | TerminalOpening): boolean {
     return [...this.closings.keys()].some(isTheirs => isTheirs(terminal));
+  }
+
+  private endForClose(params: TerminalRunParams, client: RequestClient): TerminalRunResult | null {
+    const closing: HostedTerminal | undefined = this.findClosing(params, client);
+    return closing === undefined ? null : new TerminalRunResult(closing.session.sessionId, TerminalRunOutcome.Ended);
   }
 
   private findClosing(params: TerminalRunParams, client: RequestClient): HostedTerminal | undefined {
@@ -533,16 +542,22 @@ export class TerminalHost {
 
   private async runAfterClosesAsync(params: TerminalRunParams, client: RequestClient): Promise<TerminalRunResult> {
     const place: TerminalOpening = new TerminalOpening(params.owner, client.connection);
-    if (params.sessionId === null && this.isClosing(place)) {
-      const closing: HostedTerminal | undefined = this.findClosing(params, client);
-      if (closing !== undefined)
-        return new TerminalRunResult(closing.session.sessionId, TerminalRunOutcome.Ended);
-      await Promise.allSettled([...this.closings].filter(([isTheirs]) => isTheirs(place)).map(([, closed]) => closed.promise));
+    for (;;) {
+      if (params.sessionId === null && this.isClosing(place)) {
+        const closing: HostedTerminal | undefined = this.findClosing(params, client);
+        if (closing !== undefined)
+          return new TerminalRunResult(closing.session.sessionId, TerminalRunOutcome.Ended);
+        if (this.closingConnections.has(client.connection))
+          throw new ConnectionClosingException();
+        await Promise.allSettled([...this.closings].filter(([isTheirs]) => isTheirs(place)).map(([, closed]) => closed.promise));
+      }
+      const result: TerminalRunResult | null = await this.trackAsync(this.runAsync(params, client), place);
+      if (result !== null)
+        return result;
     }
-    return this.trackAsync(this.runAsync(params, client), place);
   }
 
-  private async runAsync(params: TerminalRunParams, client: RequestClient): Promise<TerminalRunResult> {
+  private async runAsync(params: TerminalRunParams, client: RequestClient): Promise<TerminalRunResult | null> {
     await Promise.allSettled([this.restoring]);
     this.ensureRunning();
     if (params.sessionId !== null) {
@@ -550,9 +565,9 @@ export class TerminalHost {
       return target === null || this.isClosing(target) ? new TerminalRunResult(params.sessionId, TerminalRunOutcome.Ended)
         : this.runIntoAsync(params, target, client);
     }
-    const closingAtStart: HostedTerminal | undefined = this.findClosing(params, client);
-    if (closingAtStart !== undefined)
-      return new TerminalRunResult(closingAtStart.session.sessionId, TerminalRunOutcome.Ended);
+    const place: TerminalOpening = new TerminalOpening(params.owner, client.connection);
+    if (this.isClosing(place))
+      return this.endForClose(params, client);
     const isCandidate = (t: HostedTerminal): boolean => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp)
       && (params.shellKinds.length === 0 || params.shellKinds.includes(t.shell.kind)) && !t.isRunStarting;
     const newest: HostedTerminal | undefined = this.terminals.findLast(t => isCandidate(t) && (t.isFree || t.isDrawingPrompt));
@@ -565,11 +580,12 @@ export class TerminalHost {
         : await this.findShellOfKindsAsync(params.shellKinds, params.shellId);
       if (shell === undefined && params.shellKinds.length > 0)
         return new TerminalRunResult(null, TerminalRunOutcome.NoShell);
-      const closing: HostedTerminal | undefined = this.findClosing(params, client);
-      if (closing !== undefined)
-        return new TerminalRunResult(closing.session.sessionId, TerminalRunOutcome.Ended);
+      if (this.isClosing(place))
+        return this.endForClose(params, client);
       terminal = await this.startForPersonAsync(new TerminalOpenParams(shell?.id ?? null, params.folder, params.size, params.storedLimit, false, params.owner),
         client, true, params.opensTab);
+      if (this.isClosing(terminal))
+        return new TerminalRunResult(terminal.session.sessionId, TerminalRunOutcome.Ended);
       if (!params.opensTab)
         terminal.fitWindow = client;
       this.audience.publish(this.events.opened, terminal,

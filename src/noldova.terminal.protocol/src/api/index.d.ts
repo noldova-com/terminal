@@ -5992,8 +5992,9 @@ export declare class TerminalRunResult {
  * command's end or a prompt's start until the prompt's end, the runtime waits up to 10 seconds for it, holding it as a run that is starting,
  * and takes it once it is free; the wait ends when the terminal closes, and a terminal still not free after it is passed over.
  * While the owner's terminals or the connection's are closing, a run that names none types nothing and answers
- * {@link TerminalRunOutcome.Ended} naming the newest of them; when the owner has none yet, as while its only terminal is still opening, the
- * run waits for the close to end and then runs as usual, in a new terminal. A shell without
+ * {@link TerminalRunOutcome.Ended} naming the newest of them. When there is none yet, as while the owner's only terminal is still opening, a
+ * run caught by its owner's close waits for the close to end and then runs as usual, in a new terminal, and a run whose own connection is
+ * closing fails at once and opens nothing. A shell without
  * the integration, such as Command Prompt, can't be told free, so it never takes them. With none such, it opens a
  * terminal for the owner in the folder, with the default shell when it is of the kinds or none are given, else the first installed shell of the
  * kinds, and types them once the shell is ready, as a launch's command; with no shell of the kinds installed, it opens nothing and answers
