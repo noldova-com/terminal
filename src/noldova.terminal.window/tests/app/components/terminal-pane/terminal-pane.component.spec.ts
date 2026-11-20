@@ -24,6 +24,7 @@ import { TerminalPaneComponent } from "../../../../src/app/components/terminal-p
 import { CommandColoring } from "../../../../src/app/services/command-coloring.ts";
 import { SessionSizing } from "../../../../src/app/services/session-sizing.ts";
 import { TerminalFocus } from "../../../../src/app/services/terminal-focus.ts";
+import { TerminalConnection } from "../../../../src/app/services/terminal-connection.ts";
 import { TerminalPager } from "../../../../src/app/services/terminal-pager.ts";
 import { Resources } from "../../../../src/resources.ts";
 import { Contrast } from "../../../fixtures/contrast.fixture.ts";
@@ -836,6 +837,29 @@ describe("TerminalPaneComponent", () => {
     host.runtime.output("s1", 2, "gti");
 
     await vi.waitFor(() => expect(host.runtime.context.logs).toContain(Resources.formatCommandLookupFailed(failure)), { timeout: SpecWait.milliseconds });
+  });
+
+  it("asks again about typed command names once it attaches again after a failed lookup", async () => {
+    const failure: Error = new Error("no lookup");
+    const host: PaneHost<TerminalPaneComponent> = createPane(true);
+    host.runtime.context.settings.set(Resources.commandColorsSetting, true);
+    host.runtime.context.handlers.set(TerminalNames.findCommandsMethod, () => Promise.reject(failure));
+    host.runtime.shellKind = TerminalShellKind.Bash;
+    await host.attachedAsync();
+    host.runtime.output("s1", 0, "$ ", [new TerminalInputMark(2, TerminalInputEdge.Start)]);
+    host.runtime.output("s1", 2, "gti");
+    await vi.waitFor(() => expect(host.runtime.context.logs).toContain(Resources.formatCommandLookupFailed(failure)), { timeout: SpecWait.milliseconds });
+    host.runtime.context.handlers.set(TerminalNames.findCommandsMethod, async () => new TerminalMissingCommands([]).toJson());
+    host.runtime.snapshot = "$ gti";
+    host.runtime.offset = 5;
+
+    TerminalConnection.reattachAll();
+    await vi.waitFor(() => expect(host.runtime.attachCount).toBe(2), { timeout: SpecWait.milliseconds });
+    host.runtime.output("s1", 5, "\r\n$ ", [new TerminalInputMark(9, TerminalInputEdge.Start)]);
+    host.runtime.output("s1", 9, "gtx");
+
+    await vi.waitFor(() => expect(host.runtime.context.sent(TerminalNames.findCommandsMethod).at(-1)).toEqual({ sessionId: "s1", names: ["gtx"] }),
+      { timeout: SpecWait.milliseconds });
   });
 
   it("keeps a Command colors change that came before its setting was read over the read's older value", async () => {
