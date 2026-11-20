@@ -709,6 +709,8 @@ function defineRealShellTests(covered: readonly string[]): void {
         const historyLine: string = isPowerShell ? "echo \"[history-$(@(Get-History).Count)]\"\r" : "echo \"[history-$(fc -l 1 | wc -l | tr -d ' ')]\"\r";
         await promptAsync(isPowerShell ? "function noldovaprobe { param([switch] $Alpha, [string] $Beta) }\r"
           : "autoload -Uz compinit && compinit -u -D && _noldova_probe() { compadd -- --alpha --beta gamma } && compdef _noldova_probe noldovaprobe\r");
+        if (isPowerShell)
+          await promptAsync("$null = TabExpansion2 -inputScript 'noldovaprobe -' -cursorColumn 14\r");
         await promptAsync(historyLine);
         assert.equal(fixture.marks(sessionId).findLast(t => t.value?.startsWith("Options=") === true)?.value, "Options=1");
         await fixture.typeAsync(sessionId, "noldovaprobe -");
