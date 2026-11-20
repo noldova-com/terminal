@@ -562,8 +562,11 @@ export class TerminalHost {
     terminal.isRunStarting = true;
     try {
       const isBusy = (): boolean => !terminal.isFree && !session.hasExited && this.sessions.get(session.sessionId) === terminal;
-      if (isBusy() && terminal.isDrawingPrompt)
+      if (isBusy() && terminal.isDrawingPrompt) {
         await this.waitForPromptAsync(terminal);
+        if (this.sessions.get(session.sessionId) !== terminal)
+          return new TerminalRunResult(session.sessionId, TerminalRunOutcome.Ended);
+      }
       if (isBusy() && params.whenBusy === TerminalRunBusy.Interrupt && terminal.pendingCommand === null) {
         const isStarted = (): boolean => isBusy() && session.commands.runningCommand !== null;
         const signal: AbortSignal = terminal.beginInterrupt();
