@@ -3582,6 +3582,18 @@ describe("TerminalHost", () => {
         process.emitData(`npm test\r\n${mark(fixture, process, "C")}ok\r\n${mark(fixture, process, "D", "0")}`);
       }
 
+      async function withinAsync<T>(answer: Promise<T>, milliseconds: number): Promise<T | null> {
+        let bound: NodeJS.Timeout | undefined;
+        try {
+          return await Promise.race([answer, new Promise<null>(resolve => {
+            bound = setInterval(() => resolve(null), milliseconds);
+          })]);
+        }
+        finally {
+          clearInterval(bound);
+        }
+      }
+
       async function waitForRunStartAsync(fixture: HostFixture, sessionId: string): Promise<void> {
         await vi.waitFor(() => assert.equal(fixture.host.findTerminal(sessionId)?.isRunStarting, true));
       }
@@ -3667,21 +3679,48 @@ describe("TerminalHost", () => {
         const { sessionId, process } = await openFreeAsync(fixture);
         await runAsync(fixture, { sessionId });
         endRun(fixture, process);
-        vi.useFakeTimers();
+        vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
 
         const next: Promise<TerminalRunResult> = runAsync(fixture, { sessionId });
         await vi.advanceTimersByTimeAsync(0);
         const waiting: boolean | undefined = fixture.host.findTerminal(sessionId)?.isRunStarting;
         const closedAt: number = Date.now();
         const closing: Promise<JsonValue> = fixture.host.handleAsync("terminal.close", { sessionId }, APP);
-        const result: TerminalRunResult = await next;
+        const result: TerminalRunResult | null = await withinAsync(next, 2_000);
+        const answeredAt: number = Date.now();
         await vi.runAllTimersAsync();
         await closing;
         const lastTimer: number = Date.now() - closedAt;
         vi.useRealTimers();
 
-        assert.deepEqual([waiting, result.outcome, lastTimer < 10_000, process.writes], [true, "Ended", true, [PASTE]]);
+        assert.deepEqual([waiting, result?.outcome ?? "no answer within 2 s", answeredAt - closedAt, lastTimer < 10_000, process.writes],
+          [true, "Ended", 0, true, [PASTE]]);
         await fixture.endAllAsync();
+      });
+
+      it("opens a new terminal at once for a run that names none when the owner's terminal it waits for closes, writing nothing more to the closed one", async () => {
+        const fixture: HostFixture = await HostFixture.createAsync();
+        const { sessionId, process } = await openFreeAsync(fixture);
+        await runAsync(fixture);
+        endRun(fixture, process);
+        vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+
+        const spawning: Promise<FakePtyProcess> = fixture.spawner.nextSpawnAsync();
+        const next: Promise<TerminalRunResult> = runAsync(fixture);
+        await vi.advanceTimersByTimeAsync(0);
+        const waiting: boolean | undefined = fixture.host.findTerminal(sessionId)?.isRunStarting;
+        const closedAt: number = Date.now();
+        const closing: Promise<JsonValue> = fixture.host.handleAsync("terminal.close", { sessionId }, APP);
+        const opened: FakePtyProcess | null = await withinAsync(spawning, 2_000);
+        const openedAt: number = Date.now();
+        await vi.runAllTimersAsync();
+        await closing;
+        vi.useRealTimers();
+
+        assert.deepEqual([waiting, opened === null ? "no terminal within 2 s" : openedAt - closedAt, fixture.spawner.spawned.length,
+          fixture.host.findTerminal(sessionId) === undefined, process.writes], [true, 0, 2, true, [PASTE]]);
+        await fixture.endAllAsync();
+        await next.catch(() => null);
       });
 
       it("types at once after the person's command ended at its prompt, into its terminal or the free one it finds, and is busy for a key the shell never answers only for the settle", async () => {
