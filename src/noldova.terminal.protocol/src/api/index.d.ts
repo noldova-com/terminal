@@ -5988,7 +5988,10 @@ export declare class TerminalRunResult {
  * @remarks
  * The runtime types them into the owner's newest terminal, reached by the asking connection, that isn't an agent's, runs a shell of one of the
  * kinds, has the shell integration, and is at its prompt with nothing typed after it, no command running and no keys typed within the last
- * second. A shell without the integration, such as Command Prompt, can't be told free, so it never takes them. With none such, it opens a
+ * second. A run's end comes before the shell draws its next prompt, so when the owner's newest such terminal is still drawing its prompt, from a
+ * command's end or a prompt's start until the prompt's end, the runtime waits up to 10 seconds for it, holding it as a run that is starting,
+ * and takes it once it is free; the wait ends when the terminal closes, and a terminal still not free after it is passed over. A shell without
+ * the integration, such as Command Prompt, can't be told free, so it never takes them. With none such, it opens a
  * terminal for the owner in the folder, with the default shell when it is of the kinds or none are given, else the first installed shell of the
  * kinds, and types them once the shell is ready, as a launch's command; with no shell of the kinds installed, it opens nothing and answers
  * {@link TerminalRunOutcome.NoShell}. They go in as a paste would type them: their line breaks become carriage returns, inside the bracketed
@@ -5998,7 +6001,8 @@ export declare class TerminalRunResult {
  *
  * With a session ID, the commands go only into that terminal, which must be a person's terminal of the owner, of one of the kinds, that the
  * asking connection reaches; for any other the run types nothing and answers {@link TerminalRunOutcome.Ended} alike, as for a terminal that
- * closed, so a connection learns nothing of another's terminals. While its shell is busy, running a command or with text on its prompt line, or always for a shell without the
+ * closed, so a connection learns nothing of another's terminals. A terminal still drawing its prompt is waited for first, up to 10 seconds,
+ * held as a run that is starting, and the wait ends when the terminal closes. While its shell is then busy, running a command or with text on its prompt line, or always for a shell without the
  * integration, which can't be told free, a {@link TerminalRunBusy.Refuse} run types nothing and answers {@link TerminalRunOutcome.Busy}; a
  * {@link TerminalRunBusy.Interrupt} run sends Ctrl+C, waits up to 2 seconds for the shell to be free, then types, else answers `Busy`. A run
  * that comes while another run into that terminal is still starting types nothing and answers `Busy`.

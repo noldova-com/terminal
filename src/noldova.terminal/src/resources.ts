@@ -25,6 +25,7 @@ export class Resources {
   public static readonly promptSettleMilliseconds: number = 500;
   public static readonly echoSettleMilliseconds: number = 1_000;
   public static readonly runInterruptWaitMilliseconds: number = 2_000;
+  public static readonly promptDrawWaitMilliseconds: number = 10_000;
   public static readonly foregroundPollMilliseconds: number = 50;
   public static readonly cursorAnswerMilliseconds: number = 500;
   public static readonly maximumKeptRuns: number = 100;
