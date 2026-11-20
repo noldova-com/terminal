@@ -7,7 +7,6 @@
  */
 
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 
@@ -126,23 +125,6 @@ describe("BoundedReads", () => {
     reads.end();
 
     assert.equal(reads.wasCutShort, false);
-  });
-
-  it("reads more folders at once than Node's default limit of ten listeners takes on one signal, with no warning", async () => {
-    const limit: number = EventEmitter.defaultMaxListeners;
-    const warnings = vi.spyOn(process, "emitWarning");
-    const folders: readonly string[] = Array.from({ length: 12 }, (_, i) => `/work/folder${i}`);
-    for (const folder of folders)
-      reader.folders.add(folder);
-    EventEmitter.defaultMaxListeners = 10;
-    const reads: BoundedReads = new BoundedReads(new SharedReads(reader), 100);
-    EventEmitter.defaultMaxListeners = limit;
-
-    const entries: readonly (readonly FolderEntry[])[] = await Promise.all(folders.map(t => reads.readEntriesAsync(t)));
-    reads.end();
-
-    assert.deepEqual([entries.length, warnings.mock.calls], [12, []]);
-    warnings.mockRestore();
   });
 
   it("answers a read started after its time ended at once with the late answer, without reading", async () => {

@@ -300,7 +300,6 @@ export class Resources {
   public static readonly completionCommandMilliseconds: number = 2_000;
   public static readonly completionReadMilliseconds: number = 1_000;
   public static readonly completionConcurrentReads: number = 2;
-  public static readonly unlimitedListeners: number = 0;
   public static readonly optionsKeys: ReadonlyMap<TerminalShellKind, string> = new Map<TerminalShellKind, string>([
     [TerminalShellKind.PowerShell, "\u001b[24~o"],
     [TerminalShellKind.Zsh, "\u001b[24;7~"]

@@ -6,11 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { setMaxListeners } from "node:events";
-
 import { ReadDroppedException } from "../exceptions/read-dropped.exception.ts";
 import type { FolderEntry } from "../models/folder-entry.ts";
-import { Resources } from "../resources.ts";
 import type { SharedReads } from "./shared-reads.ts";
 
 export class BoundedReads {
@@ -24,7 +21,6 @@ export class BoundedReads {
 
   public constructor(reader: SharedReads, milliseconds: number) {
     this.reader = reader;
-    setMaxListeners(Resources.unlimitedListeners, this.stopping.signal);
     this.timer = setTimeout(() => {
       this.hasExpired = true;
       this.expiry.resolve();
