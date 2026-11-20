@@ -247,9 +247,13 @@ describe("TerminalConnection", () => {
     expect(harness.sink.events).toEqual(["reset 80x24 none", "write ", "title ", "exit 0"]);
   });
 
-  it("shows the shell running again after an ended session's attachment draws, for a restart that arrives while it draws", async () => {
+  it("shows only the shell running again after an ended session's attachment draws, for a restart that arrives while it draws, once it can size it", async () => {
     const harness: ConnectionHarness = createHarness();
     harness.runtime.exit = new TerminalExit(0, EndedBy.Exit);
+    vi.spyOn(harness.sink, "showRunning").mockImplementation(() => {
+      harness.sink.events.push("running");
+      harness.connection.resize(new TerminalSize(100, 30));
+    });
     let draw: () => void = () => undefined;
     harness.sink.drawn = new Promise<void>(resolve => {
       draw = resolve;
@@ -261,7 +265,21 @@ describe("TerminalConnection", () => {
     draw();
     await opening;
 
-    expect(harness.sink.events).toEqual(["reset 80x24 none", "write ", "title ", "exit 0", "running"]);
+    expect(harness.sink.events).toEqual(["reset 80x24 none", "write ", "title ", "running"]);
+    expect(harness.sent(TerminalNames.resizeMethod)).toEqual([{ sessionId: "s1", size: { cols: 100, rows: 30 } }]);
+  });
+
+  it("shows an exit that arrives while the attach request is under way once, though the attachment holds it too", async () => {
+    const harness: ConnectionHarness = createHarness();
+    harness.runtime.holdAttaches();
+    const opening: Promise<void> = harness.connection.openAsync();
+
+    harness.runtime.exit = new TerminalExit(2, EndedBy.Exit);
+    harness.runtime.exitSession("s1", 2);
+    harness.runtime.releaseAttaches();
+    await opening;
+
+    expect(harness.sink.events).toEqual(["reset 80x24 none", "write ", "title ", "exit 2"]);
   });
 
   it.each([

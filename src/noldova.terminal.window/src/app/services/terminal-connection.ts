@@ -159,16 +159,18 @@ export class TerminalConnection {
     this.sink.showTitle(attachment.title);
     if (attachment.cwd !== null)
       this.sink.showCwd(attachment.cwd);
-    if (attachment.exit !== null)
-      this.sink.showExit(attachment.exit);
-    if (this.heldExit !== null)
-      this.sink.showExit(this.heldExit);
-    else if (this.isRunningHeld)
-      this.sink.showRunning();
+    const heldExit: TerminalExit | null = this.heldExit;
+    const isRunningHeld: boolean = this.isRunningHeld;
     this.heldExit = null;
     this.isRunningHeld = false;
     this.expected = attachment.offset;
     this.isAttached = true;
+    if (heldExit !== null)
+      this.sink.showExit(heldExit);
+    else if (isRunningHeld)
+      this.sink.showRunning();
+    else if (attachment.exit !== null)
+      this.sink.showExit(attachment.exit);
     this.send(TerminalNames.visibilityMethod, new TerminalVisibilityParams(this.sessionId, this.paneId, this.isVisible).toJson());
     for (const output of buffered)
       this.accept(output);
