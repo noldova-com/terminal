@@ -4187,6 +4187,69 @@ describe("TerminalHost", () => {
         await fixture.endAllAsync();
       });
 
+      it("sends Ctrl+C only once the process holding the terminal is no longer a copy of the shell, as bash hands the terminal over before the command starts, on Linux",
+        async () => {
+        const fixture: HostFixture = await HostFixture.createAsync();
+        const { sessionId, process } = await openFreeAsync(fixture);
+        fixture.fileSystem.files.set(`/proc/${process.pid}/cmdline`, "bash\0--rcfile\0/tmp/bashrc\0");
+        fixture.fileSystem.files.set("/proc/5000/cmdline", "bash\0--rcfile\0/tmp/bashrc\0");
+        process.foregroundProcessGroup = 5_000;
+        process.emitData(`make\r\n${mark(fixture, process, "C")}`);
+        vi.useFakeTimers();
+
+        const result: Promise<TerminalRunResult> = runAsync(fixture, { sessionId, whenBusy: "Interrupt", opensTab: true });
+        await vi.advanceTimersByTimeAsync(1_500);
+        const heldByCopy: readonly string[] = [...process.writes];
+        fixture.fileSystem.files.set("/proc/5000/cmdline", "make\0");
+        await vi.advanceTimersByTimeAsync(50);
+        const heldByCommand: readonly string[] = [...process.writes];
+        vi.useRealTimers();
+        process.emitData(`^C\r\n${mark(fixture, process, "D", "130")}${prompt(fixture, process)}`);
+
+        assert.deepEqual([heldByCopy, heldByCommand, (await result).outcome, process.writes], [[], ["\u0003"], "Typed", ["\u0003", PASTE]]);
+        await fixture.endAllAsync();
+      });
+
+      it("sends Ctrl+C 2 seconds after the command's start mark to a copy of the shell that still holds the terminal, as a subshell does", async () => {
+        const fixture: HostFixture = await HostFixture.createAsync();
+        const { sessionId, process } = await openFreeAsync(fixture);
+        fixture.fileSystem.files.set(`/proc/${process.pid}/cmdline`, "bash\0");
+        fixture.fileSystem.files.set("/proc/5000/cmdline", "bash\0");
+        process.foregroundProcessGroup = 5_000;
+        process.emitData(`( sleep 30 )\r\n${mark(fixture, process, "C")}`);
+        vi.useFakeTimers();
+
+        const result: Promise<TerminalRunResult> = runAsync(fixture, { sessionId, whenBusy: "Interrupt", opensTab: true });
+        await vi.advanceTimersByTimeAsync(1_950);
+        const beforeDeadline: readonly string[] = [...process.writes];
+        await vi.advanceTimersByTimeAsync(50);
+        const atDeadline: readonly string[] = [...process.writes];
+        vi.useRealTimers();
+        process.emitData(`^C\r\n${mark(fixture, process, "D", "130")}${prompt(fixture, process)}`);
+
+        assert.deepEqual([beforeDeadline, atDeadline, (await result).outcome, process.writes], [[], ["\u0003"], "Typed", ["\u0003", PASTE]]);
+        await fixture.endAllAsync();
+      });
+
+      it("sends Ctrl+C at once to another process group on macOS, where no process's command line is read", async () => {
+        const fixture: HostFixture = await HostFixture.createAsync("darwin", "24.0.0");
+        const { sessionId, process } = await openFreeAsync(fixture);
+        fixture.fileSystem.files.set(`/proc/${process.pid}/cmdline`, "bash\0");
+        fixture.fileSystem.files.set("/proc/5000/cmdline", "bash\0");
+        process.foregroundProcessGroup = 5_000;
+        process.emitData(`make\r\n${mark(fixture, process, "C")}`);
+        vi.useFakeTimers();
+
+        const result: Promise<TerminalRunResult> = runAsync(fixture, { sessionId, whenBusy: "Interrupt", opensTab: true });
+        await vi.advanceTimersByTimeAsync(0);
+        const sent: readonly string[] = [...process.writes];
+        vi.useRealTimers();
+        process.emitData(`^C\r\n${mark(fixture, process, "D", "130")}${prompt(fixture, process)}`);
+
+        assert.deepEqual([sent, (await result).outcome], [["\u0003"], "Typed"]);
+        await fixture.endAllAsync();
+      });
+
       it("sends no Ctrl+C to a command that ends while the shell still holds the terminal, and types once the shell is free", async () => {
         const fixture: HostFixture = await HostFixture.createAsync();
         const { sessionId, process } = await openFreeAsync(fixture);
