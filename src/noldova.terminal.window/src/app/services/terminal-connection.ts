@@ -8,7 +8,7 @@
 
 import type { JsonValue } from "@noldova/context.json";
 import type { IWindowPartContext } from "@noldova/desktop.window";
-import { TerminalAckParams, TerminalAttachment, TerminalCommandAdded, TerminalCwd, TerminalExited, TerminalInputParams, TerminalLinePage, TerminalLinesParams, TerminalNames, TerminalOutput, TerminalPaneReference, TerminalReference, TerminalResizeParams, TerminalTitle, TerminalVisibilityParams, type TerminalSize } from "@noldova/terminal.protocol";
+import { TerminalAckParams, TerminalAttachment, TerminalCommandAdded, TerminalCwd, TerminalExited, TerminalInputParams, TerminalLinePage, TerminalLinesParams, TerminalNames, TerminalOutput, TerminalPaneReference, TerminalReference, TerminalResizeParams, TerminalTitle, TerminalVisibilityParams, type TerminalExit, type TerminalSize } from "@noldova/terminal.protocol";
 
 import { Resources } from "../../resources.ts";
 import type { ITerminalSink } from "../interfaces/i-terminal-sink.ts";
@@ -23,6 +23,8 @@ export class TerminalConnection {
   private readonly unsubscribes: (() => void)[] = [];
   private buffered: TerminalOutput[] | null = null;
   private addedCommands: string[] | null = null;
+  private heldExit: TerminalExit | null = null;
+  private isRunningHeld: boolean = false;
   private expected: number = 0;
   private attempt: number = 0;
   private refreshing: number | null = null;
@@ -121,6 +123,8 @@ export class TerminalConnection {
     this.buffered = buffered;
     const addedCommands: string[] = [];
     this.addedCommands = addedCommands;
+    this.heldExit = null;
+    this.isRunningHeld = false;
     let attachment: TerminalAttachment;
     try {
       attachment = TerminalAttachment.fromJson(await this.context.requestAsync(TerminalNames.attachMethod, new TerminalPaneReference(this.sessionId, this.paneId).toJson()));
@@ -155,10 +159,18 @@ export class TerminalConnection {
     this.sink.showTitle(attachment.title);
     if (attachment.cwd !== null)
       this.sink.showCwd(attachment.cwd);
-    if (attachment.exit !== null)
-      this.sink.showExit(attachment.exit);
+    const heldExit: TerminalExit | null = this.heldExit;
+    const isRunningHeld: boolean = this.isRunningHeld;
+    this.heldExit = null;
+    this.isRunningHeld = false;
     this.expected = attachment.offset;
     this.isAttached = true;
+    if (heldExit !== null)
+      this.sink.showExit(heldExit);
+    else if (isRunningHeld)
+      this.sink.showRunning();
+    else if (attachment.exit !== null)
+      this.sink.showExit(attachment.exit);
     this.send(TerminalNames.visibilityMethod, new TerminalVisibilityParams(this.sessionId, this.paneId, this.isVisible).toJson());
     for (const output of buffered)
       this.accept(output);
@@ -218,12 +230,24 @@ export class TerminalConnection {
   }
 
   private showExit(exited: TerminalExited): void {
-    if (exited.sessionId === this.sessionId)
+    if (exited.sessionId !== this.sessionId)
+      return;
+    if (this.buffered === null)
       this.sink.showExit(exited.exit);
+    else {
+      this.heldExit = exited.exit;
+      this.isRunningHeld = false;
+    }
   }
 
   private showRunning(reference: TerminalReference): void {
-    if (reference.sessionId === this.sessionId && this.isAttached)
+    if (reference.sessionId !== this.sessionId)
+      return;
+    if (this.buffered !== null) {
+      this.heldExit = null;
+      this.isRunningHeld = true;
+    }
+    else if (this.isAttached)
       this.sink.showRunning();
   }
 
