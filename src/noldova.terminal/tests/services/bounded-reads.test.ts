@@ -116,6 +116,17 @@ describe("BoundedReads", () => {
     await Promise.all(reads.listPendingReads());
   });
 
+  it("passes on a read's own failure before its time ends, and is not cut short", async () => {
+    const failure: Error = new Error("EACCES");
+    reader.realPathFailures.set("/work/run.sh", failure);
+    const reads: BoundedReads = new BoundedReads(new SharedReads(reader), 100);
+
+    await assert.rejects(reads.readRealPathOrNullAsync("/work/run.sh"), failure);
+    reads.end();
+
+    assert.equal(reads.wasCutShort, false);
+  });
+
   it("answers a read started after its time ended at once with the late answer, without reading", async () => {
     const reads: BoundedReads = new BoundedReads(new SharedReads(reader), 100);
     await vi.advanceTimersByTimeAsync(100);
