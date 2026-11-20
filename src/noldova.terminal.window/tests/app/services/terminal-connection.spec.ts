@@ -231,6 +231,62 @@ describe("TerminalConnection", () => {
     expect(harness.runtime.attachCount).toBe(1);
   });
 
+  it("shows an exit that arrives while it draws its attachment once the draw ends, so the drawn screen doesn't clear it", async () => {
+    const harness: ConnectionHarness = createHarness();
+    let draw: () => void = () => undefined;
+    harness.sink.drawn = new Promise<void>(resolve => {
+      draw = resolve;
+    });
+    const opening: Promise<void> = harness.openAsync();
+    await vi.waitFor(() => expect(harness.sink.events).toEqual(["reset 80x24 none"]), { timeout: SpecWait.milliseconds });
+
+    harness.runtime.exitSession("s1", 0);
+    draw();
+    await opening;
+
+    expect(harness.sink.events).toEqual(["reset 80x24 none", "write ", "title ", "exit 0"]);
+  });
+
+  it("shows the shell running again after an ended session's attachment draws, for a restart that arrives while it draws", async () => {
+    const harness: ConnectionHarness = createHarness();
+    harness.runtime.exit = new TerminalExit(0, EndedBy.Exit);
+    let draw: () => void = () => undefined;
+    harness.sink.drawn = new Promise<void>(resolve => {
+      draw = resolve;
+    });
+    const opening: Promise<void> = harness.openAsync();
+    await vi.waitFor(() => expect(harness.sink.events).toEqual(["reset 80x24 none"]), { timeout: SpecWait.milliseconds });
+
+    harness.runtime.restartSession("s1");
+    draw();
+    await opening;
+
+    expect(harness.sink.events).toEqual(["reset 80x24 none", "write ", "title ", "exit 0", "running"]);
+  });
+
+  it.each([
+    [["restart", "exit"], "exit 1"],
+    [["exit", "restart"], "running"]
+  ])("applies only the last of an exit and a restart that arrive while it draws its attachment, %j", async (order: readonly string[], last: string) => {
+    const harness: ConnectionHarness = createHarness();
+    let draw: () => void = () => undefined;
+    harness.sink.drawn = new Promise<void>(resolve => {
+      draw = resolve;
+    });
+    const opening: Promise<void> = harness.openAsync();
+    await vi.waitFor(() => expect(harness.sink.events).toEqual(["reset 80x24 none"]), { timeout: SpecWait.milliseconds });
+
+    for (const change of order)
+      if (change === "exit")
+        harness.runtime.exitSession("s1", 1);
+      else
+        harness.runtime.restartSession("s1");
+    draw();
+    await opening;
+
+    expect(harness.sink.events).toEqual(["reset 80x24 none", "write ", "title ", last]);
+  });
+
   it("leaves a restart to the next attach of a pane the runtime detached", async () => {
     const harness: ConnectionHarness = createHarness();
     await harness.openAsync(false);
