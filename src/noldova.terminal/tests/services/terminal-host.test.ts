@@ -3854,6 +3854,66 @@ describe("TerminalHost", () => {
         await next.catch(() => null);
       });
 
+      async function runWhileClosingAsync(close: (fixture: HostFixture) => Promise<unknown>): Promise<readonly unknown[]> {
+        const fixture: HostFixture = await HostFixture.createAsync();
+        const { sessionId, process } = await openFreeAsync(fixture);
+        const started: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+        fixture.spawner.hold = started.promise;
+        const opening: Promise<string> = fixture.openAsync(ownedOpen(OWNER));
+        await fixture.spawner.held.promise;
+
+        const closing: Promise<unknown> = close(fixture);
+        const named: TerminalRunResult | null = await withinAsync(runAsync(fixture, { sessionId }), 2_000);
+        const unnamed: TerminalRunResult | null = await withinAsync(runAsync(fixture), 2_000);
+        started.resolve();
+        await opening;
+        await closing;
+
+        const seen: readonly unknown[] = [named?.outcome ?? "no answer within 2 s", unnamed?.outcome ?? "no answer within 2 s",
+          unnamed?.sessionId === sessionId, process.writes, fixture.spawner.spawned.length, fixture.host.findTerminal(sessionId) === undefined];
+        await fixture.endAllAsync();
+        return seen;
+      }
+
+      it("answers Ended for runs sent while their owner's terminals close, naming the newest closing one for a run that names none, typing into none and opening none", async () => {
+        const seen: readonly unknown[] = await runWhileClosingAsync(fixture => fixture.host.handleAsync("terminal.closeOwner", { owner: OWNER }, APP));
+
+        assert.deepEqual(seen, ["Ended", "Ended", true, [], 2, true]);
+      });
+
+      it("answers Ended for runs sent while their connection's terminals close, naming the newest closing one for a run that names none, typing into none and opening none", async () => {
+        const seen: readonly unknown[] = await runWhileClosingAsync(fixture => fixture.host.closeConnectionAsync(APP.connection, null));
+
+        assert.deepEqual(seen, ["Ended", "Ended", true, [], 2, true]);
+      });
+
+      it("types a run that names none, sent while its owner's only terminal is still opening and closing, into a new terminal once the close ends", async () => {
+        const fixture: HostFixture = await HostFixture.createAsync();
+        const started: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+        fixture.spawner.hold = started.promise;
+        const opening: Promise<string> = fixture.openAsync(ownedOpen(OWNER));
+        await fixture.spawner.held.promise;
+
+        const closing: Promise<JsonValue> = fixture.host.handleAsync("terminal.closeOwner", { owner: OWNER }, APP);
+        const next: Promise<TerminalRunResult> = runAsync(fixture);
+        started.resolve();
+        const closedId: string = await opening;
+        await closing;
+        await vi.waitFor(() => assert.equal(fixture.spawner.spawned.length, 2));
+        const opened: FakePtyProcess | undefined = fixture.spawner.spawned.at(1);
+        const openedId: string | undefined = (await fixture.listAsync()).at(-1)?.sessionId;
+        if (opened !== undefined && openedId !== undefined) {
+          await fixture.host.handleAsync("terminal.resize", { sessionId: openedId, size: PANE_SIZE }, APP);
+          await vi.waitFor(() => assert.ok(opened.isRead));
+          showPrompt(fixture, opened);
+        }
+        const result: TerminalRunResult | null = await withinAsync(next, 2_000);
+
+        assert.deepEqual([result?.outcome ?? "no answer within 2 s", result?.sessionId === openedId, openedId === closedId,
+          (await fixture.listAsync()).map(t => t.sessionId), opened?.writes], ["Typed", true, false, [openedId], [PASTE]]);
+        await fixture.endAllAsync();
+      });
+
       it("types at once after the person's command ended at its prompt, into its terminal or the free one it finds, and is busy for a key the shell never answers only for the settle", async () => {
         vi.useFakeTimers({ toFake: ["Date"] });
         const fixture: HostFixture = await HostFixture.createAsync();
