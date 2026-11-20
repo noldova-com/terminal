@@ -390,7 +390,10 @@ export declare class TerminalOwners {
    * shell integration, is of one of the kinds, and is at its prompt with nothing typed after it and no keys within the last second. A run's end
    * comes before the shell draws its next prompt, so when the owner's newest such terminal is still drawing its prompt, the runtime waits up to
    * 10 seconds for it, holding it as a run that is starting, and types there once it is free; the wait ends when the terminal closes, and a
-   * terminal still not free after it is passed over. A shell
+   * terminal still not free after it is passed over.
+   * While the owner's terminals or the connection's are closing, a run that names none types nothing and fails as `Ended`, naming the newest
+   * of them. When there is none yet, as while the owner's only terminal is still opening, a run caught by its owner's close waits for the close
+   * to end and then runs as usual, in a new terminal, and a run whose own connection is closing fails at once and opens nothing. A shell
    * without the integration, such as Command Prompt, can't be told free, so each run there opens a new terminal. With no free terminal, it
    * opens one for the owner in the folder, with the window's default shell when it is of the kinds or none are given, else the first installed
    * shell of the kinds, and types them once the shell is ready; with no shell of the kinds installed, nothing opens or is typed, since a shell
@@ -439,7 +442,8 @@ export declare class TerminalOwners {
    * window reaches, such as one an app shows with {@link EmbeddedTerminal} under the commands; no tab opens or shows, since the app shows the
    * terminal itself, and the folder isn't used. For any other target, as for one that ended, closed or restarted, the run fails as `Ended`,
    * alike, so the app runs the commands in a new terminal. A target still drawing its prompt, as right after the last run's end, is waited for
-   * first, up to 10 seconds, held as a run that is starting, and the wait ends when the terminal closes. While the target's shell is then busy, running a command or with text on its prompt line, or
+   * first, up to 10 seconds, held as a run that is starting, and the wait ends when the terminal closes. A target whose owner's terminals or connection's are closing fails
+   * as `Ended` at once and types nothing. While the target's shell is then busy, running a command or with text on its prompt line, or
    * always for a shell without the shell integration, which can't be told free, a run whose target says `Refuse` types nothing and fails as
    * `Busy`; one that says `Interrupt` waits up to two seconds for a command to start, sends it Ctrl+C, waits up to two seconds more for the
    * shell to be back at an empty prompt, then types, else fails as `Busy`; a line that doesn't start gets no Ctrl+C. A run that comes while another run into the target is still starting types nothing and fails as `Busy` too.

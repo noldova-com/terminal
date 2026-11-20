@@ -16,6 +16,7 @@ import { describe, it } from "vitest";
 import { SystemRequirement } from "../../src/enums/system-requirement.ts";
 import { AgentTerminalRestartException } from "../../src/exceptions/agent-terminal-restart.exception.ts";
 import { CommandExitedException } from "../../src/exceptions/command-exited.exception.ts";
+import { ConnectionClosingException } from "../../src/exceptions/connection-closing.exception.ts";
 import { DefaultShellNotFoundException } from "../../src/exceptions/default-shell-not-found.exception.ts";
 import { EnvironmentExportInvalidException } from "../../src/exceptions/environment-export-invalid.exception.ts";
 import { FolderNotFoundException } from "../../src/exceptions/folder-not-found.exception.ts";
@@ -44,6 +45,7 @@ describe("TerminalException", () => {
     const errors: readonly Error[] = [
       new AgentTerminalRestartException("s1"),
       new CommandExitedException("git", new ProcessExit(1, null)),
+      new ConnectionClosingException(),
       new DefaultShellNotFoundException(),
       new EnvironmentExportInvalidException(),
       new FolderNotFoundException("/missing"),

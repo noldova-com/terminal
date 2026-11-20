@@ -15,6 +15,7 @@ import { EndedBy, Resources as ProtocolResources, TerminalAckParams, TerminalCom
 
 import { AgentTerminalRestartException } from "../exceptions/agent-terminal-restart.exception.ts";
 import { SystemRequirement } from "../enums/system-requirement.ts";
+import { ConnectionClosingException } from "../exceptions/connection-closing.exception.ts";
 import { DefaultShellNotFoundException } from "../exceptions/default-shell-not-found.exception.ts";
 import { FolderNotFoundException } from "../exceptions/folder-not-found.exception.ts";
 import { HostEndedException } from "../exceptions/host-ended.exception.ts";
@@ -77,6 +78,9 @@ export class TerminalHost {
   private hasEnded: boolean = false;
   private restoring: Promise<void> | null = null;
   private readonly appCloses: Set<Promise<void>> = new Set<Promise<void>>();
+  private readonly closings: Map<(terminal: HostedTerminal | TerminalOpening) => boolean, PromiseWithResolvers<void>> =
+    new Map<(terminal: HostedTerminal | TerminalOpening) => boolean, PromiseWithResolvers<void>>();
+  private readonly closingConnections: Set<number> = new Set<number>();
 
   public constructor(
     spawner: IPtySpawner,
@@ -158,7 +162,7 @@ export class TerminalHost {
           new TerminalOpening(null, client.connection)), client)).toJson();
       case TerminalNames.runMethod: {
         const params: TerminalRunParams = TerminalRunParams.fromJson(payload);
-        return (await this.trackAsync(this.runAsync(params, client), new TerminalOpening(params.owner, client.connection))).toJson();
+        return (await this.runAfterClosesAsync(params, client)).toJson();
       }
       case TerminalNames.runOutputMethod:
         return (await this.readRunOutputAsync(TerminalRunOutputParams.fromJson(payload), client))?.toJson() ?? null;
@@ -246,21 +250,29 @@ export class TerminalHost {
           this.agentSessionOwners.delete(agentSessionId);
     const isOwned = (terminal: HostedTerminal | TerminalOpening): boolean => terminal.owner === owner
       && (client === null || terminal.isReachedBy(client.connection, client.isApp));
-    for (const terminal of this.terminals.filter(isOwned))
-      terminal.cancelCommand();
-    await Promise.allSettled([this.restoring]);
-    await this.settleOpensAsync(isOwned);
-    this.ensureRunning();
-    const owned: readonly HostedTerminal[] = this.terminals.filter(isOwned);
-    if (isApp)
-      this.saved.forgetOwner(owner);
-    for (const terminal of owned) {
-      this.sessions.delete(terminal.session.sessionId);
-      terminal.cancelCommand();
-      this.endRun(terminal, TerminalRunEndedBy.TerminalEnded, null);
-      this.audience.publish(this.events.closed, terminal, new TerminalReference(terminal.session.sessionId).toJson());
+    const closed: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    this.closings.set(isOwned, closed);
+    try {
+      for (const terminal of this.terminals.filter(isOwned))
+        terminal.cancelCommand();
+      await Promise.allSettled([this.restoring]);
+      await this.settleOpensAsync(isOwned);
+      this.ensureRunning();
+      const owned: readonly HostedTerminal[] = this.terminals.filter(isOwned);
+      if (isApp)
+        this.saved.forgetOwner(owner);
+      for (const terminal of owned) {
+        this.sessions.delete(terminal.session.sessionId);
+        terminal.cancelCommand();
+        this.endRun(terminal, TerminalRunEndedBy.TerminalEnded, null);
+        this.audience.publish(this.events.closed, terminal, new TerminalReference(terminal.session.sessionId).toJson());
+      }
+      await Promise.all(owned.map(t => this.endAsync(t.session)));
     }
-    await Promise.all(owned.map(t => this.endAsync(t.session)));
+    finally {
+      this.closings.delete(isOwned);
+      closed.resolve();
+    }
   }
 
   public async closeConnectionAsync(connection: number, window: number | null): Promise<void> {
@@ -379,20 +391,43 @@ export class TerminalHost {
   private async endConnectionAsync(connection: number, wasApp: boolean): Promise<void> {
     const isEnding = (terminal: HostedTerminal | TerminalOpening): boolean => terminal.connection === null ? wasApp && terminal.owner !== null
       : terminal.connection === connection;
-    for (const terminal of this.terminals.filter(isEnding))
-      terminal.cancelCommand();
-    await Promise.allSettled([this.restoring]);
-    await this.settleOpensAsync(isEnding);
-    if (this.hasEnded)
-      return;
-    const ending: readonly HostedTerminal[] = this.terminals.filter(isEnding);
-    for (const terminal of ending) {
-      this.sessions.delete(terminal.session.sessionId);
-      terminal.cancelCommand();
+    const closed: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+    this.closings.set(isEnding, closed);
+    this.closingConnections.add(connection);
+    try {
+      for (const terminal of this.terminals.filter(isEnding))
+        terminal.cancelCommand();
+      await Promise.allSettled([this.restoring]);
+      await this.settleOpensAsync(isEnding);
+      if (this.hasEnded)
+        return;
+      const ending: readonly HostedTerminal[] = this.terminals.filter(isEnding);
+      for (const terminal of ending) {
+        this.sessions.delete(terminal.session.sessionId);
+        terminal.cancelCommand();
+      }
+      if (wasApp)
+        this.restoring = null;
+      await Promise.all(ending.map(t => this.endAsync(t.session)));
     }
-    if (wasApp)
-      this.restoring = null;
-    await Promise.all(ending.map(t => this.endAsync(t.session)));
+    finally {
+      this.closings.delete(isEnding);
+      this.closingConnections.delete(connection);
+      closed.resolve();
+    }
+  }
+
+  private isClosing(terminal: HostedTerminal | TerminalOpening): boolean {
+    return [...this.closings.keys()].some(isTheirs => isTheirs(terminal));
+  }
+
+  private endForClose(params: TerminalRunParams, client: RequestClient): TerminalRunResult | null {
+    const closing: HostedTerminal | undefined = this.findClosing(params, client);
+    return closing === undefined ? null : new TerminalRunResult(closing.session.sessionId, TerminalRunOutcome.Ended);
+  }
+
+  private findClosing(params: TerminalRunParams, client: RequestClient): HostedTerminal | undefined {
+    return this.terminals.findLast(t => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp) && this.isClosing(t));
   }
 
   private trackAsync<TResult>(opening: Promise<TResult>, place: TerminalOpening): Promise<TResult> {
@@ -463,7 +498,7 @@ export class TerminalHost {
     }
     if (session.hasIntegration && session.commands.isLoaded)
       await session.changes.waitUntilAsync(() => session.hasExited || isReady(), Resources.shellStartMilliseconds, signal);
-    const isEnded = (): boolean => signal.aborted || session.hasExited || this.sessions.get(session.sessionId) !== terminal;
+    const isEnded = (): boolean => signal.aborted || session.hasExited || this.sessions.get(session.sessionId) !== terminal || this.isClosing(terminal);
     const isBracketed: boolean = isPaste && !isEnded() && await session.isBracketedPasteAsync();
     const outcome: TerminalRunOutcome = isEnded() ? TerminalRunOutcome.Ended
       : isPaste && ((waitsForFit ? terminal.keyCount !== keyCount : terminal.inputCount !== inputCount) || session.commands.promptEndOffset !== null && session.readPromptLine() !== "") ? TerminalRunOutcome.Input
@@ -505,13 +540,34 @@ export class TerminalHost {
     return isBracketed ? `${Resources.pasteStart}${text}${Resources.pasteEnd}${Resources.enterKey}` : `${text}${Resources.enterKey}`;
   }
 
-  private async runAsync(params: TerminalRunParams, client: RequestClient): Promise<TerminalRunResult> {
+  private async runAfterClosesAsync(params: TerminalRunParams, client: RequestClient): Promise<TerminalRunResult> {
+    const place: TerminalOpening = new TerminalOpening(params.owner, client.connection);
+    for (;;) {
+      if (params.sessionId === null && this.isClosing(place)) {
+        const closing: HostedTerminal | undefined = this.findClosing(params, client);
+        if (closing !== undefined)
+          return new TerminalRunResult(closing.session.sessionId, TerminalRunOutcome.Ended);
+        if (this.closingConnections.has(client.connection))
+          throw new ConnectionClosingException();
+        await Promise.allSettled([...this.closings].filter(([isTheirs]) => isTheirs(place)).map(([, closed]) => closed.promise));
+      }
+      const result: TerminalRunResult | null = await this.trackAsync(this.runAsync(params, client), place);
+      if (result !== null)
+        return result;
+    }
+  }
+
+  private async runAsync(params: TerminalRunParams, client: RequestClient): Promise<TerminalRunResult | null> {
     await Promise.allSettled([this.restoring]);
     this.ensureRunning();
     if (params.sessionId !== null) {
       const target: HostedTerminal | null = this.findRunTarget(params.sessionId, params, client);
-      return target === null ? new TerminalRunResult(params.sessionId, TerminalRunOutcome.Ended) : this.runIntoAsync(params, target, client);
+      return target === null || this.isClosing(target) ? new TerminalRunResult(params.sessionId, TerminalRunOutcome.Ended)
+        : this.runIntoAsync(params, target, client);
     }
+    const place: TerminalOpening = new TerminalOpening(params.owner, client.connection);
+    if (this.isClosing(place))
+      return this.endForClose(params, client);
     const isCandidate = (t: HostedTerminal): boolean => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp)
       && (params.shellKinds.length === 0 || params.shellKinds.includes(t.shell.kind)) && !t.isRunStarting;
     const newest: HostedTerminal | undefined = this.terminals.findLast(t => isCandidate(t) && (t.isFree || t.isDrawingPrompt));
@@ -524,8 +580,12 @@ export class TerminalHost {
         : await this.findShellOfKindsAsync(params.shellKinds, params.shellId);
       if (shell === undefined && params.shellKinds.length > 0)
         return new TerminalRunResult(null, TerminalRunOutcome.NoShell);
+      if (this.isClosing(place))
+        return this.endForClose(params, client);
       terminal = await this.startForPersonAsync(new TerminalOpenParams(shell?.id ?? null, params.folder, params.size, params.storedLimit, false, params.owner),
         client, true, params.opensTab);
+      if (this.isClosing(terminal))
+        return new TerminalRunResult(terminal.session.sessionId, TerminalRunOutcome.Ended);
       if (!params.opensTab)
         terminal.fitWindow = client;
       this.audience.publish(this.events.opened, terminal,
@@ -561,7 +621,8 @@ export class TerminalHost {
       return new TerminalRunResult(session.sessionId, TerminalRunOutcome.Busy);
     terminal.isRunStarting = true;
     try {
-      const isBusy = (): boolean => !terminal.isFree && !session.hasExited && this.sessions.get(session.sessionId) === terminal;
+      const isBusy = (): boolean => !terminal.isFree && !session.hasExited && this.sessions.get(session.sessionId) === terminal
+        && !this.isClosing(terminal);
       if (isBusy() && terminal.isDrawingPrompt) {
         await this.waitForPromptAsync(terminal);
         if (this.sessions.get(session.sessionId) !== terminal)

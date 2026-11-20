@@ -580,6 +580,7 @@ exit 0
   public static readonly systemRootMissing: string = "SystemRoot is not set, so reg.exe can't be found.";
   public static readonly environmentExportInvalid: string = "reg.exe did not export the machine's and the person's variables in a form that could be read.";
   public static readonly hostEnded: string = "The terminals have ended, so no shell starts.";
+  public static readonly connectionClosing: string = "The connection that sent the run is closing, so the run types nothing and opens no terminal.";
   public static readonly storedLinesFailed: string = "The terminal's stored lines could not be written.";
   public static readonly storedLinesDamaged: string = "The terminal's stored lines are damaged.";
   public static readonly carriageReturn: string = "\r";
