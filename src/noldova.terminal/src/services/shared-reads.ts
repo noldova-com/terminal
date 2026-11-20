@@ -19,7 +19,7 @@ export class SharedReads {
   private readonly texts: Map<string, SharedRead<string | null>> = new Map<string, SharedRead<string | null>>();
   private readonly programs: Map<string, SharedRead<boolean>> = new Map<string, SharedRead<boolean>>();
   private readonly realPaths: Map<string, SharedRead<string | null>> = new Map<string, SharedRead<string | null>>();
-  private readonly waiting: IQueuedRead[] = [];
+  private readonly waiting: Set<IQueuedRead> = new Set<IQueuedRead>();
   private running: number = 0;
 
   public constructor(reader: IFileSystemReader) {
@@ -55,20 +55,21 @@ export class SharedReads {
       const settled = (): void => void running.delete(path);
       void created.promise.then(settled, settled);
       running.set(path, created);
-      this.waiting.push(created);
+      this.waiting.add(created);
       shared = created;
     }
     const watched: SharedRead<T> = shared;
-    watched.watch(signal, () => void this.waiting.splice(this.waiting.indexOf(watched), 1));
+    watched.watch(signal, () => void this.waiting.delete(watched));
     this.startWaiting();
     return watched.promise;
   }
 
   private startWaiting(): void {
     while (this.running < Resources.completionConcurrentReads) {
-      const next: IQueuedRead | undefined = this.waiting.shift();
+      const next: IQueuedRead | undefined = this.waiting.values().next().value;
       if (next === undefined)
         return;
+      this.waiting.delete(next);
       this.running++;
       void next.startAsync().then(() => {
         this.running--;

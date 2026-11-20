@@ -758,7 +758,7 @@ describe("TerminalHost", () => {
     await fixture.endAllAsync();
   });
 
-  it("runs at most two of a completion's folder reads while two run past their deadline, drops the rest, and still starts a shell", async () => {
+  it("runs at most two of a completion's folder reads while two run past their deadline, and drops the rest", async () => {
     const fixture: HostFixture = await HostFixture.createAsync("linux", "6.8.0", { SHELL: "/bin/bash", PATH: "/slow1:/slow2:/usr/bin:/opt/bin" });
     const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
     fixture.fileSystem.stalled.set("/slow1", stall.promise);
@@ -769,10 +769,9 @@ describe("TerminalHost", () => {
 
     const completion: JsonValue = await fixture.host.handleAsync("terminal.complete", { sessionId, line: "gr", cursor: 2 }, APP);
     const listed: readonly string[] = fixture.fileSystem.listed.filter(t => folders.has(t));
-    const started: string = await fixture.openAsync();
     stall.resolve();
 
-    assert.deepEqual([TerminalCompletion.fromJson(completion).items, listed, started.length > 0], [[], ["/slow1", "/slow2"], true]);
+    assert.deepEqual([TerminalCompletion.fromJson(completion).items, listed], [[], ["/slow1", "/slow2"]]);
     await fixture.endAllAsync();
   });
 

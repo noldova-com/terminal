@@ -127,6 +127,20 @@ describe("BoundedReads", () => {
     assert.equal(reads.wasCutShort, false);
   });
 
+  it("reads more folders at once than Node's default listener limit takes on one signal, with no warning", async () => {
+    const warnings = vi.spyOn(process, "emitWarning");
+    const folders: readonly string[] = Array.from({ length: 12 }, (_, i) => `/work/folder${i}`);
+    for (const folder of folders)
+      reader.folders.add(folder);
+    const reads: BoundedReads = new BoundedReads(new SharedReads(reader), 100);
+
+    const entries: readonly (readonly FolderEntry[])[] = await Promise.all(folders.map(t => reads.readEntriesAsync(t)));
+    reads.end();
+
+    assert.deepEqual([entries.length, warnings.mock.calls], [12, []]);
+    warnings.mockRestore();
+  });
+
   it("answers a read started after its time ended at once with the late answer, without reading", async () => {
     const reads: BoundedReads = new BoundedReads(new SharedReads(reader), 100);
     await vi.advanceTimersByTimeAsync(100);
