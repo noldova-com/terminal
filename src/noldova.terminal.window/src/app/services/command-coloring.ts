@@ -35,9 +35,11 @@ export class CommandColoring {
   private drawn: string = "";
   private kept: CommandColorRun[] = [];
   private find: ((names: readonly string[]) => Promise<readonly string[]>) | null = null;
+  private given: ((names: readonly string[]) => Promise<readonly string[]>) | null = null;
   private missing: Map<string, boolean> = new Map<string, boolean>();
   private isAsking: boolean = false;
   private finders: number = 0;
+  private resumes: number = 0;
 
   public constructor(terminal: Terminal, log: (message: string) => void) {
     this.terminal = terminal;
@@ -64,9 +66,18 @@ export class CommandColoring {
 
   public setFinder(find: (names: readonly string[]) => Promise<readonly string[]>): void {
     this.find = find;
+    this.given = find;
     this.finders++;
     this.isAsking = false;
     this.missing = new Map<string, boolean>();
+    this.update();
+  }
+
+  public resumeFinder(): void {
+    this.resumes++;
+    if (this.find !== null || this.given === null)
+      return;
+    this.find = this.given;
     this.update();
   }
 
@@ -210,13 +221,14 @@ export class CommandColoring {
     const asked: readonly string[] = names.slice(0, ProtocolResources.maximumLookedUpCommands);
     const missing: Map<string, boolean> = this.missing;
     const finder: number = this.finders;
+    const resumes: number = this.resumes;
     this.isAsking = true;
     void find(asked).then(found => {
       for (const name of asked)
         missing.set(name, found.includes(name));
     }, (error: unknown) => {
       this.log(Resources.formatCommandLookupFailed(error));
-      if (this.finders === finder)
+      if (this.finders === finder && this.resumes === resumes)
         this.find = null;
     }).finally(() => {
       if (this.finders !== finder)
