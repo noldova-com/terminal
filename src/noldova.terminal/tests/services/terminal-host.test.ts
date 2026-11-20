@@ -3946,8 +3946,9 @@ describe("TerminalHost", () => {
         await looking.promise;
         const closing: Promise<JsonValue> = fixture.host.handleAsync("terminal.closeOwner", { owner: OWNER }, APP);
         found.resolve();
-        await closing;
-        await vi.waitFor(() => assert.equal(fixture.spawner.spawned.length, 1));
+        const closed: string | null = await withinAsync(closing.then(() => "closed"), 2_000);
+        if (closed !== null)
+          await vi.waitFor(() => assert.equal(fixture.spawner.spawned.length, 1));
         const opened: FakePtyProcess | undefined = fixture.spawner.spawned.at(0);
         const openedId: string | undefined = (await fixture.listAsync()).at(-1)?.sessionId;
         if (opened !== undefined && openedId !== undefined) {
@@ -3957,8 +3958,8 @@ describe("TerminalHost", () => {
         }
         const result: TerminalRunResult | null = await withinAsync(next, 2_000);
 
-        assert.deepEqual([result?.outcome ?? "no answer within 2 s", result?.sessionId === openedId, fixture.closed.published, opened?.writes],
-          ["Typed", true, [], [PASTE]]);
+        assert.deepEqual([closed ?? "the close didn't end within 2 s", result?.outcome ?? "no answer within 2 s", result?.sessionId === openedId,
+          fixture.closed.published, opened?.writes], ["closed", "Typed", true, [], [PASTE]]);
         await fixture.endAllAsync();
       });
 
@@ -3979,10 +3980,10 @@ describe("TerminalHost", () => {
         const closing: Promise<JsonValue> = fixture.host.handleAsync("terminal.closeOwner", { owner: OWNER }, APP);
         open.resolve();
         const result: TerminalRunResult | null = await withinAsync(next, 2_000);
-        await closing;
+        const closed: string | null = await withinAsync(closing.then(() => "closed"), 2_000);
 
-        assert.deepEqual([result?.outcome ?? "no answer within 2 s", fixture.closed.published, fixture.spawner.spawned.length],
-          ["Ended", [{ sessionId: result?.sessionId }], 0]);
+        assert.deepEqual([result?.outcome ?? "no answer within 2 s", closed ?? "the close didn't end within 2 s", fixture.closed.published,
+          fixture.spawner.spawned.length], ["Ended", "closed", [{ sessionId: result?.sessionId }], 0]);
         await fixture.endAllAsync();
       });
 
