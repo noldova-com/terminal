@@ -40,6 +40,18 @@ describe("CommandTracker", () => {
     assert.equal(tracker.lastCommand, null);
   });
 
+  it("draws a prompt from a command's end or a prompt's start until the prompt's end, and not once a command starts", () => {
+    const tracker: CommandTracker = track();
+    const drawing: boolean[] = [tracker.isDrawingPrompt];
+    for (const kind of [MarkKind.PromptStart, MarkKind.PromptEnd, MarkKind.OutputStart, MarkKind.CommandEnd, MarkKind.Property, MarkKind.PromptStart,
+      MarkKind.PromptEnd, MarkKind.CommandEnd, MarkKind.OutputStart]) {
+      tracker.apply(new ShellMark(kind, kind === MarkKind.CommandEnd ? "0" : null, drawing.length));
+      drawing.push(tracker.isDrawingPrompt);
+    }
+
+    assert.deepEqual(drawing, [false, true, false, false, true, true, true, false, true, false]);
+  });
+
   it("knows the integration loaded from its loaded mark, which counts as no shell mark", () => {
     const before: CommandTracker = track();
     const tracker: CommandTracker = track(new ShellMark(MarkKind.Loaded, null, 0));
