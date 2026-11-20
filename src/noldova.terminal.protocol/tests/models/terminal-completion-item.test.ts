@@ -42,6 +42,15 @@ describe("TerminalCompletionItem", () => {
       { name: "ArgumentException", parameterName: "label", message: "The value must have at most 4096 characters. (Parameter 'label')" });
   });
 
+  it("refuses a text with a C0, DEL or C1 control character, which the terminal would type as a key, but takes one in a label", () => {
+    for (const text of ["run\u0001x", "a\u001b", "a\u0000", "a\u007f", "a\u0085", "a\u009f", "a\n"])
+      assert.throws(() => new TerminalCompletionItem(text, "run", TerminalCompletionKind.Script), {
+        name: "ArgumentException", parameterName: "text",
+        message: "The value must not hold a control character, such as a line break, since the terminal types it as one line and enters it. (Parameter 'text')"
+      });
+    assert.equal(new TerminalCompletionItem("run", "run\u0015", TerminalCompletionKind.Script).label, "run\u0015");
+  });
+
   it("names the field it cannot read, and an unknown one", () => {
     const read = (value: object): TerminalCompletionItem => TerminalCompletionItem.fromReader(ProtocolReader.fromValue(value));
 

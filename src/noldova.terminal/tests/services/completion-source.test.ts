@@ -341,7 +341,7 @@ describe("CompletionSource", () => {
       const source: CompletionSource = new SourceFixture().source;
       const files: TerminalCompletion = new TerminalCompletion(14, [new TerminalCompletionItem("-readme.md", "-readme.md", TerminalCompletionKind.File)]);
       const bash: TerminalCompletion = source.addOptions(new TerminalCompletion(3, []), TerminalShellKind.Bash, "ls --a", 6,
-        ["--all", "--All", "--author", "--all", "-x", " "]);
+        ["--all", "--All", "--author", "--all", "-x", " ", "--a\u0015ll", "--a\u009bll"]);
       const powerShell: TerminalCompletion = source.addOptions(files, TerminalShellKind.PowerShell, "Get-ChildItem -R", 16,
         ["-Recurse", "-ReadOnly", "-Path", "-readme.md"]);
 
@@ -769,6 +769,16 @@ describe("CompletionSource", () => {
       assert.deepEqual(await fixture.choicesAsync("npm run-script t", "/work/app"), [["test", "test", "Script"]]);
       fixture.fileSystem.files.set("/work/app/src/build.ts", "");
       assert.deepEqual(await fixture.choicesAsync("npm install b", "/work/app/src"), [["build.ts", "build.ts", "File"]]);
+    });
+
+    it("lists no script or file whose name holds a C0, DEL or C1 control character, which the terminal would type as a key", async () => {
+      const fixture: SourceFixture = new SourceFixture();
+      fixture.fileSystem.files.set("/work/package.json", JSON.stringify({ scripts: { "t\u0001x": "x", "te\u001b": "x", "tes\u0085": "x", test: "vitest" } }));
+      fixture.fileSystem.files.set("/work/t\u007fx.ts", "");
+      fixture.fileSystem.files.set("/work/tx.ts", "");
+
+      assert.deepEqual(await fixture.choicesAsync("npm run t", "/work"), [["test", "test", "Script"]]);
+      assert.deepEqual(await fixture.choicesAsync("ls t", "/work"), [["tx.ts", "tx.ts", "File"]]);
     });
 
     it("lists none for a package.json that isn't JSON or has no scripts object, nor without one", async () => {

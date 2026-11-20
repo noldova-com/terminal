@@ -20,6 +20,7 @@ export class TerminalCompletionItem {
 
   public constructor(text: string, label: string, kind: TerminalCompletionKind) {
     ArgumentValidator.requireNonBlank(Resources.textField, text, Resources.maximumPathLength);
+    ArgumentValidator.requireCommand(Resources.textField, text);
     ArgumentValidator.requireNonBlank(Resources.labelField, label, Resources.maximumPathLength);
 
     this.text = text;
