@@ -7,7 +7,7 @@
  */
 
 import { TerminalLinePage, TerminalLineRange, type TerminalAttachment, type TerminalSize, type WindowsPty } from "@noldova/terminal.protocol";
-import type { IBuffer, Terminal } from "@xterm/xterm";
+import type { IBuffer, IModes, Terminal } from "@xterm/xterm";
 
 import { Resources } from "../../resources.ts";
 import { StoredLinesWindow } from "../models/stored-lines-window.ts";
@@ -24,6 +24,7 @@ export class TerminalPager {
   private drawing: Promise<void> = Promise.resolve();
   private followed: TerminalLineRange | null = null;
   private held: (() => void)[] | null = [];
+  private waiting: (() => void)[] | null = null;
   private isLoaded: boolean = false;
   private isAttached: boolean = true;
   private isRebuilding: boolean = false;
@@ -68,6 +69,10 @@ export class TerminalPager {
   }
 
   public type(data: string): void {
+    if (this.waiting !== null) {
+      this.waiting.push(() => this.type(data));
+      return;
+    }
     if (this.held !== null && this.held.length > 0) {
       this.held.push(() => this.type(data));
       return;
@@ -82,10 +87,16 @@ export class TerminalPager {
   }
 
   public paste(text: string): void {
-    if (this.held === null)
-      this.terminal.paste(text);
+    if (this.waiting !== null)
+      this.waiting.push(() => this.terminal.paste(text));
+    else if (!this.isAttached) {
+      this.waiting = [() => this.terminal.paste(text)];
+      this.isReturning = true;
+      if (!this.isRebuilding)
+        void this.extendAsync(() => this.comeBackAsync());
+    }
     else
-      this.held.push(() => this.terminal.paste(text));
+      this.sendOrHold(() => this.terminal.paste(text));
   }
 
   public scroll(viewportY: number): void {
@@ -134,6 +145,12 @@ export class TerminalPager {
         this.window.follow(this.followed);
       this.followed = null;
     }
+    if (this.waiting === null)
+      return;
+    if (this.isAttached)
+      this.sendWaiting();
+    else
+      void this.extendAsync(() => this.comeBackAsync());
   }
 
   private async refreshAsync(drawPagesAsync: (attachment: TerminalAttachment) => Promise<void>): Promise<void> {
@@ -197,10 +214,16 @@ export class TerminalPager {
   }
 
   private async comeBackAsync(): Promise<void> {
-    await this.refreshAsync(async attachment => {
-      this.window.reset(attachment.stored);
-      await this.rebuildAsync(attachment, attachment.stored.end, Number.MAX_SAFE_INTEGER);
-    });
+    try {
+      await this.refreshAsync(async attachment => {
+        this.window.reset(attachment.stored);
+        await this.rebuildAsync(attachment, attachment.stored.end, Number.MAX_SAFE_INTEGER);
+      });
+    }
+    finally {
+      if (!this.isAttached)
+        this.sendWaiting();
+    }
   }
 
   private async catchUpAsync(end: number): Promise<void> {
@@ -216,8 +239,11 @@ export class TerminalPager {
 
   private async rebuildAsync(attachment: TerminalAttachment | null, anchor: number, offset: number): Promise<void> {
     await this.writeAsync("");
-    if (attachment === null)
+    if (attachment === null) {
+      const modes: string = this.keyModes();
       this.terminal.reset();
+      this.writeModes(modes);
+    }
     else {
       this.onReset(attachment.size, attachment.windowsPty);
       this.restoreModes(attachment);
@@ -248,10 +274,34 @@ export class TerminalPager {
   }
 
   private restoreModes(attachment: TerminalAttachment): void {
+    const tail: string = attachment.snapshot.slice(attachment.snapshot.search(Resources.modesTail));
+    this.writeModes((tail.match(Resources.inputModes) ?? []).join(""));
+  }
+
+  private sendWaiting(): void {
+    const waiting: readonly (() => void)[] = this.waiting ?? [];
+    this.waiting = null;
+    for (const send of waiting)
+      this.sendOrHold(send);
+  }
+
+  private sendOrHold(send: () => void): void {
+    if (this.held === null)
+      send();
+    else
+      this.held.push(send);
+  }
+
+  private keyModes(): string {
+    const modes: IModes = this.terminal.modes;
+    return (modes.applicationCursorKeysMode ? Resources.applicationCursorKeysOn : "") + (modes.applicationKeypadMode ? Resources.applicationKeypadOn : "")
+      + (modes.bracketedPasteMode ? Resources.bracketedPasteOn : "");
+  }
+
+  private writeModes(modes: string): void {
     const held: (() => void)[] = this.held ?? [];
     this.held = held;
-    const tail: string = attachment.snapshot.slice(attachment.snapshot.search(Resources.modesTail));
-    this.terminal.write((tail.match(Resources.inputModes) ?? []).join(""), () => {
+    this.terminal.write(modes, () => {
       this.held = null;
       for (const send of held)
         send();
