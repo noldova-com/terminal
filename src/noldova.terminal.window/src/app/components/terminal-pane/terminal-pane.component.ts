@@ -353,6 +353,7 @@ export class TerminalPaneComponent {
       drawAsync: async attachment => {
         await pager.drawAsync(attachment);
         suggestion.setCommands(attachment.commands);
+        coloring.resumeFinder();
         coloring.setShell(attachment.shellKind);
         terminal.write("", () => this.startInput(suggestion, coloring, attachment.input));
       },

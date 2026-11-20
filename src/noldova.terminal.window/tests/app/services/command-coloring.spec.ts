@@ -423,6 +423,66 @@ describe("CommandColoring", () => {
     expect(logs).toEqual(["The terminal could not look up typed commands, so it colors them without telling whether they exist: The terminal closed."]);
   });
 
+  it("asks again once resumed after a request failed, and not before", async () => {
+    const asked: (readonly string[])[] = [];
+    open(40);
+    coloring.setShell(TerminalShellKind.Bash);
+    coloring.setFinder(async names => {
+      asked.push(names);
+      if (asked.length === 1)
+        throw new Error("The terminal closed.");
+      return names;
+    });
+    await promptAsync();
+    await writeAsync("gti");
+    await vi.waitFor(() => expect(logs).toHaveLength(1), { timeout: ASK_WAIT_MS });
+    await writeAsync(" | gtx");
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CCC.X.CCC"), { timeout: DrawnWait.milliseconds });
+    expect(asked).toEqual([["gti"]]);
+
+    coloring.resumeFinder();
+
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..NNN.X.NNN"), { timeout: DrawnWait.milliseconds });
+    expect(asked).toEqual([["gti"], ["gti", "gtx"]]);
+  });
+
+  it("keeps the finder when a request under way at a resume fails", async () => {
+    const asked: (readonly string[])[] = [];
+    let fail: (error: Error) => void = () => undefined;
+    open(40);
+    coloring.setShell(TerminalShellKind.Bash);
+    coloring.setFinder(async names => {
+      asked.push(names);
+      if (asked.length > 1)
+        return names;
+      return new Promise<readonly string[]>((_resolve, reject) => {
+        fail = reject;
+      });
+    });
+    await promptAsync();
+    await writeAsync("gti");
+    await vi.waitFor(() => expect(asked).toEqual([["gti"]]), { timeout: ASK_WAIT_MS });
+    coloring.resumeFinder();
+    await writeAsync(" | gtx");
+
+    fail(new Error("The terminal closed."));
+
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..NNN.X.NNN"), { timeout: DrawnWait.milliseconds });
+    expect(asked).toEqual([["gti"], ["gti", "gtx"]]);
+  });
+
+  it("asks nothing once resumed with no finder set", async () => {
+    open(40);
+    coloring.setShell(TerminalShellKind.Bash);
+
+    coloring.resumeFinder();
+    await promptAsync();
+    await writeAsync("gti");
+
+    await vi.waitFor(() => expect(drawnOf(0)).toBe("..CCC"), { timeout: DrawnWait.milliseconds });
+    expect(logs).toEqual([]);
+  });
+
   it("colors nothing on the alternate screen, where no line starts", async () => {
     open(40);
     await writeAsync("\u001b[?1049h");
