@@ -3171,6 +3171,90 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
+    it("passes over a terminal whose kept folder its shell leaves while another terminal's folder is read", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      const cd = (process: FakePtyProcess, cwd: string): void => {
+        process.emitData(`\u001b]6973;D;${nonceOf(fixture, process)};0\u0007`);
+        fixture.reportCwd(process, cwd);
+        showPrompt(fixture, process, false);
+      };
+      fixture.fileSystem.realPaths.set("/data", "/data");
+      fixture.fileSystem.realPaths.set("/work", "/work");
+      fixture.fileSystem.folders.add("/data");
+      fixture.fileSystem.folders.add("/work/slow");
+      const olderId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/data", owner: OWNER });
+      showPrompt(fixture, fixture.process, false);
+      const newerId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/data", owner: OWNER });
+      const newer: FakePtyProcess = fixture.process;
+      showPrompt(fixture, newer, false);
+      await fixture.openAsync(ownedOpen(OWNER));
+      const slow: FakePtyProcess = fixture.process;
+      showPrompt(fixture, slow, false);
+      const first: TerminalRunResult = await runAsync(fixture, { folder: "/data", command: "a\n\tb" });
+      const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.fileSystem.stalled.set("/work/slow", stall.promise);
+      cd(slow, "/work/slow");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        const result: Promise<TerminalRunResult> = runAsync(fixture, { folder: "/data", command: "a\n\tb" });
+        await vi.waitFor(() => assert.ok(fixture.fileSystem.resolved.includes("/work/slow")));
+        cd(newer, "/other");
+        let isAnswered: boolean = false;
+        void result.then(() => isAnswered = true);
+        for (let step: number = 0; step < 20 && !isAnswered; step++)
+          await vi.advanceTimersByTimeAsync(100);
+        const second: TerminalRunResult = await result;
+
+        assert.deepEqual([first.sessionId === newerId, second.sessionId === olderId, second.outcome], [true, true, "Tab"]);
+      }
+      finally {
+        vi.useRealTimers();
+      }
+      stall.resolve();
+      await fixture.endAllAsync();
+    });
+
+    it("keeps a folder's late real path for a terminal only while its shell is still in that folder", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      fixture.fileSystem.realPaths.set("/data", "/data");
+      fixture.fileSystem.folders.add("/data");
+      fixture.fileSystem.folders.add("/work/slow");
+      const dataId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/data", owner: OWNER });
+      showPrompt(fixture, fixture.process, false);
+      const movedId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/work/slow", owner: OWNER });
+      const moved: FakePtyProcess = fixture.process;
+      showPrompt(fixture, moved, false);
+      const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.fileSystem.stalled.set("/work/slow", stall.promise);
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      let first: TerminalRunResult;
+      try {
+        const result: Promise<TerminalRunResult> = runAsync(fixture, { folder: "/data", command: "a\n\tb" });
+        let isAnswered: boolean = false;
+        void result.then(() => isAnswered = true);
+        for (let step: number = 0; step < 20 && !isAnswered; step++)
+          await vi.advanceTimersByTimeAsync(100);
+        first = await result;
+      }
+      finally {
+        vi.useRealTimers();
+      }
+      moved.emitData(`\u001b]6973;D;${nonceOf(fixture, moved)};0\u0007`);
+      fixture.reportCwd(moved, "/data");
+      showPrompt(fixture, moved, false);
+      const second: TerminalRunResult = await runAsync(fixture, { folder: "/data", command: "a\n\tb" });
+      fixture.fileSystem.realPaths.set("/work/slow", "/work/slow");
+      stall.resolve();
+      await new Promise<void>(resolve => setImmediate(resolve));
+      const before: number = fixture.fileSystem.resolved.filter(t => t === "/data").length;
+
+      const third: TerminalRunResult = await runAsync(fixture, { folder: "/data", command: "a\n\tb" });
+
+      assert.deepEqual([first.sessionId === dataId, second.sessionId === movedId, third.sessionId === movedId,
+        fixture.fileSystem.resolved.filter(t => t === "/data").length - before], [true, true, true, 1]);
+      await fixture.endAllAsync();
+    });
+
     it("types each line ended by Enter into a shell that didn't ask for bracketed pastes, and refuses commands holding a tab there", async () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       const sessionId: string = await fixture.openAsync(ownedOpen(OWNER));

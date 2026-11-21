@@ -871,13 +871,13 @@ export class TerminalHost {
   private async findInFolderAsync(wanted: string | null, isOwned: (terminal: HostedTerminal) => boolean): Promise<ReadonlySet<HostedTerminal> | null> {
     if (wanted === null)
       return null;
-    const found: Set<HostedTerminal> = new Set<HostedTerminal>();
+    const matched: (readonly [HostedTerminal, string])[] = [];
     await Promise.all(this.terminals.filter(isOwned).map(async t => {
       const known: readonly [string, string] | null = await this.toTerminalFolderKeyAsync(t);
-      if (known !== null && known[1] === wanted && known[0] === this.currentFolderOf(t))
-        found.add(t);
+      if (known !== null && known[1] === wanted)
+        matched.push([t, known[0]]);
     }));
-    return found;
+    return new Set(matched.filter(([t, folder]) => folder === this.currentFolderOf(t)).map(([t]) => t));
   }
 
   private async toRunFolderKeyAsync(folder: string): Promise<string> {
@@ -896,7 +896,8 @@ export class TerminalHost {
       return known;
     const reading: Promise<string | null> = this.joinRealFolderRead(folder);
     void reading.then(real => {
-      this.folderKeys.set(terminal, [folder, this.toFolderKey(real ?? folder)]);
+      if (this.currentFolderOf(terminal) === folder)
+        this.folderKeys.set(terminal, [folder, this.toFolderKey(real ?? folder)]);
     }, () => undefined);
     const real: string | null | undefined = await this.readBoundedAsync(() => reading);
     return [folder, this.toFolderKey(real ?? folder)];
