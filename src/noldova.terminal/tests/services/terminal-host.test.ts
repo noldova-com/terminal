@@ -66,6 +66,8 @@ const END_GUARD_MS: number = 30_000;
 const APP: RequestClient = new RequestClient(1, 1, true);
 const COMMAND_LINE: RequestClient = new RequestClient(2, null, false);
 
+const OWNED_OLD: Record<string, JsonValue> = { shellId: "bash", folder: "/work/old", size: { cols: 80, rows: 24 }, storedLimit: 104_857_600 };
+
 function ownedOpen(owner: string): JsonValue {
   return { shellId: "bash", folder: "/work", size: { cols: 80, rows: 24 }, storedLimit: 104_857_600, owner };
 }
@@ -2959,10 +2961,11 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    it("types into the owner's free terminal only when its shell reports the run's folder, and opens a new terminal in the run's folder otherwise", async () => {
+    it("types into the owner's free terminal when its shell reports the run's folder, and opens a new terminal in the run's folder when neither its start folder nor its shell's is the run's", async () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       fixture.fileSystem.folders.add("/work/app");
-      const movedId: string = await fixture.openAsync(ownedOpen(OWNER));
+      fixture.fileSystem.folders.add("/work/old");
+      const movedId: string = await fixture.openAsync({ ...OWNED_OLD, owner: OWNER });
       const moved: FakePtyProcess = fixture.process;
       fixture.reportCwd(moved, "/work/app");
       showPrompt(fixture, moved);
@@ -2976,7 +2979,7 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    it("compares a free terminal's start folder when its shell reports no folder, or one that isn't absolute, and any free terminal for a run that names no folder", async () => {
+    it("compares a free terminal's start folder too, whatever folder its shell reports, and takes any free terminal for a run that names no folder", async () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       const { sessionId: startedId } = await openFreeAsync(fixture);
       const relativeId: string = await fixture.openAsync(ownedOpen("relative"));
@@ -2987,12 +2990,18 @@ describe("TerminalHost", () => {
       const moved: FakePtyProcess = fixture.process;
       fixture.reportCwd(moved, "/elsewhere");
       showPrompt(fixture, moved);
+      const awayId: string = await fixture.openAsync(ownedOpen("away"));
+      const away: FakePtyProcess = fixture.process;
+      fixture.reportCwd(away, "/private/work");
+      showPrompt(fixture, away);
 
       const inStart: TerminalRunResult = await runAsync(fixture, { folder: "/work" });
       const relativeRun: TerminalRunResult = await runAsync(fixture, { owner: "relative", folder: "/work" });
       const anywhere: TerminalRunResult = await runAsync(fixture, { owner: "moved", folder: null });
+      const awayRun: TerminalRunResult = await runAsync(fixture, { owner: "away", folder: "/work" });
 
-      assert.deepEqual([inStart.sessionId, relativeRun.sessionId, anywhere.sessionId, fixture.spawner.spawned.length], [startedId, relativeId, movedId, 3]);
+      assert.deepEqual([inStart.sessionId, relativeRun.sessionId, anywhere.sessionId, awayRun.sessionId, fixture.spawner.spawned.length],
+        [startedId, relativeId, movedId, awayId, 4]);
       await fixture.endAllAsync();
     });
 

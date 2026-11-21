@@ -166,7 +166,7 @@ if (TerminalOwners.canRun(block.text)) {
 ```
 
 - The runtime types the commands into the owner's newest free terminal of one of the kinds, and an empty list of kinds takes any.
-  It takes only a terminal in the run's folder: the folder its shell last reported, or its start folder when the shell reported none or one that isn't absolute, compared without a trailing separator and, on Windows, without case or the slashes' direction; a run with a `null` folder takes any.
+  It takes only a terminal in the run's folder: one whose start folder is the run's, or whose shell last reported it as an absolute path, compared without a trailing separator and, on Windows, without case or the slashes' direction; a run with a `null` folder takes any.
   A terminal is free when it is a person's terminal, not an agent's, its shell runs and has the shell integration, and it is at its prompt with nothing typed after it and no keys within the last second.
   A shell without the integration can't be told free, so each run there opens a new terminal.
   Command Prompt is such a shell by design, so each run with `[CommandPrompt]` opens a new terminal: telling an idle one from a busy one would need marks in its prompt, which would hand the programs it runs the integration's nonce ([ARCHITECTURE.md](ARCHITECTURE.md#running-an-apps-commands)).
