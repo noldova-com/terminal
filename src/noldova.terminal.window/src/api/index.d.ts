@@ -389,8 +389,9 @@ export declare class TerminalOwners {
    * The runtime types them into the owner's newest terminal that is free: a person's terminal, not an agent's, whose shell is running, has the
    * shell integration, is of one of the kinds, is in the run's folder, and is at its prompt with nothing typed after it and no keys within the
    * last second. A terminal is in the folder when the folder its shell last reported is, or its start folder while it reported no absolute
-   * one, both as the file system resolves them, whatever a trailing separator and, on Windows, case and slashes; a folder that no longer
-   * exists counts as the home folder, and a run with no folder takes any terminal. A run's end
+   * one, and none for a Git Bash report outside the drives, both as the file system resolves them within a second or else as written,
+   * whatever a trailing separator and, on Windows, case and slashes; a folder that no longer exists counts as the home folder, and a run
+   * with no folder takes any terminal. A run's end
    * comes before the shell draws its next prompt, so when the owner's newest such terminal is still drawing its prompt, the runtime waits up to
    * 10 seconds for it, holding it as a run that is starting, and types there once it is free; the wait ends when the terminal closes, and a
    * terminal still not free after it is passed over.

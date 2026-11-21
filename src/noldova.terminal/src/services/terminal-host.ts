@@ -67,6 +67,7 @@ export class TerminalHost {
   private readonly events: TerminalEvents;
   private readonly saved: SavedTerminals;
   private readonly completions: CompletionSource;
+  private readonly folderKeys: WeakMap<HostedTerminal, readonly [string, string]> = new WeakMap<HostedTerminal, readonly [string, string]>();
   private readonly sessions: Map<string, HostedTerminal> = new Map<string, HostedTerminal>();
   private readonly commandHistory: CommandHistory = new CommandHistory();
   private readonly disposals: Set<Promise<void>> = new Set<Promise<void>>();
@@ -570,12 +571,14 @@ export class TerminalHost {
       return this.endForClose(params, client);
     const isOwned = (t: HostedTerminal): boolean => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp)
       && (params.shellKinds.length === 0 || params.shellKinds.includes(t.shell.kind)) && !t.isRunStarting;
-    const inFolder: ReadonlySet<HostedTerminal> | null = await this.findInFolderAsync(params.folder, isOwned);
+    const wanted: string | null = params.folder === null ? null : await this.toRunFolderKeyAsync(params.folder);
+    let inFolder: ReadonlySet<HostedTerminal> | null = await this.findInFolderAsync(wanted, isOwned);
     const newest: HostedTerminal | undefined = this.terminals.findLast(t => isOwned(t) && inFolder?.has(t) !== false && (t.isFree || t.isDrawingPrompt));
-    if (newest !== undefined && !newest.isFree)
+    if (newest !== undefined && !newest.isFree) {
       await this.waitForPromptAsync(newest);
-    const stillInFolder: ReadonlySet<HostedTerminal> | null = await this.findInFolderAsync(params.folder, isOwned);
-    let terminal: HostedTerminal | undefined = this.terminals.findLast(t => isOwned(t) && stillInFolder?.has(t) !== false && t.isFree);
+      inFolder = await this.findInFolderAsync(wanted, isOwned);
+    }
+    let terminal: HostedTerminal | undefined = this.terminals.findLast(t => isOwned(t) && inFolder?.has(t) !== false && t.isFree);
     const isNew: boolean = terminal === undefined;
     if (terminal === undefined) {
       const shell: Shell | undefined = params.shellKinds.length === 0 ? await this.findFallbackShellAsync(params.shellId)
@@ -864,23 +867,58 @@ export class TerminalHost {
     return this.windowsPty === null ? folder.startsWith(Resources.posixRoot) : Resources.windowsAbsolutePath.test(folder);
   }
 
-  private async findInFolderAsync(folder: string | null, isOwned: (terminal: HostedTerminal) => boolean): Promise<ReadonlySet<HostedTerminal> | null> {
-    if (folder === null)
+  private async findInFolderAsync(wanted: string | null, isOwned: (terminal: HostedTerminal) => boolean): Promise<ReadonlySet<HostedTerminal> | null> {
+    if (wanted === null)
       return null;
-    const wanted: string = await this.toRealFolderAsync(await this.fileSystem.isFolderAsync(folder) ? folder : this.homeFolder);
     const owned: readonly HostedTerminal[] = this.terminals.filter(isOwned);
-    const folders: readonly string[] = await Promise.all(owned.map(t => this.toRealFolderAsync(this.currentFolderOf(t))));
+    const folders: readonly (string | null)[] = await Promise.all(owned.map(t => this.toTerminalFolderKeyAsync(t)));
     return new Set(owned.filter((_, index) => folders[index] === wanted));
   }
 
-  private currentFolderOf(terminal: HostedTerminal): string {
-    const cwd: string | null = terminal.session.cwd;
-    const local: string | null = cwd === null ? null : this.completions.toLocalFolder(cwd, terminal.shell.kind, this.readCompletionEnvironment(terminal));
-    return local !== null && this.isAbsolute(local) ? local : terminal.folder;
+  private async toRunFolderKeyAsync(folder: string): Promise<string> {
+    const real: string | null | undefined = await this.readRealFolderAsync(folder);
+    if (real !== null || await this.readBoundedAsync(() => this.fileSystem.isFolderAsync(folder)) !== false)
+      return this.toFolderKey(real ?? folder);
+    return this.toFolderKey(await this.readRealFolderAsync(this.homeFolder) ?? this.homeFolder);
   }
 
-  private async toRealFolderAsync(folder: string): Promise<string> {
-    return this.toFolderKey(await this.fileSystem.readRealPathOrNullAsync(folder) ?? folder);
+  private async toTerminalFolderKeyAsync(terminal: HostedTerminal): Promise<string | null> {
+    const folder: string | null = this.currentFolderOf(terminal);
+    if (folder === null)
+      return null;
+    const known: readonly [string, string] | undefined = this.folderKeys.get(terminal);
+    if (known !== undefined && known[0] === folder)
+      return known[1];
+    const real: string | null | undefined = await this.readRealFolderAsync(folder);
+    const key: string = this.toFolderKey(real ?? folder);
+    if (real !== undefined)
+      this.folderKeys.set(terminal, [folder, key]);
+    return key;
+  }
+
+  private currentFolderOf(terminal: HostedTerminal): string | null {
+    const cwd: string | null = terminal.session.cwd;
+    if (cwd === null)
+      return terminal.folder;
+    const local: string | null = this.completions.toLocalFolder(cwd, terminal.shell.kind, this.readCompletionEnvironment(terminal));
+    if (local === null)
+      return null;
+    return this.isAbsolute(local) ? local : terminal.folder;
+  }
+
+  private readRealFolderAsync(folder: string): Promise<string | null | undefined> {
+    return this.readBoundedAsync(() => this.fileSystem.readRealPathOrNullAsync(folder));
+  }
+
+  private async readBoundedAsync<T>(read: () => Promise<T>): Promise<T | undefined> {
+    const late: PromiseWithResolvers<undefined> = Promise.withResolvers<undefined>();
+    const timer: NodeJS.Timeout = setTimeout(() => late.resolve(undefined), Resources.runFolderReadMilliseconds);
+    try {
+      return await Promise.race([read().catch(() => undefined), late.promise]);
+    }
+    finally {
+      clearTimeout(timer);
+    }
   }
 
   private toFolderKey(folder: string): string {

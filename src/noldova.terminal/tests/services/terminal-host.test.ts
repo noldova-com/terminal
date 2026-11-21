@@ -3027,7 +3027,7 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    it("reads Git Bash's /c/... report as the Windows folder it names, and its start folder while it reports a folder outside the drives", async () => {
+    it("reads Git Bash's /c/... report as the Windows folder it names, and a report outside the drives as another folder", async () => {
       const fixture: HostFixture = await HostFixture.createAsync("win32", "10.0.26100", { SystemRoot: "C:\\Windows", ProgramFiles: "C:\\Program Files" });
       fixture.fileSystem.files.set("C:\\Program Files\\Git\\bin\\bash.exe", "");
       fixture.fileSystem.folders.add("C:\\Work");
@@ -3042,24 +3042,61 @@ describe("TerminalHost", () => {
       showPrompt(fixture, mounted);
 
       const other: TerminalRunResult = await runAsync(fixture, { folder: "C:\\Other", shellKinds: ["Bash"] });
-      const inStart: TerminalRunResult = await runAsync(fixture, { owner: "mounted", folder: "C:\\Work", shellKinds: ["Bash"] });
+      const left: TerminalRunResult = await runNewAsync(fixture, { owner: "mounted", folder: "C:\\Work", shellKinds: ["Bash"] });
 
-      assert.deepEqual([other.sessionId, inStart.sessionId, fixture.spawner.spawned.length], [movedId, mountedId, 2]);
+      assert.deepEqual([other.sessionId, left.sessionId === mountedId, fixture.spawner.spawned.length], [movedId, false, 3]);
       await fixture.endAllAsync();
     });
 
-    it("types a second run for a folder that no longer exists into the home terminal the first one opened", async () => {
+    it("types a second run for a folder that no longer exists into the home terminal the first one opened, and a run for the folder its shell went to next", async () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       fixture.fileSystem.folders.add("/home/a");
       const first: TerminalRunResult = await runNewAsync(fixture, { folder: "/gone" });
       const process: FakePtyProcess = fixture.process;
-      process.emitData(`\u001b]6973;D;${nonceOf(fixture, process)};0\u0007`);
-      fixture.reportCwd(process, "/home/a");
-      showPrompt(fixture, process);
+      const prompt = (cwd: string): void => {
+        process.emitData(`\u001b]6973;D;${nonceOf(fixture, process)};0\u0007`);
+        fixture.reportCwd(process, cwd);
+        showPrompt(fixture, process);
+      };
+      prompt("/home/a");
+      fixture.fileSystem.realPaths.set("/home/a", "/home/a");
 
       const second: TerminalRunResult = await runAsync(fixture, { folder: "/gone" });
+      prompt("/work");
+      const third: TerminalRunResult = await runAsync(fixture, { folder: "/work" });
 
-      assert.deepEqual([first.outcome, second.sessionId, second.outcome, fixture.spawner.spawned.length], ["Typed", first.sessionId, "Typed", 1]);
+      assert.deepEqual([first.outcome, second.sessionId, third.sessionId, third.outcome, fixture.spawner.spawned.length],
+        ["Typed", first.sessionId, first.sessionId, "Typed", 1]);
+      await fixture.endAllAsync();
+    });
+
+    it("compares a terminal's folder as written when its real path fails or doesn't come within a second, so a run for another folder still types", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      fixture.fileSystem.folders.add("/work/slow");
+      const { sessionId: workId } = await openFreeAsync(fixture);
+      await fixture.openAsync({ ...OWNED_OLD, folder: "/work/slow", owner: OWNER });
+      showPrompt(fixture, fixture.process);
+      const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.fileSystem.stalled.set("/work/slow", stall.promise);
+      fixture.fileSystem.realPathFailures.set("/work", Object.assign(new Error("i/o error"), { code: "EIO" }));
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        const result: Promise<TerminalRunResult> = runAsync(fixture, { folder: "/work" });
+        let isAnswered: boolean = false;
+        void result.then(() => isAnswered = true);
+        await vi.advanceTimersByTimeAsync(999);
+        const early: boolean = isAnswered;
+        for (let step: number = 0; step < 100 && !isAnswered; step++)
+          await vi.advanceTimersByTimeAsync(100);
+        const answer: TerminalRunResult = await result;
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        assert.deepEqual([early, answer.sessionId, answer.outcome, fixture.spawner.spawned.length], [false, workId, "Typed", 2]);
+      }
+      finally {
+        vi.useRealTimers();
+      }
+      stall.resolve();
       await fixture.endAllAsync();
     });
 
