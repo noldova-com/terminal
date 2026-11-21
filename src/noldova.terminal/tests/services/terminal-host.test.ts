@@ -3100,6 +3100,77 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
+    it("reads a hung folder's real path once for all the runs that wait on it, and keeps its late answer for the next run", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      fixture.fileSystem.realPaths.set("/work", "/work");
+      fixture.fileSystem.folders.add("/work/slow");
+      const workId: string = await fixture.openAsync(ownedOpen(OWNER));
+      showPrompt(fixture, fixture.process, false);
+      const slowId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/work/slow", owner: OWNER });
+      showPrompt(fixture, fixture.process, false);
+      const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.fileSystem.stalled.set("/work/slow", stall.promise);
+      const answers: string[] = [];
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        for (let index: number = 0; index < 3; index++) {
+          const result: Promise<TerminalRunResult> = runAsync(fixture, { folder: "/work", command: "a\n\tb" });
+          let isAnswered: boolean = false;
+          void result.then(() => isAnswered = true);
+          for (let step: number = 0; step < 20 && !isAnswered; step++)
+            await vi.advanceTimersByTimeAsync(100);
+          const answer: TerminalRunResult = await result;
+          answers.push(`${answer.sessionId === workId}:${answer.outcome}`);
+        }
+      }
+      finally {
+        vi.useRealTimers();
+      }
+      const whileHung: number = fixture.fileSystem.resolved.filter(t => t === "/work/slow").length;
+      fixture.fileSystem.realPaths.set("/work/slow", "/data/slow");
+      fixture.fileSystem.realPaths.set("/data/slow", "/data/slow");
+      stall.resolve();
+      await new Promise<void>(resolve => setImmediate(resolve));
+
+      const moved: TerminalRunResult = await runAsync(fixture, { folder: "/data/slow", command: "a\n\tb" });
+
+      assert.deepEqual([answers, whileHung, moved.sessionId === slowId, moved.outcome, fixture.fileSystem.resolved.filter(t => t === "/work/slow").length],
+        [["true:Tab", "true:Tab", "true:Tab"], 1, true, "Tab", 1]);
+      await fixture.endAllAsync();
+    });
+
+    it("opens a new terminal rather than one whose shell went elsewhere while its folder was being read", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      fixture.fileSystem.realPaths.set("/data/slow", "/data/slow");
+      fixture.fileSystem.folders.add("/work/slow");
+      fixture.fileSystem.folders.add("/data/slow");
+      const movedId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/work/slow", owner: OWNER });
+      const moved: FakePtyProcess = fixture.process;
+      showPrompt(fixture, moved, false);
+      const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.fileSystem.stalled.set("/work/slow", stall.promise);
+      await fixture.host.handleAsync("terminal.showOwner", { owner: OWNER }, APP);
+      const spawning: Promise<FakePtyProcess> = fixture.spawner.nextSpawnAsync();
+
+      const result: Promise<TerminalRunResult> = runAsync(fixture, { folder: "/data/slow", command: "a\n\tb" });
+      await vi.waitFor(() => assert.ok(fixture.fileSystem.resolved.includes("/work/slow")));
+      moved.emitData(`\u001b]6973;D;${nonceOf(fixture, moved)};0\u0007`);
+      fixture.reportCwd(moved, "/other");
+      showPrompt(fixture, moved, false);
+      fixture.fileSystem.realPaths.set("/work/slow", "/data/slow");
+      stall.resolve();
+      await vi.waitFor(async () => assert.equal((await fixture.listAsync()).length, 2));
+      const openedSummary: TerminalSummary | undefined = (await fixture.listAsync()).at(-1);
+      assert.ok(openedSummary !== undefined);
+      await fixture.host.handleAsync("terminal.resize", { sessionId: openedSummary.sessionId, size: PANE_SIZE }, APP);
+      const opened: FakePtyProcess = await readAsync(spawning);
+      showPrompt(fixture, opened, false);
+      const answer: TerminalRunResult = await result;
+
+      assert.deepEqual([answer.sessionId === movedId, answer.outcome, fixture.spawner.spawned.length], [false, "Tab", 2]);
+      await fixture.endAllAsync();
+    });
+
     it("types each line ended by Enter into a shell that didn't ask for bracketed pastes, and refuses commands holding a tab there", async () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       const sessionId: string = await fixture.openAsync(ownedOpen(OWNER));
