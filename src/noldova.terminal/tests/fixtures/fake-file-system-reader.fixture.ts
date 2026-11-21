@@ -22,6 +22,7 @@ export class FakeFileSystemReader implements IFileSystemReader {
   public readonly held: PromiseWithResolvers<void> = Promise.withResolvers<void>();
   public readonly stalled: Map<string, Promise<void>> = new Map<string, Promise<void>>();
   public readonly listed: string[] = [];
+  public readonly resolved: string[] = [];
 
   public async isFileAsync(path: string): Promise<boolean> {
     return this.files.has(path);
@@ -67,6 +68,7 @@ export class FakeFileSystemReader implements IFileSystemReader {
   }
 
   public async readRealPathOrNullAsync(path: string): Promise<string | null> {
+    this.resolved.push(path);
     const stall: Promise<void> | undefined = this.stalled.get(path);
     if (stall !== undefined)
       await stall;

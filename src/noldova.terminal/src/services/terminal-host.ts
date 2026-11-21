@@ -67,6 +67,8 @@ export class TerminalHost {
   private readonly events: TerminalEvents;
   private readonly saved: SavedTerminals;
   private readonly completions: CompletionSource;
+  private readonly folderKeys: WeakMap<HostedTerminal, readonly [string, string]> = new WeakMap<HostedTerminal, readonly [string, string]>();
+  private readonly realFolderReads: Map<string, Promise<string | null>> = new Map<string, Promise<string | null>>();
   private readonly sessions: Map<string, HostedTerminal> = new Map<string, HostedTerminal>();
   private readonly commandHistory: CommandHistory = new CommandHistory();
   private readonly disposals: Set<Promise<void>> = new Set<Promise<void>>();
@@ -568,12 +570,16 @@ export class TerminalHost {
     const place: TerminalOpening = new TerminalOpening(params.owner, client.connection);
     if (this.isClosing(place))
       return this.endForClose(params, client);
-    const isCandidate = (t: HostedTerminal): boolean => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp)
+    const isOwned = (t: HostedTerminal): boolean => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp)
       && (params.shellKinds.length === 0 || params.shellKinds.includes(t.shell.kind)) && !t.isRunStarting;
-    const newest: HostedTerminal | undefined = this.terminals.findLast(t => isCandidate(t) && (t.isFree || t.isDrawingPrompt));
-    if (newest !== undefined && !newest.isFree)
+    const wanted: string | null = params.folder === null ? null : await this.toRunFolderKeyAsync(params.folder);
+    let inFolder: ReadonlySet<HostedTerminal> | null = await this.findInFolderAsync(wanted, isOwned);
+    const newest: HostedTerminal | undefined = this.terminals.findLast(t => isOwned(t) && inFolder?.has(t) !== false && (t.isFree || t.isDrawingPrompt));
+    if (newest !== undefined && !newest.isFree) {
       await this.waitForPromptAsync(newest);
-    let terminal: HostedTerminal | undefined = this.terminals.findLast(t => isCandidate(t) && t.isFree);
+      inFolder = await this.findInFolderAsync(wanted, isOwned);
+    }
+    let terminal: HostedTerminal | undefined = this.terminals.findLast(t => isOwned(t) && inFolder?.has(t) !== false && t.isFree);
     const isNew: boolean = terminal === undefined;
     if (terminal === undefined) {
       const shell: Shell | undefined = params.shellKinds.length === 0 ? await this.findFallbackShellAsync(params.shellId)
@@ -860,6 +866,80 @@ export class TerminalHost {
 
   private isAbsolute(folder: string): boolean {
     return this.windowsPty === null ? folder.startsWith(Resources.posixRoot) : Resources.windowsAbsolutePath.test(folder);
+  }
+
+  private async findInFolderAsync(wanted: string | null, isOwned: (terminal: HostedTerminal) => boolean): Promise<ReadonlySet<HostedTerminal> | null> {
+    if (wanted === null)
+      return null;
+    const matched: (readonly [HostedTerminal, string])[] = [];
+    await Promise.all(this.terminals.filter(isOwned).map(async t => {
+      const known: readonly [string, string] | null = await this.toTerminalFolderKeyAsync(t);
+      if (known !== null && known[1] === wanted)
+        matched.push([t, known[0]]);
+    }));
+    return new Set(matched.filter(([t, folder]) => folder === this.currentFolderOf(t)).map(([t]) => t));
+  }
+
+  private async toRunFolderKeyAsync(folder: string): Promise<string> {
+    const real: string | null | undefined = await this.readRealFolderAsync(folder);
+    if (real !== null || await this.readBoundedAsync(() => this.fileSystem.isFolderAsync(folder)) !== false)
+      return this.toFolderKey(real ?? folder);
+    return this.toFolderKey(await this.readRealFolderAsync(this.homeFolder) ?? this.homeFolder);
+  }
+
+  private async toTerminalFolderKeyAsync(terminal: HostedTerminal): Promise<readonly [string, string] | null> {
+    const folder: string | null = this.currentFolderOf(terminal);
+    if (folder === null)
+      return null;
+    const known: readonly [string, string] | undefined = this.folderKeys.get(terminal);
+    if (known !== undefined && known[0] === folder)
+      return known;
+    const reading: Promise<string | null> = this.joinRealFolderRead(folder);
+    void reading.then(real => {
+      if (this.currentFolderOf(terminal) === folder)
+        this.folderKeys.set(terminal, [folder, this.toFolderKey(real ?? folder)]);
+    }, () => undefined);
+    const real: string | null | undefined = await this.readBoundedAsync(() => reading);
+    return [folder, this.toFolderKey(real ?? folder)];
+  }
+
+  private currentFolderOf(terminal: HostedTerminal): string | null {
+    const cwd: string | null = terminal.session.cwd;
+    if (cwd === null)
+      return terminal.folder;
+    const local: string | null = this.completions.toLocalFolder(cwd, terminal.shell.kind, this.readCompletionEnvironment(terminal));
+    if (local === null)
+      return null;
+    return this.isAbsolute(local) ? local : terminal.folder;
+  }
+
+  private readRealFolderAsync(folder: string): Promise<string | null | undefined> {
+    return this.readBoundedAsync(() => this.joinRealFolderRead(folder));
+  }
+
+  private joinRealFolderRead(folder: string): Promise<string | null> {
+    const running: Promise<string | null> | undefined = this.realFolderReads.get(folder);
+    if (running !== undefined)
+      return running;
+    const reading: Promise<string | null> = this.fileSystem.readRealPathOrNullAsync(folder).finally(() => this.realFolderReads.delete(folder));
+    this.realFolderReads.set(folder, reading);
+    return reading;
+  }
+
+  private async readBoundedAsync<T>(read: () => Promise<T>): Promise<T | undefined> {
+    const late: PromiseWithResolvers<undefined> = Promise.withResolvers<undefined>();
+    const timer: NodeJS.Timeout = setTimeout(() => late.resolve(undefined), Resources.runFolderReadMilliseconds);
+    try {
+      return await Promise.race([read().catch(() => undefined), late.promise]);
+    }
+    finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private toFolderKey(folder: string): string {
+    const trimmed: string = folder.replace(Resources.trailingFolderSeparators, "");
+    return this.windowsPty === null ? trimmed : trimmed.replaceAll(Resources.posixRoot, Resources.windowsSeparator).toLowerCase();
   }
 
   private async closeAsync(sessionId: string, client: RequestClient): Promise<void> {

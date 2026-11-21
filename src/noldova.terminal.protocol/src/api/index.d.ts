@@ -6032,7 +6032,8 @@ export declare class TerminalRunParams {
   public readonly command: string;
 
   /**
-   * The folder a new terminal starts in, or `null` for the person's home folder, which also stands in for a folder that no longer exists.
+   * The folder a new terminal starts in and a free terminal must be in to take the commands, or `null` for the person's home folder, which
+   * also stands in for a folder that no longer exists, and any free terminal.
    */
   public readonly folder: string | null;
 

@@ -66,6 +66,8 @@ const END_GUARD_MS: number = 30_000;
 const APP: RequestClient = new RequestClient(1, 1, true);
 const COMMAND_LINE: RequestClient = new RequestClient(2, null, false);
 
+const OWNED_OLD: Record<string, JsonValue> = { shellId: "bash", folder: "/work/old", size: { cols: 80, rows: 24 }, storedLimit: 104_857_600 };
+
 function ownedOpen(owner: string): JsonValue {
   return { shellId: "bash", folder: "/work", size: { cols: 80, rows: 24 }, storedLimit: 104_857_600, owner };
 }
@@ -2956,6 +2958,300 @@ describe("TerminalHost", () => {
       assert.deepEqual([result.sessionId, result.outcome, older.writes, fixture.spawner.spawned.length], [newestId, "Typed", [], 2]);
       assert.match(result.runId ?? "", /^[\da-f-]{36}$/u);
       assert.ok(fixture.log.messages.every(t => !t.includes("npm")));
+      await fixture.endAllAsync();
+    });
+
+    it("types into the owner's free terminal when its shell last reported the run's folder, and opens a new terminal for the start folder its shell left", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      fixture.fileSystem.folders.add("/work/app");
+      fixture.fileSystem.folders.add("/work/app/");
+      fixture.fileSystem.folders.add("/work/old");
+      const movedId: string = await fixture.openAsync({ ...OWNED_OLD, owner: OWNER });
+      const moved: FakePtyProcess = fixture.process;
+      fixture.reportCwd(moved, "/work/app");
+      showPrompt(fixture, moved);
+
+      const left: TerminalRunResult = await runNewAsync(fixture, { folder: "/work/old" });
+      const here: TerminalRunResult = await runAsync(fixture, { folder: "/work/app/" });
+
+      assert.deepEqual([left.outcome, left.sessionId === movedId, (await fixture.listAsync()).at(-1)?.folder],
+        ["Typed", false, "/work/old"]);
+      assert.deepEqual([here.sessionId, here.outcome, moved.writes], [movedId, "Typed", ["\u001b[200~npm test\u001b[201~\r"]]);
+      await fixture.endAllAsync();
+    });
+
+    it("compares a free terminal's start folder while its shell reports none or a relative one, resolves links on both sides, and takes any free terminal for a run that names no folder", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      fixture.fileSystem.realPaths.set("/work", "/private/work");
+      fixture.fileSystem.realPaths.set("/private/work", "/private/work");
+      const { sessionId: startedId } = await openFreeAsync(fixture);
+      const relativeId: string = await fixture.openAsync(ownedOpen("relative"));
+      const relative: FakePtyProcess = fixture.process;
+      fixture.reportCwd(relative, "~/app");
+      showPrompt(fixture, relative);
+      const movedId: string = await fixture.openAsync(ownedOpen("moved"));
+      const moved: FakePtyProcess = fixture.process;
+      fixture.reportCwd(moved, "/elsewhere");
+      showPrompt(fixture, moved);
+      const awayId: string = await fixture.openAsync(ownedOpen("away"));
+      const away: FakePtyProcess = fixture.process;
+      fixture.reportCwd(away, "/private/work");
+      showPrompt(fixture, away);
+
+      const inStart: TerminalRunResult = await runAsync(fixture, { folder: "/work" });
+      const relativeRun: TerminalRunResult = await runAsync(fixture, { owner: "relative", folder: "/work" });
+      const left: TerminalRunResult = await runNewAsync(fixture, { owner: "moved", folder: "/work" });
+      const anywhere: TerminalRunResult = await runAsync(fixture, { owner: "moved", folder: null });
+      const awayRun: TerminalRunResult = await runAsync(fixture, { owner: "away", folder: "/work" });
+
+      assert.deepEqual([inStart.sessionId, relativeRun.sessionId, left.sessionId === movedId, anywhere.sessionId, awayRun.sessionId, fixture.spawner.spawned.length],
+        [startedId, relativeId, false, movedId, awayId, 5]);
+      await fixture.endAllAsync();
+    });
+
+    it("compares folders on Windows whatever their case, slashes and trailing separator, and opens a new terminal for another folder", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync("win32", "10.0.26100", { SystemRoot: "C:\\Windows" });
+      fixture.fileSystem.files.set("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "");
+      fixture.fileSystem.folders.add("C:\\Work");
+      fixture.fileSystem.folders.add("C:\\Other");
+      fixture.fileSystem.folders.add("C:\\WORK");
+      const sessionId: string = await fixture.openAsync({ shellId: "powershell", folder: "C:\\Work", size: { cols: 80, rows: 24 }, storedLimit: 104_857_600, owner: OWNER });
+      const process: FakePtyProcess = fixture.process;
+      fixture.reportCwd(process, "c:/work/");
+      showPrompt(fixture, process);
+
+      const other: TerminalRunResult = await runNewAsync(fixture, { folder: "C:\\Other", shellKinds: ["PowerShell"] });
+      const result: TerminalRunResult = await runAsync(fixture, { folder: "C:\\WORK", shellKinds: ["PowerShell"] });
+
+      assert.deepEqual([other.sessionId === sessionId, result.sessionId, result.outcome, fixture.spawner.spawned.length], [false, sessionId, "Typed", 2]);
+      await fixture.endAllAsync();
+    });
+
+    it("reads Git Bash's /c/... report as the Windows folder it names, and a report outside the drives as another folder", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync("win32", "10.0.26100", { SystemRoot: "C:\\Windows", ProgramFiles: "C:\\Program Files" });
+      fixture.fileSystem.files.set("C:\\Program Files\\Git\\bin\\bash.exe", "");
+      fixture.fileSystem.folders.add("C:\\Work");
+      fixture.fileSystem.folders.add("C:\\Other");
+      const movedId: string = await fixture.openAsync({ shellId: "git-bash", folder: "C:\\Work", size: SIZE, storedLimit: 104_857_600, owner: OWNER });
+      const moved: FakePtyProcess = fixture.process;
+      fixture.reportCwd(moved, "/c/Other");
+      showPrompt(fixture, moved);
+      const mountedId: string = await fixture.openAsync({ shellId: "git-bash", folder: "C:\\Work", size: SIZE, storedLimit: 104_857_600, owner: "mounted" });
+      const mounted: FakePtyProcess = fixture.process;
+      fixture.reportCwd(mounted, "/usr/bin");
+      showPrompt(fixture, mounted);
+
+      const other: TerminalRunResult = await runAsync(fixture, { folder: "C:\\Other", shellKinds: ["Bash"] });
+      const left: TerminalRunResult = await runNewAsync(fixture, { owner: "mounted", folder: "C:\\Work", shellKinds: ["Bash"] });
+
+      assert.deepEqual([other.sessionId, left.sessionId === mountedId, fixture.spawner.spawned.length], [movedId, false, 3]);
+      await fixture.endAllAsync();
+    });
+
+    it("types a second run for a folder that no longer exists into the home terminal the first one opened, and a run for the folder its shell went to next", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      fixture.fileSystem.folders.add("/home/a");
+      const first: TerminalRunResult = await runNewAsync(fixture, { folder: "/gone" });
+      const process: FakePtyProcess = fixture.process;
+      const prompt = (cwd: string): void => {
+        process.emitData(`\u001b]6973;D;${nonceOf(fixture, process)};0\u0007`);
+        fixture.reportCwd(process, cwd);
+        showPrompt(fixture, process);
+      };
+      prompt("/home/a");
+      fixture.fileSystem.realPaths.set("/home/a", "/home/a");
+
+      const second: TerminalRunResult = await runAsync(fixture, { folder: "/gone" });
+      prompt("/work");
+      const third: TerminalRunResult = await runAsync(fixture, { folder: "/work" });
+
+      assert.deepEqual([first.outcome, second.sessionId, third.sessionId, third.outcome, fixture.spawner.spawned.length],
+        ["Typed", first.sessionId, first.sessionId, "Typed", 1]);
+      await fixture.endAllAsync();
+    });
+
+    it("compares a terminal's folder as written when its real path fails or doesn't come within a second, so a run for another folder still types", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      fixture.fileSystem.folders.add("/work/slow");
+      const { sessionId: workId } = await openFreeAsync(fixture);
+      await fixture.openAsync({ ...OWNED_OLD, folder: "/work/slow", owner: OWNER });
+      showPrompt(fixture, fixture.process);
+      const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.fileSystem.stalled.set("/work/slow", stall.promise);
+      fixture.fileSystem.realPathFailures.set("/work", Object.assign(new Error("i/o error"), { code: "EIO" }));
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        const result: Promise<TerminalRunResult> = runAsync(fixture, { folder: "/work" });
+        let isAnswered: boolean = false;
+        void result.then(() => isAnswered = true);
+        await vi.advanceTimersByTimeAsync(999);
+        const early: boolean = isAnswered;
+        for (let step: number = 0; step < 100 && !isAnswered; step++)
+          await vi.advanceTimersByTimeAsync(100);
+        const answer: TerminalRunResult = await result;
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        assert.deepEqual([early, answer.sessionId, answer.outcome, fixture.spawner.spawned.length], [false, workId, "Typed", 2]);
+      }
+      finally {
+        vi.useRealTimers();
+      }
+      stall.resolve();
+      await fixture.endAllAsync();
+    });
+
+    it("reads a hung folder's real path once for all the runs that wait on it, and keeps its late answer for the next run", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      fixture.fileSystem.realPaths.set("/work", "/work");
+      fixture.fileSystem.folders.add("/work/slow");
+      const workId: string = await fixture.openAsync(ownedOpen(OWNER));
+      showPrompt(fixture, fixture.process, false);
+      const slowId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/work/slow", owner: OWNER });
+      showPrompt(fixture, fixture.process, false);
+      const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.fileSystem.stalled.set("/work/slow", stall.promise);
+      const answers: string[] = [];
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        for (let index: number = 0; index < 3; index++) {
+          const result: Promise<TerminalRunResult> = runAsync(fixture, { folder: "/work", command: "a\n\tb" });
+          let isAnswered: boolean = false;
+          void result.then(() => isAnswered = true);
+          for (let step: number = 0; step < 20 && !isAnswered; step++)
+            await vi.advanceTimersByTimeAsync(100);
+          const answer: TerminalRunResult = await result;
+          answers.push(`${answer.sessionId === workId}:${answer.outcome}`);
+        }
+      }
+      finally {
+        vi.useRealTimers();
+      }
+      const whileHung: number = fixture.fileSystem.resolved.filter(t => t === "/work/slow").length;
+      fixture.fileSystem.realPaths.set("/work/slow", "/data/slow");
+      fixture.fileSystem.realPaths.set("/data/slow", "/data/slow");
+      stall.resolve();
+      await new Promise<void>(resolve => setImmediate(resolve));
+
+      const moved: TerminalRunResult = await runAsync(fixture, { folder: "/data/slow", command: "a\n\tb" });
+
+      assert.deepEqual([answers, whileHung, moved.sessionId === slowId, moved.outcome, fixture.fileSystem.resolved.filter(t => t === "/work/slow").length],
+        [["true:Tab", "true:Tab", "true:Tab"], 1, true, "Tab", 1]);
+      await fixture.endAllAsync();
+    });
+
+    it("opens a new terminal rather than one whose shell went elsewhere while its folder was being read", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      fixture.fileSystem.realPaths.set("/data/slow", "/data/slow");
+      fixture.fileSystem.folders.add("/work/slow");
+      fixture.fileSystem.folders.add("/data/slow");
+      const movedId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/work/slow", owner: OWNER });
+      const moved: FakePtyProcess = fixture.process;
+      showPrompt(fixture, moved, false);
+      const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.fileSystem.stalled.set("/work/slow", stall.promise);
+      await fixture.host.handleAsync("terminal.showOwner", { owner: OWNER }, APP);
+      const spawning: Promise<FakePtyProcess> = fixture.spawner.nextSpawnAsync();
+
+      const result: Promise<TerminalRunResult> = runAsync(fixture, { folder: "/data/slow", command: "a\n\tb" });
+      await vi.waitFor(() => assert.ok(fixture.fileSystem.resolved.includes("/work/slow")));
+      moved.emitData(`\u001b]6973;D;${nonceOf(fixture, moved)};0\u0007`);
+      fixture.reportCwd(moved, "/other");
+      showPrompt(fixture, moved, false);
+      fixture.fileSystem.realPaths.set("/work/slow", "/data/slow");
+      stall.resolve();
+      await vi.waitFor(async () => assert.equal((await fixture.listAsync()).length, 2));
+      const openedSummary: TerminalSummary | undefined = (await fixture.listAsync()).at(-1);
+      assert.ok(openedSummary !== undefined);
+      await fixture.host.handleAsync("terminal.resize", { sessionId: openedSummary.sessionId, size: PANE_SIZE }, APP);
+      const opened: FakePtyProcess = await readAsync(spawning);
+      showPrompt(fixture, opened, false);
+      const answer: TerminalRunResult = await result;
+
+      assert.deepEqual([answer.sessionId === movedId, answer.outcome, fixture.spawner.spawned.length], [false, "Tab", 2]);
+      await fixture.endAllAsync();
+    });
+
+    it("passes over a terminal whose kept folder its shell leaves while another terminal's folder is read", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      const cd = (process: FakePtyProcess, cwd: string): void => {
+        process.emitData(`\u001b]6973;D;${nonceOf(fixture, process)};0\u0007`);
+        fixture.reportCwd(process, cwd);
+        showPrompt(fixture, process, false);
+      };
+      fixture.fileSystem.realPaths.set("/data", "/data");
+      fixture.fileSystem.realPaths.set("/work", "/work");
+      fixture.fileSystem.folders.add("/data");
+      fixture.fileSystem.folders.add("/work/slow");
+      const olderId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/data", owner: OWNER });
+      showPrompt(fixture, fixture.process, false);
+      const newerId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/data", owner: OWNER });
+      const newer: FakePtyProcess = fixture.process;
+      showPrompt(fixture, newer, false);
+      await fixture.openAsync(ownedOpen(OWNER));
+      const slow: FakePtyProcess = fixture.process;
+      showPrompt(fixture, slow, false);
+      const first: TerminalRunResult = await runAsync(fixture, { folder: "/data", command: "a\n\tb" });
+      const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.fileSystem.stalled.set("/work/slow", stall.promise);
+      cd(slow, "/work/slow");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        const result: Promise<TerminalRunResult> = runAsync(fixture, { folder: "/data", command: "a\n\tb" });
+        await vi.waitFor(() => assert.ok(fixture.fileSystem.resolved.includes("/work/slow")));
+        cd(newer, "/other");
+        let isAnswered: boolean = false;
+        void result.then(() => isAnswered = true);
+        for (let step: number = 0; step < 20 && !isAnswered; step++)
+          await vi.advanceTimersByTimeAsync(100);
+        const second: TerminalRunResult = await result;
+
+        assert.deepEqual([first.sessionId === newerId, second.sessionId === olderId, second.outcome], [true, true, "Tab"]);
+      }
+      finally {
+        vi.useRealTimers();
+      }
+      stall.resolve();
+      await fixture.endAllAsync();
+    });
+
+    it("keeps a folder's late real path for a terminal only while its shell is still in that folder", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync();
+      fixture.fileSystem.realPaths.set("/data", "/data");
+      fixture.fileSystem.folders.add("/data");
+      fixture.fileSystem.folders.add("/work/slow");
+      const dataId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/data", owner: OWNER });
+      showPrompt(fixture, fixture.process, false);
+      const movedId: string = await fixture.openAsync({ ...OWNED_OLD, folder: "/work/slow", owner: OWNER });
+      const moved: FakePtyProcess = fixture.process;
+      showPrompt(fixture, moved, false);
+      const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
+      fixture.fileSystem.stalled.set("/work/slow", stall.promise);
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      let first: TerminalRunResult;
+      try {
+        const result: Promise<TerminalRunResult> = runAsync(fixture, { folder: "/data", command: "a\n\tb" });
+        let isAnswered: boolean = false;
+        void result.then(() => isAnswered = true);
+        for (let step: number = 0; step < 20 && !isAnswered; step++)
+          await vi.advanceTimersByTimeAsync(100);
+        first = await result;
+      }
+      finally {
+        vi.useRealTimers();
+      }
+      moved.emitData(`\u001b]6973;D;${nonceOf(fixture, moved)};0\u0007`);
+      fixture.reportCwd(moved, "/data");
+      showPrompt(fixture, moved, false);
+      const second: TerminalRunResult = await runAsync(fixture, { folder: "/data", command: "a\n\tb" });
+      fixture.fileSystem.realPaths.set("/work/slow", "/work/slow");
+      stall.resolve();
+      await new Promise<void>(resolve => setImmediate(resolve));
+      const before: number = fixture.fileSystem.resolved.filter(t => t === "/data").length;
+
+      const third: TerminalRunResult = await runAsync(fixture, { folder: "/data", command: "a\n\tb" });
+
+      assert.deepEqual([first.sessionId === dataId, second.sessionId === movedId, third.sessionId === movedId,
+        fixture.fileSystem.resolved.filter(t => t === "/data").length - before], [true, true, true, 1]);
       await fixture.endAllAsync();
     });
 
