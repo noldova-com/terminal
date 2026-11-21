@@ -96,6 +96,7 @@ export class Resources {
   public static readonly cursorHome: string = "\u001b[H";
   public static readonly windowsAbsolutePath: RegExp = /^(?:[A-Za-z]:[\\/]|\\\\)/u;
   public static readonly posixRoot: string = "/";
+  public static readonly trailingFolderSeparators: RegExp = /[\\/]+$/u;
   public static readonly folderParameter: string = "folder";
   public static readonly noteStyle: string = "\u001b[2;3m";
   public static readonly styleReset: string = "\u001b[0m";
@@ -300,6 +301,7 @@ export class Resources {
   public static readonly packageFile: string = "package.json";
   public static readonly completionCommandMilliseconds: number = 2_000;
   public static readonly completionReadMilliseconds: number = 1_000;
+  public static readonly runFolderReadMilliseconds: number = 1_000;
   public static readonly completionConcurrentReads: number = 2;
   public static readonly optionsKeys: ReadonlyMap<TerminalShellKind, string> = new Map<TerminalShellKind, string>([
     [TerminalShellKind.PowerShell, "\u001b[24~o"],

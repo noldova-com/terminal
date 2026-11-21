@@ -63,6 +63,10 @@ export class CompletionSource {
     return this.readAsync(key, t => this.completeLineAsync(t, kind, builtins, line.slice(0, cursor), folder, environment));
   }
 
+  public toLocalFolder(folder: string, kind: TerminalShellKind, environment: Readonly<Record<string, string>>): string | null {
+    return this.toLocalPath(folder, kind, this.readVariable(environment, Resources.temporaryFolderVariable) ?? null);
+  }
+
   public followsCommand(kind: TerminalShellKind, line: string, cursor: number): boolean {
     return ShellWords.read(line.slice(0, cursor), kind === TerminalShellKind.PowerShell).words.length > 0;
   }
@@ -161,7 +165,7 @@ export class CompletionSource {
 
   private async dropFoldersAsync(reads: BoundedReads, kind: TerminalShellKind, folder: string, environment: Readonly<Record<string, string>>,
     names: readonly string[]): Promise<readonly string[]> {
-    const workFolder: string | null = this.toLocalPath(folder, kind, this.readVariable(environment, Resources.temporaryFolderVariable) ?? null);
+    const workFolder: string | null = this.toLocalFolder(folder, kind, environment);
     if (workFolder === null)
       return names;
     const folders: ReadonlySet<string> = new Set((await reads.readEntriesAsync(workFolder)).filter(t => t.isFolder)
