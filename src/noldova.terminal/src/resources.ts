@@ -96,6 +96,7 @@ export class Resources {
   public static readonly cursorHome: string = "\u001b[H";
   public static readonly windowsAbsolutePath: RegExp = /^(?:[A-Za-z]:[\\/]|\\\\)/u;
   public static readonly posixRoot: string = "/";
+  public static readonly trailingFolderSeparators: RegExp = /[\\/]+$/u;
   public static readonly folderParameter: string = "folder";
   public static readonly noteStyle: string = "\u001b[2;3m";
   public static readonly styleReset: string = "\u001b[0m";

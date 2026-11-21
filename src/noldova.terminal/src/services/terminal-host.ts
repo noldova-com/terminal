@@ -569,7 +569,8 @@ export class TerminalHost {
     if (this.isClosing(place))
       return this.endForClose(params, client);
     const isCandidate = (t: HostedTerminal): boolean => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp)
-      && (params.shellKinds.length === 0 || params.shellKinds.includes(t.shell.kind)) && !t.isRunStarting;
+      && (params.shellKinds.length === 0 || params.shellKinds.includes(t.shell.kind)) && !t.isRunStarting
+      && (params.folder === null || this.isSameFolder(this.folderOf(t), params.folder));
     const newest: HostedTerminal | undefined = this.terminals.findLast(t => isCandidate(t) && (t.isFree || t.isDrawingPrompt));
     if (newest !== undefined && !newest.isFree)
       await this.waitForPromptAsync(newest);
@@ -860,6 +861,20 @@ export class TerminalHost {
 
   private isAbsolute(folder: string): boolean {
     return this.windowsPty === null ? folder.startsWith(Resources.posixRoot) : Resources.windowsAbsolutePath.test(folder);
+  }
+
+  private folderOf(terminal: HostedTerminal): string {
+    const cwd: string | null = terminal.session.commands.cwd;
+    return cwd !== null && this.isAbsolute(cwd) ? cwd : terminal.folder;
+  }
+
+  private isSameFolder(left: string, right: string): boolean {
+    return this.toFolderKey(left) === this.toFolderKey(right);
+  }
+
+  private toFolderKey(folder: string): string {
+    const trimmed: string = folder.replace(Resources.trailingFolderSeparators, "");
+    return this.windowsPty === null ? trimmed : trimmed.replaceAll(Resources.posixRoot, Resources.windowsSeparator).toLowerCase();
   }
 
   private async closeAsync(sessionId: string, client: RequestClient): Promise<void> {

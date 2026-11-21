@@ -387,7 +387,10 @@ export declare class TerminalOwners {
    *
    * @remarks
    * The runtime types them into the owner's newest terminal that is free: a person's terminal, not an agent's, whose shell is running, has the
-   * shell integration, is of one of the kinds, and is at its prompt with nothing typed after it and no keys within the last second. A run's end
+   * shell integration, is of one of the kinds, is in the run's folder, and is at its prompt with nothing typed after it and no keys within the
+   * last second. A terminal is in the folder when the folder its shell last reported, or its start folder when the shell reported none or one
+   * that isn't absolute, is the run's, whatever a trailing separator and, on Windows, case and slashes, and a run with no folder takes any
+   * terminal. A run's end
    * comes before the shell draws its next prompt, so when the owner's newest such terminal is still drawing its prompt, the runtime waits up to
    * 10 seconds for it, holding it as a run that is starting, and types there once it is free; the wait ends when the terminal closes, and a
    * terminal still not free after it is passed over.
