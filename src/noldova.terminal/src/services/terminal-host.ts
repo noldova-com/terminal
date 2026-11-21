@@ -568,13 +568,14 @@ export class TerminalHost {
     const place: TerminalOpening = new TerminalOpening(params.owner, client.connection);
     if (this.isClosing(place))
       return this.endForClose(params, client);
-    const isCandidate = (t: HostedTerminal): boolean => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp)
-      && (params.shellKinds.length === 0 || params.shellKinds.includes(t.shell.kind)) && !t.isRunStarting
-      && (params.folder === null || this.isInFolder(t, params.folder));
-    const newest: HostedTerminal | undefined = this.terminals.findLast(t => isCandidate(t) && (t.isFree || t.isDrawingPrompt));
+    const isOwned = (t: HostedTerminal): boolean => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp)
+      && (params.shellKinds.length === 0 || params.shellKinds.includes(t.shell.kind)) && !t.isRunStarting;
+    const inFolder: ReadonlySet<HostedTerminal> | null = await this.findInFolderAsync(params.folder, isOwned);
+    const newest: HostedTerminal | undefined = this.terminals.findLast(t => isOwned(t) && inFolder?.has(t) !== false && (t.isFree || t.isDrawingPrompt));
     if (newest !== undefined && !newest.isFree)
       await this.waitForPromptAsync(newest);
-    let terminal: HostedTerminal | undefined = this.terminals.findLast(t => isCandidate(t) && t.isFree);
+    const stillInFolder: ReadonlySet<HostedTerminal> | null = await this.findInFolderAsync(params.folder, isOwned);
+    let terminal: HostedTerminal | undefined = this.terminals.findLast(t => isOwned(t) && stillInFolder?.has(t) !== false && t.isFree);
     const isNew: boolean = terminal === undefined;
     if (terminal === undefined) {
       const shell: Shell | undefined = params.shellKinds.length === 0 ? await this.findFallbackShellAsync(params.shellId)
@@ -863,13 +864,23 @@ export class TerminalHost {
     return this.windowsPty === null ? folder.startsWith(Resources.posixRoot) : Resources.windowsAbsolutePath.test(folder);
   }
 
-  private isInFolder(terminal: HostedTerminal, folder: string): boolean {
-    const cwd: string | null = terminal.session.commands.cwd;
-    return this.isSameFolder(terminal.folder, folder) || cwd !== null && this.isAbsolute(cwd) && this.isSameFolder(cwd, folder);
+  private async findInFolderAsync(folder: string | null, isOwned: (terminal: HostedTerminal) => boolean): Promise<ReadonlySet<HostedTerminal> | null> {
+    if (folder === null)
+      return null;
+    const wanted: string = await this.toRealFolderAsync(await this.fileSystem.isFolderAsync(folder) ? folder : this.homeFolder);
+    const owned: readonly HostedTerminal[] = this.terminals.filter(isOwned);
+    const folders: readonly string[] = await Promise.all(owned.map(t => this.toRealFolderAsync(this.currentFolderOf(t))));
+    return new Set(owned.filter((_, index) => folders[index] === wanted));
   }
 
-  private isSameFolder(left: string, right: string): boolean {
-    return this.toFolderKey(left) === this.toFolderKey(right);
+  private currentFolderOf(terminal: HostedTerminal): string {
+    const cwd: string | null = terminal.session.cwd;
+    const local: string | null = cwd === null ? null : this.completions.toLocalFolder(cwd, terminal.shell.kind, this.readCompletionEnvironment(terminal));
+    return local !== null && this.isAbsolute(local) ? local : terminal.folder;
+  }
+
+  private async toRealFolderAsync(folder: string): Promise<string> {
+    return this.toFolderKey(await this.fileSystem.readRealPathOrNullAsync(folder) ?? folder);
   }
 
   private toFolderKey(folder: string): string {
