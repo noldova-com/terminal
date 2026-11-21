@@ -18,8 +18,8 @@
     "test:timing": "node scripts/timing/timing-check.ts"
   },
   "devDependencies": {
-    "@noldova/context.exceptions": "0.0.9",
-    "@noldova/context.json": "0.0.9",
+    "@noldova/context.exceptions": "0.0.10",
+    "@noldova/context.json": "0.0.10",
     "@noldova/desktop.protocol": "0.0.10",
     "@noldova/desktop.runtime": "0.0.10",
     "@noldova/desktop.window": "0.0.10",
