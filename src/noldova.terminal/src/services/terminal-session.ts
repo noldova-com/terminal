@@ -177,7 +177,7 @@ export class TerminalSession {
   public write(data: string, isKey: boolean = true): void {
     if (isKey)
       this.options.cancel();
-    this.wakeup?.beforeInput();
+    this.beforeInput();
     for (let lines = data.replace(Resources.bracketedPastes, "").split(Resources.lineBreaks).length - 1; lines > 0; lines--)
       this.commands.enterLine();
     this.terminal.write(data);
@@ -206,7 +206,7 @@ export class TerminalSession {
       return ShellOptionsReply.none;
     const reply: Promise<ShellOptionsReply> = this.options.askAsync(this.hasAnsweredOptions ? Resources.optionsMilliseconds
       : Resources.firstOptionsMilliseconds);
-    this.wakeup?.beforeInput();
+    this.beforeInput();
     this.terminal.write(keys);
     const answered: ShellOptionsReply = await reply;
     if (answered.isTimedOut)
@@ -323,19 +323,18 @@ export class TerminalSession {
 
   private receive(data: string): void {
     const marks: readonly ShellMark[] = this.scanner?.scan(data, this.receivedOffset) ?? [];
-    const edges: readonly (TerminalInputEdge | null)[] = marks.map(t => this.marksInput ? TerminalSession.toInputEdge(t.kind) : null);
-    this.batcher.append(data, marks.flatMap((t, index) => {
-      const edge: TerminalInputEdge | null = edges[index] ?? null;
+    this.batcher.append(data, marks.flatMap(t => {
+      const edge: TerminalInputEdge | null = this.readInputEdge(t);
       return edge === null ? [] : [new TerminalInputMark(t.offset - this.receivedOffset, edge)];
     }));
     this.flow.produce(data.length);
     let position: number = 0;
     let mirrored: number = 0;
-    for (const [index, mark] of marks.entries()) {
+    for (const mark of marks) {
       const end: number = mark.offset - this.receivedOffset;
       this.text.append(data.slice(position, end));
       position = end;
-      const edge: TerminalInputEdge | null = edges[index] ?? null;
+      const edge: TerminalInputEdge | null = this.readInputEdge(mark);
       if (mark.kind === MarkKind.PromptStart || edge !== null) {
         this.mirror.write(data.slice(mirrored, end));
         mirrored = end;
@@ -427,7 +426,11 @@ export class TerminalSession {
         if (this.terminal === terminal)
           this.end(t);
       },
-      onResizeUnasked: () => this.listener.onResizeUnasked(this.sessionId)
+      onResizeUnasked: () => this.listener.onResizeUnasked(this.sessionId),
+      onReleasingKeys: () => {
+        if (this.terminal === terminal)
+          this.wakeup?.beforeInput();
+      }
     }, this.windowsPty !== null);
     return terminal;
   }
@@ -449,6 +452,11 @@ export class TerminalSession {
     this.watchResize();
   }
 
+  private beforeInput(): void {
+    if (!this.terminal.isHoldingKeys)
+      this.wakeup?.beforeInput();
+  }
+
   private watchResize(): void {
     if (this.commands.isWaitingAtPrompt)
       this.wakeup?.watch();
@@ -461,6 +469,10 @@ export class TerminalSession {
       if (startsCommand && t !== null)
         this.listener.onCommandStarted(TerminalSession.toCommand(command) ?? t);
     }).catch((error: unknown) => this.listener.onFailed(this.sessionId, FailureText.read(error)));
+  }
+
+  private readInputEdge(mark: ShellMark): TerminalInputEdge | null {
+    return this.marksInput ? TerminalSession.toInputEdge(mark.kind) : null;
   }
 
   private static toCommand(value: string | null): string | null {

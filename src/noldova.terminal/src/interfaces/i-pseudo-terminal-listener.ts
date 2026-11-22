@@ -12,4 +12,6 @@ export interface IPseudoTerminalListener {
   onExit(exitCode: number | null): void;
 
   onResizeUnasked?(): void;
+
+  onReleasingKeys?(): void;
 }

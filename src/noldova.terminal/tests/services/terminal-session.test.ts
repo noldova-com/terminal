@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { Resources as ProtocolResources, TerminalShellKind, TerminalSize, WindowsPty, type TerminalAttachment, type TerminalLinePage } from "@noldova/terminal.protocol";
-import { afterEach, beforeEach, describe, it, onTestFinished, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
 
 import { StoredLinesUnwritableException } from "../../src/exceptions/stored-lines-unwritable.exception.ts";
 import type { MirrorLine } from "../../src/models/mirror-line.ts";
@@ -47,12 +47,12 @@ function createSession(
     Resources.maximumAgentTextLength, shellKind, false);
 }
 
-function holdKeysUntilAnswered(): void {
-  const limit: number = Resources.cursorAnswerMilliseconds;
-  Object.defineProperty(Resources, "cursorAnswerMilliseconds", { value: 3_600_000 });
-  onTestFinished(() => {
-    Object.defineProperty(Resources, "cursorAnswerMilliseconds", { value: limit });
-  });
+async function passUnderAnswerLimitAsync(): Promise<void> {
+  await vi.advanceTimersByTimeAsync(Resources.cursorAnswerMilliseconds - 1);
+}
+
+function isCursorAnswer(write: string): boolean {
+  return /^\u001b\[\d+;\d+R$/u.test(write);
 }
 
 afterEach(() => {
@@ -193,14 +193,15 @@ describe("TerminalSession", () => {
   });
 
   it("writes a key typed after a Windows shell's cursor request behind the mirror's answer", async () => {
-    holdKeysUntilAnswered();
+    vi.useFakeTimers();
     const process: FakePtyProcess = new FakePtyProcess();
     const session: TerminalSession = createSession(process, new SessionRecorder(), new TerminalSize(80, 24), new WindowsPty(26_100));
 
     process.emitData("\u001b[6n");
     session.write("e");
+    await passUnderAnswerLimitAsync();
 
-    await vi.waitFor(() => assert.deepEqual(process.writes, ["\u001b[1;1R", "e"]));
+    assert.deepEqual(process.writes, ["\u001b[1;1R", "e"]);
     await session.disposeAsync();
   });
 
@@ -702,7 +703,7 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
   }
 
   function keysOf(writes: readonly string[]): readonly string[] {
-    return writes.filter(t => !/^\u001b\[\d+;\d+R$/u.test(t));
+    return writes.filter(t => !isCursorAnswer(t));
   }
 
   it("sends the shell no Ctrl+G and holds no timer when the output after the resize stops at the cursor request and move and no key comes", async () => {
@@ -721,7 +722,7 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
   });
 
   it("types a command whole after a resize Git Bash took without a redraw, which leaves it waiting on its cursor request, sending one Ctrl+G ahead of it", async () => {
-    holdKeysUntilAnswered();
+    vi.useFakeTimers();
     const process: FakePtyProcess = new FakePtyProcess();
     const session: TerminalSession = createWindowsBash(process);
     process.emitData(PROMPT);
@@ -731,29 +732,33 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
     const before: number = process.writes.length;
 
     session.write("echo probe-ok\r");
+    await passUnderAnswerLimitAsync();
     process.emitData("\r\u001b[K\r$ ");
     session.write("echo again\r");
 
-    await vi.waitFor(() => assert.deepEqual(keysOf(process.writes.slice(before)), ["\u0007", "echo probe-ok\r", "echo again\r"]));
+    assert.deepEqual(keysOf(process.writes.slice(before)), ["\u0007", "echo probe-ok\r", "echo again\r"]);
     await session.disposeAsync();
   });
 
   it("sends it ahead of the next key after a pane's attach, whose redraw resizes the shell too", async () => {
-    holdKeysUntilAnswered();
+    vi.useFakeTimers();
     const process: FakePtyProcess = new FakePtyProcess();
     const session: TerminalSession = createWindowsBash(process);
     process.emitData(PROMPT);
-    await session.attachAsync("p1", []);
+    const attaching: Promise<TerminalAttachment> = session.attachAsync("p1", []);
+    await vi.advanceTimersByTimeAsync(0);
+    await attaching;
 
     process.emitData(STALL);
     session.write("e");
+    await passUnderAnswerLimitAsync();
 
-    await vi.waitFor(() => assert.deepEqual(process.writes.slice(-2), ["\u0007", "e"]));
+    assert.deepEqual(process.writes.slice(-2), ["\u0007", "e"]);
     await session.disposeAsync();
   });
 
   it("holds a key typed while the cursor request after a resize waits for its answer behind one Ctrl+G, both written after the answer", async () => {
-    holdKeysUntilAnswered();
+    vi.useFakeTimers();
     const process: FakePtyProcess = new FakePtyProcess();
     const session: TerminalSession = createWindowsBash(process);
     process.emitData(PROMPT);
@@ -762,22 +767,22 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
 
     process.emitData("\u001b[6n");
     session.write("e");
+    await passUnderAnswerLimitAsync();
 
-    await vi.waitFor(() => assert.equal(process.writes.length - before, 3));
-    assert.match(process.writes[before] ?? "", /^\u001b\[\d+;\d+R$/u);
-    assert.deepEqual(process.writes.slice(before + 1), ["\u0007", "e"]);
+    const written: readonly string[] = process.writes.slice(before);
+    assert.deepEqual([written.map(t => isCursorAnswer(t)), keysOf(written)], [[true, false, false], ["\u0007", "e"]]);
     await session.disposeAsync();
   });
 
   it("sends no Ctrl+G ahead of the key after the released one, once the cursor move and the redraw come", async () => {
-    holdKeysUntilAnswered();
+    vi.useFakeTimers();
     const process: FakePtyProcess = new FakePtyProcess();
     const session: TerminalSession = createWindowsBash(process);
     process.emitData(PROMPT);
     session.resize(new TerminalSize(100, 24));
     process.emitData("\u001b[6n");
     session.write("e");
-    await vi.waitFor(() => assert.equal(keysOf(process.writes).at(-1), "e"));
+    await passUnderAnswerLimitAsync();
 
     process.emitData("\u001b[24;3H");
     process.emitData("\r\u001b[K\r$ e");
@@ -787,8 +792,8 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
     await session.disposeAsync();
   });
 
-  it("sends nothing when the shell redraws its prompt before the key, or the person types before the output stops", async () => {
-    holdKeysUntilAnswered();
+  it("sends nothing when the shell redraws its prompt before the key, and one Ctrl+G ahead of a key the person types before the output stops, none after", async () => {
+    vi.useFakeTimers();
     const redrawn: FakePtyProcess = new FakePtyProcess();
     const redrawnSession: TerminalSession = createWindowsBash(redrawn);
     const typed: FakePtyProcess = new FakePtyProcess();
@@ -804,11 +809,66 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
     redrawn.emitData(PROMPT);
     redrawnSession.write("e");
     typedSession.write("c");
+    await passUnderAnswerLimitAsync();
 
-    await vi.waitFor(() => assert.deepEqual([keysOf(redrawn.writes), keysOf(typed.writes)], [["e"], ["e", "c"]]));
-    assert.deepEqual([bellsOf(redrawn), bellsOf(typed)], [[], []]);
+    assert.deepEqual([keysOf(redrawn.writes), keysOf(typed.writes), bellsOf(typed)], [["e"], ["\u0007", "e", "c"], ["\u0007"]]);
     await redrawnSession.disposeAsync();
     await typedSession.disposeAsync();
+  });
+
+  it("holds keys typed after a resize before ConPTY's cursor request comes, and writes them after the answer behind one Ctrl+G", async () => {
+    vi.useFakeTimers();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const session: TerminalSession = createWindowsBash(process);
+    process.emitData(PROMPT);
+    session.resize(new TerminalSize(100, 24));
+    const before: number = process.writes.length;
+
+    session.write("e");
+    process.emitData("\u001b[6n");
+    session.write("c");
+    await passUnderAnswerLimitAsync();
+
+    const written: readonly string[] = process.writes.slice(before);
+    assert.deepEqual([written.map(t => isCursorAnswer(t)), keysOf(written)], [[true, false, false, false], ["\u0007", "e", "c"]]);
+    await session.disposeAsync();
+  });
+
+  it("sends the shell that replaced another nothing when the one it replaced lets go of its held keys as it exits", async () => {
+    vi.useFakeTimers();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const session: TerminalSession = createWindowsBash(process);
+    process.emitData(PROMPT);
+    session.resize(new TerminalSize(100, 24));
+    session.write("e");
+    const replacement: FakePtyProcess = new FakePtyProcess();
+    session.restart(replacement, "n2", new TerminalSize(100, 24));
+    replacement.emitData("\u001b]6973;A;n2\u0007$ \u001b]6973;B;n2\u0007");
+    session.resize(new TerminalSize(120, 24));
+    replacement.emitData("\u001b[6n");
+
+    process.exit(0);
+    await passUnderAnswerLimitAsync();
+
+    assert.deepEqual([replacement.writes.map(t => isCursorAnswer(t))], [[true]]);
+    await session.disposeAsync();
+  });
+
+  it("writes a key typed after a resize ConPTY sends no cursor request for at the limit, with no Ctrl+G", async () => {
+    vi.useFakeTimers();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const session: TerminalSession = createWindowsBash(process);
+    process.emitData(PROMPT);
+    session.resize(new TerminalSize(100, 24));
+
+    session.write("e");
+    await vi.advanceTimersByTimeAsync(Resources.cursorAnswerMilliseconds - 1);
+    const held: readonly string[] = keysOf(process.writes);
+    await vi.advanceTimersByTimeAsync(1);
+
+    assert.deepEqual([held, keysOf(process.writes)], [[], ["e"]]);
+    vi.useRealTimers();
+    await session.disposeAsync();
   });
 
   it("sends nothing when, before the key, the shell is resized again, exits, restarts or the session is disposed", async () => {

@@ -25,9 +25,19 @@ class Recorder {
   public readonly data: string[] = [];
   public readonly exits: (number | null)[] = [];
   public unaskedResizes: number = 0;
+  public releases: number = 0;
+  public release: () => void = () => undefined;
 
   public create(process: FakePtyProcess, isConPty: boolean = false): PseudoTerminal {
-    return new PseudoTerminal(process, { onData: t => this.data.push(t), onExit: t => this.exits.push(t), onResizeUnasked: () => this.unaskedResizes++ }, isConPty);
+    return new PseudoTerminal(process, {
+      onData: t => this.data.push(t),
+      onExit: t => this.exits.push(t),
+      onResizeUnasked: () => this.unaskedResizes++,
+      onReleasingKeys: () => {
+        this.releases++;
+        this.release();
+      }
+    }, isConPty);
   }
 }
 
@@ -190,6 +200,37 @@ describe("PseudoTerminal's cursor requests on ConPTY", () => {
 
     assert.deepEqual(held, []);
     assert.deepEqual([process.writes, recorder.unaskedResizes, vi.getTimerCount()], [[ANSWER, "e", "c", "ho"], 0, 0]);
+  });
+
+  it("tells its listener once it no longer holds keys and before it writes the held ones, so a key written then goes ahead of them", () => {
+    const recorder: Recorder = new Recorder();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = recorder.create(process, true);
+    process.emitData(PROMPT);
+    recorder.release = () => terminal.write("\u0007");
+
+    terminal.resize(new TerminalSize(50, 9));
+    terminal.write("e");
+    const isHolding: boolean = terminal.isHoldingKeys;
+    process.emitData(REQUEST);
+    terminal.answer(ANSWER);
+
+    assert.deepEqual([isHolding, terminal.isHoldingKeys, recorder.releases, process.writes], [true, false, 1, [ANSWER, "\u0007", "e"]]);
+  });
+
+  it("tells its listener nothing when it releases no held keys, at an answer or at the limit", () => {
+    const recorder: Recorder = new Recorder();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = recorder.create(process, true);
+    process.emitData(PROMPT);
+
+    terminal.resize(new TerminalSize(50, 9));
+    process.emitData(REQUEST);
+    terminal.answer(ANSWER);
+    terminal.resize(new TerminalSize(60, 9));
+    vi.advanceTimersByTime(Resources.cursorAnswerMilliseconds);
+
+    assert.deepEqual([recorder.releases, terminal.isHoldingKeys, process.writes], [0, false, [ANSWER]]);
   });
 
   it("expects one cursor request for resizes in quick succession, as ConPTY sends one", () => {

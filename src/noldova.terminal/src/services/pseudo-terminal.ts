@@ -50,6 +50,10 @@ export class PseudoTerminal {
     return this.process.pid;
   }
 
+  public get isHoldingKeys(): boolean {
+    return this.openRequests > 0;
+  }
+
   public write(data: string): void {
     if (this.hasExited)
       return;
@@ -128,6 +132,8 @@ export class PseudoTerminal {
     this.answerLimit = undefined;
     this.openRequests = 0;
     this.isResizeAsking = false;
+    if (this.heldKeys.length > 0)
+      this.listener.onReleasingKeys?.();
     for (const key of this.heldKeys.splice(0))
       this.write(key);
   }
