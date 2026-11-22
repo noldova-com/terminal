@@ -1991,7 +1991,7 @@ describe("TerminalHost", () => {
       assert.deepEqual(fixture.saved.list().map(t => t.name), ["Server", "  ", "n".repeat(4097)]);
     });
 
-    it("opens a terminal whose folder or shell is gone with the home folder or the default shell, and says so in the log and on one line", async () => {
+    it("opens a terminal whose folder or shell is gone with the home folder or the default shell, says so in the log and on one line, and keeps its saved row", async () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       fixture.fileSystem.folders.add("/home/a");
       fixture.saved.save(new SavedTerminal("s1", "bash", "/gone", false));
@@ -2018,11 +2018,41 @@ describe("TerminalHost", () => {
         ["s4", "\u001b[2;3mThe folder work does not exist, so this terminal opened in the home folder.\u001b[0m\r\n"]
       ]);
       assert.deepEqual(fixture.saved.list(), [
-        new SavedTerminal("s1", "bash", "/home/a", false),
-        new SavedTerminal("s2", "bash", "/work", false),
-        new SavedTerminal("s3", "bash", "/home/a", false),
-        new SavedTerminal("s4", "bash", "/home/a", false)
+        new SavedTerminal("s1", "bash", "/gone", false),
+        new SavedTerminal("s2", "zsh", "/work", false),
+        new SavedTerminal("s3", "zsh", "/gone", false),
+        new SavedTerminal("s4", "bash", "work", false)
       ]);
+    });
+
+    it("moves a restored terminal's saved folder on its own shell's reports, past the first one in the home folder it fell back to, and never on another shell's", async () => {
+      const own: HostFixture = await HostFixture.createAsync();
+      own.saved.save(new SavedTerminal("s1", "bash", "/work", false));
+      const homed: HostFixture = await HostFixture.createAsync();
+      homed.fileSystem.folders.add("/home/a");
+      homed.saved.save(new SavedTerminal("s2", "bash", "/gone", false));
+      const other: HostFixture = await HostFixture.createAsync();
+      other.saved.save(new SavedTerminal("s3", "zsh", "/work", false));
+      for (const fixture of [own, homed, other])
+        await fixture.host.handleAsync("terminal.restore", RESTORE, APP);
+
+      own.reportCwd(own.process, "/work/src");
+      homed.reportCwd(homed.process, "/home/a");
+      other.reportCwd(other.process, "/work/src");
+      const first: readonly SavedTerminal[] = [own, homed, other].flatMap(t => t.saved.list());
+      homed.reportCwd(homed.process, "/srv");
+      homed.reportCwd(homed.process, "/home/a");
+      other.reportCwd(other.process, "/srv");
+
+      assert.deepEqual([first, [own, homed, other].flatMap(t => t.saved.list())], [[
+        new SavedTerminal("s1", "bash", "/work/src", false),
+        new SavedTerminal("s2", "bash", "/gone", false),
+        new SavedTerminal("s3", "zsh", "/work", false)
+      ], [
+        new SavedTerminal("s1", "bash", "/work/src", false),
+        new SavedTerminal("s2", "bash", "/home/a", false),
+        new SavedTerminal("s3", "zsh", "/work", false)
+      ]]);
     });
 
     it("starts the window's default shell for a terminal whose shell is gone while the runtime finds it, else the runtime's, and stores what the window allows", async () => {
@@ -2038,10 +2068,10 @@ describe("TerminalHost", () => {
       await fixture.host.handleAsync("terminal.restore", { size: SIZE, shellId: "zsh", storedLimit: 52_428_800 }, APP);
       await other.host.handleAsync("terminal.restore", { size: SIZE, shellId: "tcsh", storedLimit: 104_857_600 }, APP);
 
-      assert.deepEqual(fixture.saved.list(), [new SavedTerminal("s1", "zsh", "/work", false), new SavedTerminal("s2", "bash", "/work", false)]);
+      assert.deepEqual(fixture.saved.list(), [new SavedTerminal("s1", "fish", "/work", false), new SavedTerminal("s2", "bash", "/work", false)]);
       assert.deepEqual(open.mock.calls.map(t => t[4]), [52_428_800, 52_428_800]);
       assert.deepEqual(fixture.log.messages, ["Terminal s1 started the default shell, since the shell fish is no longer available."]);
-      assert.deepEqual(other.saved.list(), [new SavedTerminal("s3", "bash", "/work", false)]);
+      assert.deepEqual(other.saved.list(), [new SavedTerminal("s3", "fish", "/work", false)]);
     });
 
     it("opens only the latest panel terminal again, and forgets the others", async () => {

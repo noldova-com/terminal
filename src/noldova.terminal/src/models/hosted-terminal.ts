@@ -21,6 +21,9 @@ import type { WaitingRun } from "./waiting-run.ts";
 export class HostedTerminal {
   private readonly opening: TerminalOpening;
   private pendingInterrupt: AbortController | null = null;
+  private countsFolderReports: boolean = true;
+  private isFolderReportHeld: boolean = false;
+  private heldFolderReport: string | null = null;
 
   public readonly session: TerminalSession;
   public readonly shell: Shell;
@@ -67,6 +70,23 @@ export class HostedTerminal {
     this.connection = connection;
     this.environment = environment;
     this.opening = new TerminalOpening(owner, connection);
+  }
+
+  public keepFolderReports(isOwnShell: boolean, isOwnFolder: boolean): void {
+    this.countsFolderReports = isOwnShell;
+    this.isFolderReportHeld = !isOwnFolder;
+  }
+
+  public countsFolderReport(cwd: string): boolean {
+    if (!this.countsFolderReports)
+      return false;
+    if (this.isFolderReportHeld) {
+      this.heldFolderReport ??= cwd;
+      if (cwd === this.heldFolderReport)
+        return false;
+      this.isFolderReportHeld = false;
+    }
+    return true;
   }
 
   public get hasRecentInput(): boolean {

@@ -222,9 +222,10 @@ export class TerminalHost {
   public openTerminalAsync(shellId: string | null, folder: string, size: TerminalSize, ownerSessionId: string | null,
     storedLimit: number = ProtocolResources.defaultStoredLimit, note: string | null = null, isPanelTerminal: boolean = false,
     owner: string | null = null, client: RequestClient | null = null, sessionId: string = randomUUID(),
-    environment: Readonly<Record<string, string>> | null = null, startsAtFit: boolean = false, opensTab: boolean = true): Promise<HostedTerminal> {
+    environment: Readonly<Record<string, string>> | null = null, startsAtFit: boolean = false, opensTab: boolean = true,
+    kept: SavedTerminal | null = null): Promise<HostedTerminal> {
     return this.trackAsync(this.startTerminalAsync(shellId, folder, size, ownerSessionId, storedLimit, note, isPanelTerminal, owner, client, sessionId,
-      environment, startsAtFit, opensTab), new TerminalOpening(owner, client?.connection ?? null));
+      environment, startsAtFit, opensTab, kept), new TerminalOpening(owner, client?.connection ?? null));
   }
 
   public bindAgentSession(agentSessionId: string, owner: string): void {
@@ -315,7 +316,7 @@ export class TerminalHost {
 
   private async startTerminalAsync(shellId: string | null, folder: string, size: TerminalSize, ownerSessionId: string | null, storedLimit: number,
     note: string | null, isPanelTerminal: boolean, owner: string | null, client: RequestClient | null, sessionId: string,
-    environment: Readonly<Record<string, string>> | null, startsAtFit: boolean, opensTab: boolean): Promise<HostedTerminal> {
+    environment: Readonly<Record<string, string>> | null, startsAtFit: boolean, opensTab: boolean, kept: SavedTerminal | null): Promise<HostedTerminal> {
     const shell: Shell | undefined = await this.locator.findAsync(shellId);
     this.ensureRunning();
     if (shell === undefined)
@@ -344,7 +345,7 @@ export class TerminalHost {
       },
       onTitleChanged: t => publish(this.events.titleChanged, t.toJson()),
       onCwdChanged: t => {
-        if (isKept)
+        if (isKept && terminal.countsFolderReport(t.cwd))
           this.saved.moveTo(t.sessionId, t.cwd);
         publish(this.events.cwdChanged, t.toJson());
       },
@@ -363,6 +364,8 @@ export class TerminalHost {
       onFailed: (id, message) => this.log.write(Resources.formatStartedCommandUnread(id, message)),
       onResizeUnasked: t => this.log.write(Resources.formatResizeUnasked(t))
     }, Resources.maximumAgentTextLength, shell.kind, ownerSessionId === null), shell, folder, ownerSessionId, isPanelTerminal, owner, client?.connection ?? null, environment);
+    if (kept !== null)
+      terminal.keepFolderReports(kept.shellId === shell.id, kept.folder === folder);
     terminal.deferredShell = started.deferred;
     terminal.startTemporaryFolder = started.temporaryFolder;
     for (const line of started.printsNote ? [] : note?.split(Resources.lineBreaks) ?? [])
@@ -370,7 +373,7 @@ export class TerminalHost {
     terminal.opensTab = opensTab;
     this.sessions.set(sessionId, terminal);
     if (isKept)
-      this.saved.save(new SavedTerminal(sessionId, shell.id, folder, isPanelTerminal, owner, opensTab));
+      this.saved.save(kept ?? new SavedTerminal(sessionId, shell.id, folder, isPanelTerminal, owner, opensTab));
     else if (ownerSessionId !== null && owner !== null)
       this.audience.publish(this.events.opened, terminal,
         terminal.session.toSummary(folder, true, isPanelTerminal, owner, true, null, shell.name).toJson());
@@ -461,7 +464,7 @@ export class TerminalHost {
       shellId = shell.id;
     }
     const terminal: HostedTerminal = await this.startTerminalAsync(shellId, folder, params.size, null, params.storedLimit, params.notice, false,
-      null, client, randomUUID(), params.environment, false, params.opensTab);
+      null, client, randomUUID(), params.environment, false, params.opensTab, null);
     if (!params.opensTab)
       terminal.launcher = client;
     if (params.command !== null)
@@ -852,7 +855,7 @@ export class TerminalHost {
       ? hasFolder ? null : Resources.formatStartFolderNote(saved.folder)
       : hasFolder ? Resources.formatRestoredShellNote(saved.shellId) : Resources.formatRestoredShellAndFolderNote(saved.shellId, saved.folder);
     const terminal: HostedTerminal = await this.openTerminalAsync(hasShell ? saved.shellId : fallback, hasFolder ? saved.folder : this.homeFolder,
-      params.size, null, params.storedLimit, note, saved.isPanelTerminal, saved.owner, client, saved.sessionId, null, false, saved.opensTab);
+      params.size, null, params.storedLimit, note, saved.isPanelTerminal, saved.owner, client, saved.sessionId, null, false, saved.opensTab, saved);
     const name: string | null = saved.name;
     terminal.name = name !== null && name.trim() !== "" && name.length <= ProtocolResources.maximumTitleLength ? name : null;
     if (!hasShell)
