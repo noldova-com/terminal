@@ -7,6 +7,7 @@ Each version's section is written by the pull request that changes the version, 
 ## 0.0.6
 
 - On Windows, a key typed into a shell right after a pane's resize is no longer lost while the pseudo console asks where the cursor is: keys typed after a resize wait for that request's answer, for at most 500 ms, and a resize the pseudo console sends no request after is logged (#202).
+- A terminal brought back at a start in another shell or the home folder, because its shell wasn't found or its folder was missing, keeps its saved shell and folder, so a later start brings them back: a WSL distribution after a slow listing, or a folder on a disk not yet mounted. Its folder moves again once its own shell reports another folder than the one it started in (#206).
 - On macOS, a login pwsh starts through zsh as a login sh, which runs `/etc/profile` and `~/.profile` once, so pwsh no longer ends at once with `Call to 'procargs' failed with errno 5` (#195).
 - Terminal needs context's packages 0.0.12 or later and `@noldova/ui.components.angular` 0.0.25 or later: the packages take `@noldova/context.exceptions` and `@noldova/context.json` at `>=0.0.12 <0.1.0`, and the kit at `>=0.0.25 <0.1.0` (#198, #187).
 
