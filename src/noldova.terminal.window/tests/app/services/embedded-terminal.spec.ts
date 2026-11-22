@@ -9,7 +9,7 @@
 import { ApplicationRef, EnvironmentInjector, signal, type WritableSignal } from "@angular/core";
 import { TestBed, type ComponentFixture } from "@angular/core/testing";
 import { WindowPartTokens } from "@noldova/desktop.window";
-import { TerminalNames, TerminalVisibilityParams } from "@noldova/terminal.protocol";
+import { TerminalNames, TerminalReference, TerminalVisibilityParams } from "@noldova/terminal.protocol";
 import { ClipboardWriter } from "@noldova/ui.components.angular";
 import { ClipboardWriterFixture } from "@noldova/ui.components.angular/testing";
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
@@ -362,10 +362,12 @@ describe("EmbeddedTerminal", () => {
     const runtime: FakeRuntime = serve();
     const embedded: EmbeddedTerminal = await openAsync(runtime);
     await expectRowsShownAsync(embedded, 1);
+    await vi.waitFor(() => expect(visibilities(runtime)).toEqual([true]), { timeout: SpecWait.milliseconds });
     const height: number = embedded.element.getBoundingClientRect().height;
 
     embedded.setShown(false);
     TestBed.tick();
+    await vi.waitFor(() => expect(visibilities(runtime)).toEqual([true, false]), { timeout: SpecWait.milliseconds });
     await PaneHost.takeOutAsync(embedded.element);
     addHost().append(embedded.element);
     const outHeight: number = embedded.element.getBoundingClientRect().height;
@@ -382,7 +384,7 @@ describe("EmbeddedTerminal", () => {
     runtime.snapshot = "Sign in at the page that opened";
     runtime.offset = runtime.snapshot.length;
     runtime.context.handlers.set(TerminalNames.closeMethod, async t => {
-      runtime.exitSession((t as { sessionId: string }).sessionId, null);
+      runtime.exitSession(TerminalReference.fromJson(t).sessionId, null);
       return null;
     });
     const launched: LaunchedTerminal = await TerminalLauncher.openAsync(runtime.context, new TerminalLaunch(null, {}, null, null, "agent login", false));
