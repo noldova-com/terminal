@@ -280,8 +280,7 @@ function defineRealShellTests(covered: readonly string[]): void {
       new CommandRunner(fixture.context), new FakeModuleLog()).locateAsync();
     for (const shell of located)
       SHELL_FILES.set(shell.id, shell.file);
-    if (process.platform === "win32")
-      warmings = new Map(powerShells.filter(t => shellIds.includes(t)).map(t => [t, warmModuleCacheAsync(t)]));
+    warmings = new Map(powerShells.filter(t => shellIds.includes(t)).map(t => [t, warmModuleCacheAsync(t)]));
     for (const warming of warmings.values())
       void warming.catch(() => undefined);
   });
