@@ -40,6 +40,7 @@ export class HostedTerminal {
   public keyCount: number = 0;
   public inputReceivedLength: number | null = null;
   public inputTime: number = 0;
+  public typedTime: number = 0;
   public inputPrompt: number | null = null;
   public inputCommandMarks: number = 0;
   public restarts: Promise<void> = Promise.resolve();
@@ -93,6 +94,10 @@ export class HostedTerminal {
     return Date.now() - this.inputTime < Resources.echoSettleMilliseconds;
   }
 
+  public get hasRecentTyping(): boolean {
+    return Date.now() - this.typedTime < Resources.echoSettleMilliseconds;
+  }
+
   public get hasUnreadInput(): boolean {
     const commands: CommandTracker = this.session.commands;
     const prompt: number | null = commands.promptIdentity;
@@ -110,17 +115,17 @@ export class HostedTerminal {
       && this.session.commands.isDrawingPrompt;
   }
 
-  public recordInput(isReply: boolean = false, data: string = ""): void {
+  public recordInput(isReply: boolean = false, data: string = "", isAgent: boolean = false): void {
     this.inputReceivedLength = this.session.receivedLength;
     if (isReply)
       return;
     const commands: CommandTracker = this.session.commands;
-    this.record(commands.isWaitingAtPrompt && !HostedTerminal.hasTextAfterLineBreak(data) ? commands.promptIdentity : null);
+    this.record(commands.isWaitingAtPrompt && !HostedTerminal.hasTextAfterLineBreak(data) ? commands.promptIdentity : null, isAgent);
   }
 
   public recordRunInput(): void {
     this.inputReceivedLength = this.session.receivedLength;
-    this.record(this.typedEnds === 1 ? this.session.commands.promptIdentity : null);
+    this.record(this.typedEnds === 1 ? this.session.commands.promptIdentity : null, false);
   }
 
   public addRun(runId: string, startLine: Promise<MirrorLine>): void {
@@ -155,9 +160,11 @@ export class HostedTerminal {
     return this.opening.isReachedBy(connection, isApp);
   }
 
-  private record(prompt: number | null): void {
+  private record(prompt: number | null, isAgent: boolean): void {
     this.inputCount++;
     this.inputTime = Date.now();
+    if (!isAgent)
+      this.typedTime = this.inputTime;
     this.inputPrompt = prompt;
     this.inputCommandMarks = this.session.commands.commandMarks;
   }

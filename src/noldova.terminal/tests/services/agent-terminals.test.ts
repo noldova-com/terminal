@@ -480,7 +480,7 @@ describe("AgentTerminals", () => {
     terminal.write("secret\r", terminal.readPrompt());
     terminal.interrupt(terminal.readPrompt());
 
-    assert.deepEqual(terminal.readPrompt(), new TerminalPrompt(false, "/work", null, true, 0));
+    assert.deepEqual(terminal.readPrompt(), new TerminalPrompt(false, "/work", null, true, 2));
     assert.deepEqual(fixture.process.writes, ["secret\r", "\u0003"]);
   });
 
@@ -564,9 +564,11 @@ describe("AgentTerminals", () => {
     assert.deepEqual(fixture.spawner.spawned[oneShot]?.writes, ["secret\r", "\u0003"]);
     fixture.spawner.spawned[oneShot]?.exit(1);
     await command.waitForEndAsync(1_000, SIGNAL);
+    const isIdleAfterEnd: boolean = terminal.readPrompt().isIdle;
     terminal.write("ls\r", terminal.readPrompt());
 
-    assert.deepEqual([command.method, command.status, command.exitCode, terminal.readPrompt().isIdle, terminal.isAwaitingSecret], ["OneShot", "Exited", 1, true, false]);
+    assert.deepEqual([command.method, command.status, command.exitCode, isIdleAfterEnd, terminal.readPrompt().isIdle, terminal.isAwaitingSecret],
+      ["OneShot", "Exited", 1, true, false, false]);
     assert.deepEqual(fixture.spawner.spawned[0]?.writes, ["ls\r"]);
   });
 

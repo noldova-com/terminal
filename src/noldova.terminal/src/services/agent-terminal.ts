@@ -96,7 +96,7 @@ export class AgentTerminal implements IAgentTerminal {
   }
 
   public get hasPendingLine(): boolean {
-    return this.hosted.hasRecentInput || (this.hasShellIntegration && (this.session.readPromptLine() ?? "").length > 0);
+    return this.hosted.hasRecentTyping || (this.hasShellIntegration && (this.session.readPromptLine() ?? "").length > 0);
   }
 
   private get hasUnechoedInput(): boolean {
@@ -165,8 +165,10 @@ export class AgentTerminal implements IAgentTerminal {
   private send(data: string): void {
     if (this.oneShot?.isRunning === true)
       this.oneShot.write(data);
-    else
+    else {
+      this.hosted.recordInput(false, data, true);
       this.session.write(data);
+    }
   }
 
   private openLogFile(): LogFile {

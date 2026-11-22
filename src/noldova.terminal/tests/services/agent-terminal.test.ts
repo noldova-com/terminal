@@ -279,6 +279,38 @@ describe("AgentTerminal", () => {
     assert.deepEqual(fixture.process.writes, ["y\r", "\u0003"]);
   });
 
+  it("reads the prompt as busy after its own keys the shell hasn't echoed, and refuses a run at the prompt shown before them", async () => {
+    const fixture: AgentTerminalFixture = new AgentTerminalFixture();
+    const terminal: AgentTerminal = await fixture.openBashAsync();
+    const shown: ITerminalPrompt = terminal.readPrompt();
+
+    terminal.write("ls\r", shown);
+
+    assert.deepEqual([shown.isIdle, terminal.readPrompt().isIdle], [true, false]);
+    assert.throws(() => terminal.run("make", shown, 0), StaleTerminalException);
+    assert.deepEqual(fixture.process.writes, ["ls\r"]);
+  });
+
+  it("reads no line in use right after its own keys, so its next write isn't refused", async () => {
+    const fixture: AgentTerminalFixture = new AgentTerminalFixture();
+    const terminal: AgentTerminal = await fixture.openBashAsync();
+
+    terminal.write("y\r", terminal.readPrompt());
+    const hasPendingLine: boolean = terminal.hasPendingLine;
+    terminal.write("n\r", terminal.readPrompt());
+
+    assert.deepEqual([hasPendingLine, fixture.process.writes], [false, ["y\r", "n\r"]]);
+  });
+
+  it("reads no line in use right after its own interrupt, so its next write isn't refused", async () => {
+    const fixture: AgentTerminalFixture = new AgentTerminalFixture();
+    const terminal: AgentTerminal = await fixture.openBashAsync();
+
+    terminal.interrupt(terminal.readPrompt());
+
+    assert.equal(terminal.hasPendingLine, false);
+  });
+
   it("tells a running command's wait for a password", async () => {
     const fixture: AgentTerminalFixture = new AgentTerminalFixture();
     const terminal: AgentTerminal = await fixture.openBashAsync();
@@ -350,13 +382,14 @@ describe("AgentTerminal", () => {
     terminal.interrupt(terminal.readPrompt());
     oneShot.exit(1);
     await command.waitForEndAsync(1_000, SIGNAL);
+    const isIdleAfterEnd: boolean = terminal.readPrompt().isIdle;
     terminal.write("ls\r", terminal.readPrompt());
 
     assert.deepEqual(prompt, asking);
     assert.equal(fixture.spawner.calls.at(-1), "/usr/bin/fish [-c make] in /work at 120x30");
     assert.deepEqual(oneShot.writes, ["secret\r", "\u0003"]);
-    assert.deepEqual([command.method, command.status, command.exitCode, terminal.isAwaitingSecret, terminal.readPrompt().isIdle],
-      ["OneShot", "Exited", 1, false, true]);
+    assert.deepEqual([command.method, command.status, command.exitCode, terminal.isAwaitingSecret, isIdleAfterEnd, terminal.readPrompt().isIdle],
+      ["OneShot", "Exited", 1, false, true, false]);
     assert.deepEqual(shell.writes, ["ls\r"]);
   });
 
