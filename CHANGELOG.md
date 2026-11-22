@@ -4,6 +4,13 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version; other pull requests don't edit this file.
 
+## 0.0.7
+
+- On Windows, a key typed into Git Bash within about 16 ms of a pane's resize, before the pseudo console asks where the cursor is, is no longer lost: the resize wake-up judges bash's stalled redraw when the held keys are written, and sends its Ctrl+G ahead of them (#218).
+- Right after an agent writes keys to a shell, before the shell echoes them, the prompt no longer reads idle, so a `terminal_run` sent next refuses as not idle rather than being typed ahead of the agent's command (#208).
+- A program that exits while a child still holds its output no longer hangs its command's call: the run's end bounds the wait for the output, so the PowerShell command lookup looks names up again on the next request (#209).
+- Terminal needs Noldova Desktop 0.0.13 or later: the packages take `@noldova/desktop.protocol`, `@noldova/desktop.runtime` and `@noldova/desktop.window` at `>=0.0.13 <0.1.0`, and `module.json`'s `noldovaDesktop` is `>=0.0.13 <0.1.0` (#211).
+
 ## 0.0.6
 
 - On Windows, a key typed into a shell right after a pane's resize is no longer lost while the pseudo console asks where the cursor is: keys typed after a resize wait for that request's answer, for at most 500 ms, and a resize the pseudo console sends no request after is logged (#202).

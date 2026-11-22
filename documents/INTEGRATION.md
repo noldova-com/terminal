@@ -18,7 +18,7 @@ An app pins the module's package exactly in its root `package.json` and lists it
 ```json
 {
   "dependencies": {
-    "@noldova/terminal": "0.0.6"
+    "@noldova/terminal": "0.0.7"
   },
   "desktop": {
     "modules": [
