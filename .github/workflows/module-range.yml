@@ -22,7 +22,7 @@ concurrency:
 jobs:
   module-range:
     name: Module range
-    uses: noldova-com/desktop/.github/workflows/module-range.yml@dc51f4a5af54de4a1177da6e91aaf9d07cb3f86f # v0.0.1
+    uses: noldova-com/desktop/.github/workflows/module-range.yml@043393ccb64798aeee6223c72c4ada4fad6f1b47 # v0.0.12
     permissions:
       contents: read
       issues: write
