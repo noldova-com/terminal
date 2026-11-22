@@ -75,6 +75,7 @@ const NONCE_SEARCH: string = "& (Get-Process -Id $PID).Path -NoProfile -NonInter
   "\"[found-$([System.IO.File]::ReadAllText($file.FullName).Trim())]\" } } }\n";
 const PROFILE_RUN_VARIABLE: string = "NOLDOVA_TEST_PROFILE_RUN";
 const PROFILE_TIMES_FILE: string = "profile-times.log";
+const PROFILE_RUNS_FILE: string = "profile-runs";
 const PROFILE_RUN: string = `${process.pid}-${randomUUID()}`;
 const PROFILE_GUARD: RegExp = new RegExp(`^if \\(\\$env:${PROFILE_RUN_VARIABLE} -ne '(\\d+)-[\\da-f-]{36}'\\) \\{ return \\}\\n`, "u");
 const POLICY_PROFILE: string = "$NoldovaProfileRuns = @('all')\n";
@@ -266,6 +267,7 @@ function defineRealShellTests(covered: readonly string[]): void {
     await writeFile(join(home, ".bashrc"), BASH_STARTUP, "utf8");
     await writeFile(join(home, ".bash_profile"), ". ~/.bashrc\n", "utf8");
     await writeFile(join(home, ".zshrc"), ZSH_STARTUP, "utf8");
+    await writeFile(join(home, ".profile"), `echo ran >> "$HOME/${PROFILE_RUNS_FILE}"\n`, "utf8");
     vi.stubEnv("HOME", home);
     vi.stubEnv("ZDOTDIR", undefined);
     vi.stubEnv(PROFILE_RUN_VARIABLE, PROFILE_RUN);
@@ -290,6 +292,19 @@ function defineRealShellTests(covered: readonly string[]): void {
     vi.unstubAllEnvs();
     await rm(folder, { force: true, recursive: true });
   });
+
+  if (powerShells.includes("pwsh"))
+    it("starts a pwsh on macOS after sh's login files ran once, and keeps pwsh's login check variable from pwsh and its commands", async context => {
+      context.skip(process.platform !== "darwin" || !shellIds.includes("pwsh"), "pwsh starts through sh's login on macOS alone.");
+      await writeFile(join(home, PROFILE_RUNS_FILE), "", "utf8");
+      const sessionId: string = await fixture.openAsync("pwsh", workFolder);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
+
+      await fixture.typeAsync(sessionId, `"[login-$(@(Get-Content ~/${PROFILE_RUNS_FILE}).Count)-$($null -eq $env:__PWSH_LOGIN_CHECKED)-` +
+        "$(sh -c 'echo ${__PWSH_LOGIN_CHECKED-unset}')]\"\r");
+
+      await fixture.waitForAsync(sessionId, t => t.includes("[login-1-True-unset]"), "pwsh did not print one login run and no login check variable.");
+    });
 
   for (const shellId of [...posixShells, ...powerShells])
     it(`[${shellId}] fails a wait at once when ${shellId} ends first, naming how it ended`, async context => {

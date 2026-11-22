@@ -133,6 +133,52 @@ describe("ShellIntegration", () => {
     assert.equal(pwsh.nonce, NONCE);
   });
 
+  it("starts a login pwsh on macOS as pwsh's own login does, through zsh as a login sh with pwsh's login check marked done, passing every argument on", async () => {
+    const fixture: IntegrationFixture = new IntegrationFixture(false, "darwin");
+    const file: string = "/Users/a b/Power Shell/pwsh";
+    const odd: readonly string[] = ["-WorkingDirectory", "a b", "it's \"x\"", "$HOME", "-$x", ""];
+
+    const login: ShellLaunch = await fixture.prepareAsync(file, ["-l", ...odd]);
+    const named: ShellLaunch = await fixture.prepareAsync("pwsh", ["-Login"]);
+    const prefix: ShellLaunch = await fixture.prepareAsync("pwsh", ["-LO"]);
+
+    assert.deepEqual([login.file, login.args.slice(0, 13)],
+      ["/bin/zsh", ["--emulate", "sh", "-l", "-c", "exec \"$0\" \"$@\"", file, ...odd, "-NoProfile"]]);
+    assert.deepEqual(login.args.slice(13, 15), ["-NoExit", "-EncodedCommand"]);
+    assert.deepEqual([login.environment["__PWSH_LOGIN_CHECKED"], login.nonce], ["1", NONCE]);
+    assertNonceFile(fixture, login, login.environment["NOLDOVA_TERMINAL_NONCE_FILE"]);
+    assert.deepEqual([named.file, named.args.slice(5, 7), prefix.file, prefix.args.slice(5, 7)], ["/bin/zsh", ["pwsh", "-NoProfile"], "/bin/zsh", ["pwsh", "-NoProfile"]]);
+  });
+
+  it("starts pwsh as itself on macOS without a leading login parameter, a login pwsh as itself on Linux and Windows, and other shells on macOS as before",
+    async () => {
+      const mac: IntegrationFixture = new IntegrationFixture(false, "darwin");
+      const linux: IntegrationFixture = new IntegrationFixture(false, "linux");
+      const windows: IntegrationFixture = new IntegrationFixture(false, "win32");
+
+      const starts: readonly ShellLaunch[] = [
+        await mac.prepareAsync("pwsh"),
+        await mac.prepareAsync("pwsh", ["-NoLogo", "-l"]),
+        await mac.prepareAsync("pwsh", ["--login"]),
+        await mac.prepareAsync("pwsh", ["-"]),
+        await mac.prepareAsync("pwsh", ["-lx"]),
+        await linux.prepareAsync("/usr/bin/pwsh", ["-l"]),
+        await windows.prepareAsync("C:\\Program Files\\PowerShell\\7\\pwsh.exe", ["-l"])
+      ];
+      const zsh: ShellLaunch = await mac.prepareAsync("/bin/zsh", ["-l"]);
+      const bash: ShellLaunch = await mac.prepareAsync("/bin/bash", ["-l"]);
+      mac.writer.writeFailure = new Error("disk full");
+      mac.writer.writeFailurePath = "nonce-";
+      const plain: ShellLaunch = await mac.prepareAsync("pwsh");
+
+      assert.deepEqual(starts.map(t => [t.file, t.args[0], "__PWSH_LOGIN_CHECKED" in t.environment]), [
+        ["pwsh", "-NoProfile", false], ["pwsh", "-NoLogo", false], ["pwsh", "--login", false], ["pwsh", "-", false], ["pwsh", "-lx", false],
+        ["/usr/bin/pwsh", "-l", false], ["C:\\Program Files\\PowerShell\\7\\pwsh.exe", "-l", false]
+      ]);
+      assert.deepEqual([zsh.file, zsh.args, bash.file, bash.args[0]], ["/bin/zsh", ["-l"], "/bin/bash", "--init-file"]);
+      assert.deepEqual(plain, new ShellLaunch("pwsh", [], {}, null));
+    });
+
   it("reads a PowerShell's nonce, then runs its profiles, its start command and its script, in the same encoded command", async () => {
     const fixture: IntegrationFixture = new IntegrationFixture();
     const shell: Shell = new Shell("vs-a1-powershell", "Developer PowerShell", TerminalShellKind.PowerShell, "C:\\Program Files\\PowerShell\\7\\pwsh.exe", [], false,

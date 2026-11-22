@@ -532,6 +532,11 @@ export class Resources {
   public static readonly loginArguments: readonly string[] = ["-l", "--login", "-login"];
   public static readonly powerShellArguments: readonly string[] = ["-NoExit", "-EncodedCommand"];
   public static readonly powerShellIntegrationArguments: readonly string[] = ["-NoProfile", ...Resources.powerShellArguments];
+  public static readonly powerShellLoginParameter: string = "-login";
+  public static readonly powerShellLoginShell: string = "/bin/zsh";
+  public static readonly powerShellLoginShellArguments: readonly string[] = ["--emulate", "sh", "-l", "-c", "exec \"$0\" \"$@\""];
+  public static readonly powerShellLoginCheckedVariable: string = "__PWSH_LOGIN_CHECKED";
+  public static readonly powerShellLoginCheckedValue: string = "1";
   public static readonly environmentReadArguments: readonly string[] = ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand"];
   public static formatPowerShellLookupFailed(count: number, message: string): string {
     return `PowerShell's lookup of ${count} ${count === 1 ? "name" : "names"} a command line runs gave up, so they count as found, as later ones do until one succeeds: ${message}`;

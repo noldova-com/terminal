@@ -135,6 +135,7 @@ jobs:
           src/noldova.terminal/tests/services/shell-integration.bash.e2e.test.ts
           src/noldova.terminal/tests/services/shell-integration.zsh.e2e.test.ts
           src/noldova.terminal/tests/services/shell-integration.pwsh.e2e.test.ts
+          src/noldova.terminal/tests/services/shell-integration.pwsh-login.e2e.test.ts
           src/noldova.terminal/tests/services/pseudo-terminal.e2e.test.ts
           src/noldova.terminal/tests/services/shell-locator.e2e.test.ts
 
