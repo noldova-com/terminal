@@ -18,7 +18,7 @@ import { ShellClients } from "@noldova/desktop.protocol";
 import { RequestContext, type IMethodHandler, type ProcessRequest } from "@noldova/desktop.runtime";
 import { FakeModuleLog, FakeModuleSettings } from "@noldova/desktop.runtime/testing";
 import type { JsonValue } from "@noldova/context.json";
-import { TerminalAttachment, TerminalCommandAdded, TerminalCompletion, TerminalCwd, TerminalMissingCommands, TerminalOutput, TerminalReference, TerminalShellKind, TerminalShells } from "@noldova/terminal.protocol";
+import { TerminalAttachment, TerminalCommandAdded, TerminalCompletion, TerminalCwd, type TerminalExit, TerminalExited, TerminalMissingCommands, TerminalOutput, TerminalReference, TerminalShellKind, TerminalShells } from "@noldova/terminal.protocol";
 import { afterAll, beforeAll, describe, it, vi, type TestContext } from "vitest";
 
 import { RuntimePart } from "../../src/api/index.ts";
@@ -160,11 +160,24 @@ class RuntimeFixture {
     await this.callAsync("terminal.input", { sessionId, data });
   }
 
+  public exitOf(sessionId: string): TerminalExit | null {
+    return (this.context.events.get("terminal.exited")?.published ?? [])
+      .map(t => TerminalExited.fromJson(t))
+      .find(t => t.sessionId === sessionId)?.exit ?? null;
+  }
+
   public async waitForAsync(sessionId: string, check: (text: string) => boolean, description: string, timeoutMilliseconds: number = WAIT_MS): Promise<void> {
-    await vi.waitFor(() => {
+    const exit: TerminalExit | null = await vi.waitFor(() => {
       const text: string = this.text(sessionId);
-      assert.ok(check(text), `${description} Marks: ${this.kinds(sessionId)}. Output ends with: ${JSON.stringify(text.slice(-OUTPUT_TAIL))}`);
+      if (check(text))
+        return null;
+      const ended: TerminalExit | null = this.exitOf(sessionId);
+      assert.ok(ended !== null, `${description} Marks: ${this.kinds(sessionId)}. Output ends with: ${JSON.stringify(text.slice(-OUTPUT_TAIL))}`);
+      return ended;
     }, { timeout: timeoutMilliseconds, interval: TEXT_POLL_MS });
+    if (exit !== null)
+      assert.fail(`${description} The shell ended first, by ${exit.endedBy} with exit code ${String(exit.exitCode)}. Marks: ${this.kinds(sessionId)}. ` +
+        `Output ends with: ${JSON.stringify(this.text(sessionId).slice(-OUTPUT_TAIL))}`);
   }
 
   public async waitForCompletionsAsync(sessionId: string, isPowerShell: boolean): Promise<void> {
@@ -277,6 +290,21 @@ function defineRealShellTests(covered: readonly string[]): void {
     vi.unstubAllEnvs();
     await rm(folder, { force: true, recursive: true });
   });
+
+  for (const shellId of [...posixShells, ...powerShells])
+    it(`[${shellId}] fails a wait at once when ${shellId} ends first, naming how it ended`, async context => {
+      context.skip(!shellIds.includes(shellId), `${shellId} is not installed.`);
+      const sessionId: string = await fixture.openAsync(shellId, workFolder);
+      await fixture.waitForAsync(sessionId, () => fixture.kinds(sessionId).includes("B"), "No prompt mark arrived.", SHELL_COLD_START_MS);
+      await fixture.typeAsync(sessionId, "exit 7\r");
+
+      const started: number = performance.now();
+      const error: unknown = await fixture.waitForAsync(sessionId, () => false, "Nothing came.", SHELL_COLD_START_MS).then(() => null, (t: unknown) => t);
+      const exitCode: string = process.platform === "win32" ? "" : " with exit code 7";
+
+      assert.ok(error instanceof Error && error.message.startsWith(`Nothing came. The shell ended first, by Exit${exitCode}`), String(error));
+      assert.ok(performance.now() - started < WAIT_MS, `The wait failed after ${String(performance.now() - started)} ms.`);
+    });
 
   for (const shellId of posixShells)
     it(`[${shellId}] marks ${shellId}'s prompts and commands after the person's startup files`, async context => {
