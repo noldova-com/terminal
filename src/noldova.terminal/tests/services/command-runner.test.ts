@@ -8,13 +8,14 @@
 
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { rm, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { ArgumentException } from "@noldova/context.exceptions";
-import { type OwnedProcess, ProcessExit, ProcessStartFailedException, ProgramNotFoundException } from "@noldova/desktop.runtime";
-import { FakeRuntimePartContext } from "@noldova/desktop.runtime/testing";
+import { type OwnedProcess, ProcessExit, ProcessRequest, ProcessStartFailedException, ProgramNotFoundException } from "@noldova/desktop.runtime";
+import { FakeModuleLog, FakeRuntimePartContext } from "@noldova/desktop.runtime/testing";
+import type { TerminalMissingCommands } from "@noldova/terminal.protocol";
 import { afterEach, describe, it, vi } from "vitest";
 
 import { CommandExitedException } from "../../src/exceptions/command-exited.exception.ts";
@@ -22,12 +23,40 @@ import { CommandNotStartedException } from "../../src/exceptions/command-not-sta
 import { CommandOutputTooLongException } from "../../src/exceptions/command-output-too-long.exception.ts";
 import { CommandTimedOutException } from "../../src/exceptions/command-timed-out.exception.ts";
 import type { CommandRun } from "../../src/models/command-run.ts";
+import { Resources } from "../../src/resources.ts";
 import { CommandRunner } from "../../src/services/command-runner.ts";
+import { CommandTracker } from "../../src/services/command-tracker.ts";
+import { CompletionSource } from "../../src/services/completion-source.ts";
+import { FakeFileSystemReader } from "../fixtures/fake-file-system-reader.fixture.ts";
 import { SpawnedPrograms } from "../fixtures/spawned-programs.fixture.ts";
 
 const NODE: string = path.basename(process.execPath);
 const STAY: string = "setInterval(() => {}, 1000);";
 const RUN_MS: number = 120_000;
+
+async function stopChildAsync(pidFile: string): Promise<void> {
+  let text: string;
+  try {
+    text = await readFile(pidFile, "utf8");
+  }
+  catch (error: unknown) {
+    if (hasCode(error, "ENOENT"))
+      return;
+    throw error;
+  }
+  try {
+    process.kill(Number(text));
+  }
+  catch (error: unknown) {
+    if (!hasCode(error, "ESRCH"))
+      throw error;
+  }
+  await rm(pidFile, { force: true });
+}
+
+function hasCode(error: unknown, code: string): boolean {
+  return error instanceof Error && "code" in error && error.code === code;
+}
 
 describe("CommandRunner", () => {
   let programs: SpawnedPrograms = new SpawnedPrograms();
@@ -138,18 +167,71 @@ describe("CommandRunner", () => {
     await assert.rejects(new CommandRunner(context).runAsync(process.execPath, ["-e", ""], RUN_MS), new CommandExitedException(NODE, new ProcessExit(null, "SIGKILL")));
   });
 
-  it("gives the output of a program that exited within its time, though its output closes only after that time", async () => {
+  it("gives the output of a program that exited within its time, though its output closes only after that time, before its end", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
       context.answer("startProcessAsync", t => programs.startAsync(t, Promise.resolve(new ProcessExit(0, null))));
       const started: Promise<OwnedProcess> = programs.nextStartAsync();
-      const run: Promise<string> = new CommandRunner(context).runAsync(process.execPath, ["-e", STAY], 100);
+      const run: CommandRun = new CommandRunner(context).start(process.execPath, ["-e", STAY], 100, 400);
       const program: OwnedProcess = await started;
 
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(399);
       await program.stopAsync();
 
-      assert.equal(await run, "");
+      assert.equal(await run.answer, "");
+    }
+    finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ends at its end a lookup whose program exited while a child it started still holds its output open, closing the output, and looks up again after", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const pidFile: string = path.join(tmpdir(), `noldova-held-output-${randomUUID()}`);
+    const scripts: string[] = [`const child = require("child_process").spawn(process.execPath, ["-e", ${JSON.stringify(STAY)}], `
+      + `{ stdio: ["ignore", "inherit", "inherit"], detached: true }); require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(child.pid)); child.unref();`,
+    "process.stdout.write('0\\n');"];
+    context.answer("startProcessAsync", t => programs.startAsync(new ProcessRequest(process.execPath, ["-e", scripts.shift() ?? ""], t.workingFolder, t.environment, [], t.signal)));
+    const source: CompletionSource = new CompletionSource(new FakeFileSystemReader(), new CommandRunner(context), process.platform, tmpdir(), new FakeModuleLog());
+    const shell: CommandTracker = new CommandTracker(() => "");
+    const names: ReadonlySet<string> = new Set(["ll"]);
+    try {
+      const started: Promise<OwnedProcess> = programs.nextStartAsync();
+      const looking: Promise<TerminalMissingCommands> = source.findMissingPowerShellAsync(shell, process.execPath, ["gti"], names, {});
+      const program: OwnedProcess = await started;
+      await program.exited;
+      await vi.advanceTimersByTimeAsync(Resources.powerShellLookupEndMilliseconds - 1);
+      const before: readonly boolean[] = [program.output.destroyed, program.errors.destroyed];
+      await vi.advanceTimersByTimeAsync(1);
+      const held: readonly string[] = (await looking).names;
+      await new Promise<void>(resolve => setImmediate(resolve));
+      const again: readonly string[] = (await source.findMissingPowerShellAsync(shell, process.execPath, ["gti"], names, {})).names;
+
+      assert.deepEqual([before, held, program.output.destroyed, program.errors.destroyed, again], [[false, false], [], true, true, ["gti"]]);
+    }
+    finally {
+      vi.useRealTimers();
+      await stopChildAsync(pidFile);
+    }
+  });
+
+  it("closes the output of a program that starts after its end and exits while its output stays open, so its run still ends", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const started: Promise<OwnedProcess> = programs.nextStartAsync();
+      context.answer("startProcessAsync", async t => {
+        await new Promise<void>(resolve => t.signal?.addEventListener("abort", () => resolve(), { once: true }));
+        return programs.startAsync(new ProcessRequest(t.program, [...t.arguments], t.workingFolder, t.environment, []), Promise.resolve(new ProcessExit(null, "SIGKILL")));
+      });
+      const run: CommandRun = new CommandRunner(context).start(process.execPath, ["-e", STAY], 100, 400);
+      const answered: Promise<void> = assert.rejects(run.answer, new CommandTimedOutException(NODE, 100));
+
+      await vi.advanceTimersByTimeAsync(400);
+      const program: OwnedProcess = await started;
+      await run.ended;
+
+      assert.deepEqual([program.output.destroyed, program.errors.destroyed], [true, true]);
+      await answered;
     }
     finally {
       vi.useRealTimers();

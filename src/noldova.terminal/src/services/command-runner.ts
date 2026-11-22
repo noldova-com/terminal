@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { addAbortListener } from "node:events";
 import path from "node:path";
 
 import { type IRuntimePartContext, type OwnedProcess, type ProcessExit, ProcessRequest, ProcessStartException } from "@noldova/desktop.runtime";
@@ -37,11 +38,11 @@ export class CommandRunner implements ICommandRunner {
     const answer: PromiseWithResolvers<string> = Promise.withResolvers<string>();
     const late: NodeJS.Timeout = setTimeout(() => answer.reject(new CommandTimedOutException(name, timeoutMilliseconds)), timeoutMilliseconds);
     const ending: NodeJS.Timeout = setTimeout(() => stopping.abort(), Math.max(timeoutMilliseconds, endMilliseconds));
-    const stopTimers = (): void => {
-      clearTimeout(late);
-      clearTimeout(ending);
-    };
-    const ended: Promise<void> = this.readAsync(name, request, stopping, timeoutMilliseconds, stopTimers).then(answer.resolve, answer.reject).finally(stopTimers);
+    const ended: Promise<void> = this.readAsync(name, request, stopping, timeoutMilliseconds, () => clearTimeout(late)).then(answer.resolve, answer.reject)
+      .finally(() => {
+        clearTimeout(late);
+        clearTimeout(ending);
+      });
     return new CommandRun(answer.promise, ended);
   }
 
@@ -57,6 +58,10 @@ export class CommandRunner implements ICommandRunner {
         throw error;
       throw new CommandNotStartedException(name, error);
     }
+    addAbortListener(stopping.signal, () => {
+      process.output.destroy();
+      process.errors.destroy();
+    });
     let isTooLong: boolean = false;
     let output: string = "";
     process.output.setEncoding(Resources.utf8Encoding);
@@ -74,7 +79,8 @@ export class CommandRunner implements ICommandRunner {
     });
     const closed: Promise<void> = new Promise<void>(resolve => process.output.once(Resources.closeEvent, () => resolve()));
     const errorsClosed: Promise<void> = new Promise<void>(resolve => process.errors.once(Resources.closeEvent, () => resolve()));
-    const [exit]: [ProcessExit, void, void] = await Promise.all([process.exited.finally(exited), closed, errorsClosed]);
+    const exit: ProcessExit = await process.exited.finally(exited);
+    await Promise.all([closed, errorsClosed]);
     if (isTooLong)
       throw new CommandOutputTooLongException(name, Resources.maximumCommandOutputLength);
     if (stopping.signal.aborted)
