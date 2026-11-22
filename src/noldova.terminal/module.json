@@ -1,6 +1,6 @@
 {
   "id": "terminal",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "displayName": "Terminal",
   "description": "Runs shells in terminal panes, and lets AI agents run commands in them through permission requests.",
   "parts": ["runtime", "window"],

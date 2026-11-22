@@ -4,6 +4,21 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version; other pull requests don't edit this file.
 
+## 0.0.5
+
+- On Windows, a key typed into Git Bash while the pseudo console's cursor request after a resize waits for its answer is no longer lost: it goes in behind the resize wake-up's Ctrl+G (#189).
+- `terminal.run` types an app's commands only into a terminal in the run's folder, so after an owner's folder changes, the next run no longer goes into a terminal left in the old one (#181).
+- A run waits for the shell to draw its next prompt before it takes or refuses a terminal, so a run sent right after another's end no longer gets `Busy` from a terminal that refuses when busy, or a second shell (#148).
+- A run sent while its owner's or connection's terminals close answers `Ended` and types nothing, and closing an owner or a connection waits only for its own opens and runs (#150, #138).
+- An agent's command started before a shared terminal's restart ends as `Killed` at the restart, and an interrupt sends nothing to the new shell (#134).
+- On Linux and macOS, Ctrl+C waits for bash's or zsh's copy of the shell to start the command, so an interrupt sent at once is no longer lost (#152).
+- Keys and pastes typed into a pane while it attaches reach the shell (#119), and an exit or restart that arrives while a pane draws its attach shows after the draw (#151).
+- A pane that a reload or a closed window left behind no longer pauses its shell (#120).
+- Bracketed paste and the key modes stay on while a pane shows stored lines (#156), and command coloring looks commands up again once a pane attaches after a failed lookup (#153).
+- A completion answers from the last finished environment read on Windows and never waits for a new one (#140).
+- Completion candidates and items are kept to printable text, so a completion can't type control characters into the shell (GHSA-gf3c-9f8g-gfc3).
+- Terminal needs Noldova Desktop 0.0.11 or later, context's packages 0.0.10 or later and `@noldova/ui.components.angular` 0.0.24 or later: the packages take `@noldova/desktop.protocol`, `@noldova/desktop.runtime` and `@noldova/desktop.window` at `>=0.0.11 <0.1.0`, `@noldova/context.exceptions` and `@noldova/context.json` at `>=0.0.10 <0.1.0`, and the kit at `>=0.0.24 <0.1.0`, and `module.json`'s `noldovaDesktop` is `>=0.0.11 <0.1.0`.
+
 ## 0.0.4
 
 - The agent tools' reports name a terminal as its tab does: each report that holds the terminal's `title` also holds its `name`, the person's or the app's name for it or `null`, and its `shell_name`, the name of the shell it runs, such as PowerShell. Their output schemas list both. No report holds the title an app launched a terminal with (#105).
