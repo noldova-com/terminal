@@ -26,4 +26,6 @@ export interface ITerminalSessionListener {
   onDetached(pane: TerminalPaneReference): void;
 
   onFailed(sessionId: string, message: string): void;
+
+  onResizeUnasked(sessionId: string): void;
 }

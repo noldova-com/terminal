@@ -5085,6 +5085,22 @@ describe("TerminalHost", () => {
       ]);
     });
 
+    it("logs a resize ConPTY sent no cursor request after, naming the terminal", async () => {
+      const fixture: HostFixture = await HostFixture.createAsync("win32", "10.0.26100", environment);
+      fixture.fileSystem.folders.add("C:\\work");
+      const sessionId: string = await fixture.openAsync(open);
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      fixture.process.emitData("C:\\work>");
+
+      await fixture.host.handleAsync("terminal.resize", { sessionId, size: { cols: 100, rows: 30 } }, APP);
+      await vi.advanceTimersByTimeAsync(500);
+
+      assert.deepEqual(fixture.log.messages.filter(t => t.startsWith("ConPTY")),
+        [`ConPTY sent terminal ${sessionId} no cursor request within 500 ms of a resize, so the keys typed meanwhile went on without one.`]);
+      vi.useRealTimers();
+      await fixture.endAllAsync();
+    });
+
     it("tells the pane the ConPTY build of its Windows release", async () => {
       const fixture: HostFixture = await HostFixture.createAsync("win32", "10.0.26100", environment);
       fixture.fileSystem.folders.add("C:\\work");

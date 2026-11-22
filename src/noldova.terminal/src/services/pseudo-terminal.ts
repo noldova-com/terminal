@@ -22,6 +22,8 @@ export class PseudoTerminal {
   private hasExited: boolean = false;
   private isEnding: boolean = false;
   private openRequests: number = 0;
+  private isResizeAsking: boolean = false;
+  private hasOutput: boolean = false;
   private outputEnd: string = "";
   private answerLimit: NodeJS.Timeout | undefined = undefined;
 
@@ -30,6 +32,7 @@ export class PseudoTerminal {
     this.listener = listener;
     this.isConPty = isConPty;
     this.process.onData(t => {
+      this.hasOutput = true;
       if (this.isConPty)
         this.watchCursorRequests(t);
       this.listener.onData(t);
@@ -68,8 +71,14 @@ export class PseudoTerminal {
   }
 
   public resize(size: TerminalSize): void {
-    if (!this.hasExited)
-      this.process.resize(size.columns, size.rows);
+    if (this.hasExited)
+      return;
+    this.process.resize(size.columns, size.rows);
+    if (!this.isConPty || !this.hasOutput || this.isResizeAsking)
+      return;
+    this.isResizeAsking = true;
+    this.openRequests++;
+    this.limitAnswers();
   }
 
   public async readForegroundProcessAsync(): Promise<ForegroundProcess | null> {
@@ -98,15 +107,27 @@ export class PseudoTerminal {
     this.outputEnd = text.slice(1 - Resources.cursorRequest.length);
     if (requests === 0)
       return;
+    this.limitAnswers();
+    this.openRequests += this.isResizeAsking ? requests - 1 : requests;
+    this.isResizeAsking = false;
+  }
+
+  private limitAnswers(): void {
     clearTimeout(this.answerLimit);
-    this.answerLimit = setTimeout(() => this.releaseKeys(), Resources.cursorAnswerMilliseconds);
-    this.openRequests += requests;
+    this.answerLimit = setTimeout(() => this.releaseUnanswered(), Resources.cursorAnswerMilliseconds);
+  }
+
+  private releaseUnanswered(): void {
+    if (this.isResizeAsking)
+      this.listener.onResizeUnasked?.();
+    this.releaseKeys();
   }
 
   private releaseKeys(): void {
     clearTimeout(this.answerLimit);
     this.answerLimit = undefined;
     this.openRequests = 0;
+    this.isResizeAsking = false;
     for (const key of this.heldKeys.splice(0))
       this.write(key);
   }

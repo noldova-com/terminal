@@ -669,6 +669,25 @@ describe("TerminalSession", () => {
   });
 });
 
+describe("TerminalSession on ConPTY resized without a cursor request after it", () => {
+  it("tells its listener which terminal ConPTY sent no request for once the limit passed", async () => {
+    vi.useFakeTimers();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const recorder: SessionRecorder = new SessionRecorder();
+    const session: TerminalSession = createSession(process, recorder, new TerminalSize(80, 24), new WindowsPty(26_100));
+    process.emitData("$ ");
+
+    session.resize(new TerminalSize(100, 24));
+    await vi.advanceTimersByTimeAsync(Resources.cursorAnswerMilliseconds - 1);
+    const early: readonly string[] = [...recorder.unaskedResizes];
+    await vi.advanceTimersByTimeAsync(1);
+
+    assert.deepEqual([early, recorder.unaskedResizes], [[], ["s1"]]);
+    vi.useRealTimers();
+    await session.disposeAsync();
+  });
+});
+
 describe("TerminalSession resized at a Windows bash prompt", () => {
   const PROMPT: string = "\u001b]6973;A;n1\u0007$ \u001b]6973;B;n1\u0007";
   const STALL: string = "\u001b[6n\u001b[24;3H";

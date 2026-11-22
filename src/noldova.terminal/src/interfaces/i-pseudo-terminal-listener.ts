@@ -10,4 +10,6 @@ export interface IPseudoTerminalListener {
   onData(data: string): void;
 
   onExit(exitCode: number | null): void;
+
+  onResizeUnasked?(): void;
 }

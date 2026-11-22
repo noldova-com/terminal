@@ -805,6 +805,10 @@ exit 0
     return `The command started in terminal ${sessionId} could not be kept: ${message}`;
   }
 
+  public static formatResizeUnasked(sessionId: string): string {
+    return `ConPTY sent terminal ${sessionId} no cursor request within ${String(Resources.cursorAnswerMilliseconds)} ms of a resize, so the keys typed meanwhile went on without one.`;
+  }
+
   public static formatLateShellLeftRunning(pid: number | null): string {
     return `A shell that started as the terminals ended${pid === null ? "" : `, process ${pid}`}, or a process it started, did not end in time.`;
   }

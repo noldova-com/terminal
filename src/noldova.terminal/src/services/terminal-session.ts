@@ -426,7 +426,8 @@ export class TerminalSession {
       onExit: t => {
         if (this.terminal === terminal)
           this.end(t);
-      }
+      },
+      onResizeUnasked: () => this.listener.onResizeUnasked(this.sessionId)
     }, this.windowsPty !== null);
     return terminal;
   }

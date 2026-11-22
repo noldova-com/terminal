@@ -20,6 +20,7 @@ export class SessionRecorder implements ITerminalSessionListener {
   public readonly commands: string[] = [];
   public readonly detached: TerminalPaneReference[] = [];
   public readonly failures: string[] = [];
+  public readonly unaskedResizes: string[] = [];
   private readonly failureWaiters: ((message: string) => void)[] = [];
 
   public get text(): string {
@@ -63,6 +64,10 @@ export class SessionRecorder implements ITerminalSessionListener {
     this.failures.push(failure);
     for (const waiter of this.failureWaiters.splice(0))
       waiter(failure);
+  }
+
+  public onResizeUnasked(sessionId: string): void {
+    this.unaskedResizes.push(sessionId);
   }
 
   public nextFailureAsync(): Promise<string> {

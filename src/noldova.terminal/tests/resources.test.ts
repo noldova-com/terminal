@@ -40,6 +40,8 @@ describe("Resources", () => {
     assert.equal(Resources.formatLineProcessFailed("node", "broken"), "node failed outside its own start or end: broken");
     assert.equal(Resources.lineProcessStopped, "The program was stopped before it started.");
     assert.equal(Resources.formatStartedCommandUnread("s1", "gone"), "The command started in terminal s1 could not be kept: gone");
+    assert.equal(Resources.formatResizeUnasked("s1"),
+      "ConPTY sent terminal s1 no cursor request within 500 ms of a resize, so the keys typed meanwhile went on without one.");
     assert.equal(Resources.formatOneShotFailed("no such file"), "The command could not start: no such file");
     assert.equal(Resources.formatProcessExited("powershell.exe", 1), "powershell.exe exited with 1.");
     assert.equal(Resources.formatIntegrationFailed("disk full"),

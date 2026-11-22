@@ -360,7 +360,8 @@ export class TerminalHost {
       },
       onCommandStarted: t => this.addCommand(shell.id, t),
       onDetached: t => publish(this.events.detached, t.toJson()),
-      onFailed: (id, message) => this.log.write(Resources.formatStartedCommandUnread(id, message))
+      onFailed: (id, message) => this.log.write(Resources.formatStartedCommandUnread(id, message)),
+      onResizeUnasked: t => this.log.write(Resources.formatResizeUnasked(t))
     }, Resources.maximumAgentTextLength, shell.kind, ownerSessionId === null), shell, folder, ownerSessionId, isPanelTerminal, owner, client?.connection ?? null, environment);
     terminal.deferredShell = started.deferred;
     terminal.startTemporaryFolder = started.temporaryFolder;

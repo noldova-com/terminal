@@ -13,18 +13,21 @@ import { TerminalSize } from "@noldova/terminal.protocol";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 
 import { Resources } from "../../src/resources.ts";
+import { DeferredPtyProcess } from "../../src/services/deferred-pty-process.ts";
 import { PseudoTerminal } from "../../src/services/pseudo-terminal.ts";
 import { FakePtyProcess } from "../fixtures/fake-pty-process.fixture.ts";
 
 const REQUEST: string = "\u001b[6n";
 const ANSWER: string = "\u001b[4;3R";
+const PROMPT: string = "$ ";
 
 class Recorder {
   public readonly data: string[] = [];
   public readonly exits: (number | null)[] = [];
+  public unaskedResizes: number = 0;
 
   public create(process: FakePtyProcess, isConPty: boolean = false): PseudoTerminal {
-    return new PseudoTerminal(process, { onData: t => this.data.push(t), onExit: t => this.exits.push(t) }, isConPty);
+    return new PseudoTerminal(process, { onData: t => this.data.push(t), onExit: t => this.exits.push(t), onResizeUnasked: () => this.unaskedResizes++ }, isConPty);
   }
 }
 
@@ -171,16 +174,125 @@ describe("PseudoTerminal's cursor requests on ConPTY", () => {
     assert.deepEqual(process.writes, ["e", "c", "ho"]);
   });
 
-  it("writes keys at once after a resize the shell asks nothing after", () => {
+  it("holds a key typed between a resize and the cursor request ConPTY sends for it, and writes it after the answer", () => {
+    const recorder: Recorder = new Recorder();
     const process: FakePtyProcess = new FakePtyProcess();
-    const terminal: PseudoTerminal = new Recorder().create(process, true);
+    const terminal: PseudoTerminal = recorder.create(process, true);
+    process.emitData(PROMPT);
+
+    terminal.resize(new TerminalSize(50, 9));
+    terminal.write("e");
+    process.emitData(REQUEST);
+    terminal.write("c");
+    const held: readonly string[] = [...process.writes];
+    terminal.answer(ANSWER);
+    terminal.write("ho");
+
+    assert.deepEqual(held, []);
+    assert.deepEqual([process.writes, recorder.unaskedResizes, vi.getTimerCount()], [[ANSWER, "e", "c", "ho"], 0, 0]);
+  });
+
+  it("expects one cursor request for resizes in quick succession, as ConPTY sends one", () => {
+    const recorder: Recorder = new Recorder();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = recorder.create(process, true);
+    process.emitData(PROMPT);
+
+    terminal.resize(new TerminalSize(80, 23));
+    terminal.resize(new TerminalSize(80, 24));
+    terminal.resize(new TerminalSize(66, 10));
+    terminal.write("e");
+    process.emitData(REQUEST);
+    terminal.answer(ANSWER);
+
+    assert.deepEqual([process.writes, recorder.unaskedResizes, vi.getTimerCount()], [[ANSWER, "e"], 0, 0]);
+  });
+
+  it("holds keys typed after a resize ConPTY asks nothing after no longer than the limit from the resize, and reports the missing request", () => {
+    const recorder: Recorder = new Recorder();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = recorder.create(process, true);
+    process.emitData(PROMPT);
 
     terminal.resize(new TerminalSize(50, 9));
     process.emitData("\u001b[?25l\u001b[4;3H");
     terminal.write("e");
+    vi.advanceTimersByTime(Resources.cursorAnswerMilliseconds - 1);
+    terminal.write("c");
+    const held: readonly string[] = [...process.writes];
+    const reported: number = recorder.unaskedResizes;
+    vi.advanceTimersByTime(1);
+    terminal.write("ho");
 
-    assert.deepEqual(process.writes, ["e"]);
-    assert.equal(vi.getTimerCount(), 0);
+    assert.deepEqual([held, reported], [[], 0]);
+    assert.deepEqual([process.writes, recorder.unaskedResizes, vi.getTimerCount()], [["e", "c", "ho"], 1, 0]);
+  });
+
+  it("expects no cursor request from the fit that starts a deferred shell", async () => {
+    const recorder: Recorder = new Recorder();
+    const shell: FakePtyProcess = new FakePtyProcess();
+    const deferred: DeferredPtyProcess = new DeferredPtyProcess(() => Promise.resolve(shell), 80, 24);
+    const terminal: PseudoTerminal = new PseudoTerminal(deferred, { onData: () => undefined, onExit: () => undefined, onResizeUnasked: () => recorder.unaskedResizes++ }, true);
+
+    terminal.resize(new TerminalSize(100, 30));
+    await vi.advanceTimersByTimeAsync(0);
+    shell.emitData(PROMPT);
+    terminal.write("e");
+    await vi.advanceTimersByTimeAsync(Resources.cursorAnswerMilliseconds);
+
+    assert.deepEqual([deferred.hasStarted, shell.writes, recorder.unaskedResizes, vi.getTimerCount()], [true, ["e"], 0, 0]);
+  });
+
+  it("expects no cursor request from fits before ConPTY's first output", () => {
+    const recorder: Recorder = new Recorder();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = recorder.create(process, true);
+
+    terminal.resize(new TerminalSize(80, 23));
+    terminal.resize(new TerminalSize(80, 24));
+    terminal.write("e");
+    vi.advanceTimersByTime(Resources.cursorAnswerMilliseconds);
+
+    assert.deepEqual([process.writes, recorder.unaskedResizes, vi.getTimerCount()], [["e"], 0, 0]);
+  });
+
+  it("writes keys at once after a resize on a pseudo terminal other than ConPTY", () => {
+    const recorder: Recorder = new Recorder();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = recorder.create(process);
+    process.emitData(PROMPT);
+
+    terminal.resize(new TerminalSize(50, 9));
+    terminal.write("e");
+
+    assert.deepEqual([process.writes, process.sizes, recorder.unaskedResizes, vi.getTimerCount()], [["e"], ["50x9"], 0, 0]);
+  });
+
+  it("releases the keys at the limit after a resize ConPTY asks nothing after when no one listens for the missing request", () => {
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = new PseudoTerminal(process, { onData: () => undefined, onExit: () => undefined }, true);
+    process.emitData(PROMPT);
+
+    terminal.resize(new TerminalSize(50, 9));
+    terminal.write("e");
+    vi.advanceTimersByTime(Resources.cursorAnswerMilliseconds - 1);
+    const held: readonly string[] = [...process.writes];
+    vi.advanceTimersByTime(1);
+
+    assert.deepEqual([held, process.writes, vi.getTimerCount()], [[], ["e"], 0]);
+  });
+
+  it("reports no missing cursor request when the shell exits during a resize's hold, and leaves no timer", () => {
+    const recorder: Recorder = new Recorder();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const terminal: PseudoTerminal = recorder.create(process, true);
+    process.emitData(PROMPT);
+
+    terminal.resize(new TerminalSize(50, 9));
+    terminal.write("e");
+    process.exit(0);
+
+    assert.deepEqual([process.writes, recorder.unaskedResizes, vi.getTimerCount()], [[], 0, 0]);
   });
 
   it("sees a request split across two reads of the output", () => {
