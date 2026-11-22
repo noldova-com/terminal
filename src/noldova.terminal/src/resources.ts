@@ -103,7 +103,7 @@ export class Resources {
   public static readonly noteLineBreak: string = "\r\n";
   public static readonly lineBreaks: RegExp = /\r\n|\r|\n/u;
   public static readonly escapesOnly: RegExp = /^(?:\u001b\[[0-9;?]*[A-Za-z])*(?:\u001b(?:\[[0-9;?]*)?)?$/u;
-  public static readonly resizeStall: RegExp = /^(?:\u001b\[[0-9;?]*[A-Za-z])*\u001b\[6n\u001b\[\d+;\d+H$/u;
+  public static readonly resizeStall: RegExp = /^(?:\u001b\[[0-9;?]*[A-Za-z])*\u001b\[6n(?:\u001b(?:\[[0-9;]*H?)?)?$/u;
   public static readonly cursorRequest: string = "\u001b[6n";
   public static readonly cursorAnswers: RegExp = /\u001b\[\d+;\d+R/gu;
   public static readonly whiteSpace: RegExp = /\s+/gu;

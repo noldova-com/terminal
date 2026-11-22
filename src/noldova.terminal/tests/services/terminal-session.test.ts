@@ -733,6 +733,41 @@ describe("TerminalSession resized at a Windows bash prompt", () => {
     await session.disposeAsync();
   });
 
+  it("holds a key typed while the cursor request after a resize waits for its answer behind one Ctrl+G, both written after the answer", async () => {
+    holdKeysUntilAnswered();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const session: TerminalSession = createWindowsBash(process);
+    process.emitData(PROMPT);
+    session.resize(new TerminalSize(100, 24));
+    const before: number = process.writes.length;
+
+    process.emitData("\u001b[6n");
+    session.write("e");
+
+    await vi.waitFor(() => assert.equal(process.writes.length - before, 3));
+    assert.match(process.writes[before] ?? "", /^\u001b\[\d+;\d+R$/u);
+    assert.deepEqual(process.writes.slice(before + 1), ["\u0007", "e"]);
+    await session.disposeAsync();
+  });
+
+  it("sends no Ctrl+G ahead of the key after the released one, once the cursor move and the redraw come", async () => {
+    holdKeysUntilAnswered();
+    const process: FakePtyProcess = new FakePtyProcess();
+    const session: TerminalSession = createWindowsBash(process);
+    process.emitData(PROMPT);
+    session.resize(new TerminalSize(100, 24));
+    process.emitData("\u001b[6n");
+    session.write("e");
+    await vi.waitFor(() => assert.equal(keysOf(process.writes).at(-1), "e"));
+
+    process.emitData("\u001b[24;3H");
+    process.emitData("\r\u001b[K\r$ e");
+    session.write("c");
+
+    assert.deepEqual([keysOf(process.writes), bellsOf(process)], [["\u0007", "e", "c"], ["\u0007"]]);
+    await session.disposeAsync();
+  });
+
   it("sends nothing when the shell redraws its prompt before the key, or the person types before the output stops", async () => {
     holdKeysUntilAnswered();
     const redrawn: FakePtyProcess = new FakePtyProcess();

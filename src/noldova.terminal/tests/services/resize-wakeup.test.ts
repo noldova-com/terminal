@@ -60,16 +60,34 @@ describe("ResizeWakeup", () => {
     assert.deepEqual([sameChunk.writes, later.writes], [[], []]);
   });
 
-  it("sends nothing for a key typed before the output stops at the request and move, nor for the key after it", () => {
-    const recorder: WakeupRecorder = new WakeupRecorder();
+  it("sends one Ctrl+G for a key that comes after the request and before the move, or part of it, and none for the key after it", () => {
+    const requested: WakeupRecorder = new WakeupRecorder();
+    const partlyMoved: WakeupRecorder = new WakeupRecorder();
 
-    recorder.wakeup.watch();
-    recorder.wakeup.receive("\u001b[6n");
-    recorder.wakeup.beforeInput();
-    recorder.wakeup.receive("\u001b[4;3H");
-    recorder.wakeup.beforeInput();
+    requested.wakeup.watch();
+    requested.wakeup.receive("\u001b[6n");
+    requested.wakeup.beforeInput();
+    requested.wakeup.receive("\u001b[4;3H");
+    requested.wakeup.beforeInput();
+    partlyMoved.wakeup.watch();
+    partlyMoved.wakeup.receive("\u001b[6n\u001b[4;");
+    partlyMoved.wakeup.beforeInput();
 
-    assert.deepEqual(recorder.writes, []);
+    assert.deepEqual([requested.writes, partlyMoved.writes], [["\u0007"], ["\u0007"]]);
+  });
+
+  it("sends nothing for a key that comes before the request, or after another sequence follows it", () => {
+    const early: WakeupRecorder = new WakeupRecorder();
+    const followed: WakeupRecorder = new WakeupRecorder();
+
+    early.wakeup.watch();
+    early.wakeup.receive("\u001b[?25l");
+    early.wakeup.beforeInput();
+    followed.wakeup.watch();
+    followed.wakeup.receive("\u001b[6n\u001b[?25h");
+    followed.wakeup.beforeInput();
+
+    assert.deepEqual([early.writes, followed.writes], [[], []]);
   });
 
   it("sends nothing once stopped, or without a resize to watch", () => {
