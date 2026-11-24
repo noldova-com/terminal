@@ -604,6 +604,32 @@ describe("TerminalPaneComponent", () => {
     expect([host.text, host.runtime.attachCount]).toEqual([expect.stringContaining("last words"), 1]);
   });
 
+  async function focusAfterRestartAsync(field: HTMLElement | null): Promise<string> {
+    const host: PaneHost<TerminalPaneComponent> = createPane();
+    host.runtime.exit = new TerminalExit(0, EndedBy.Exit);
+    await host.startAsync();
+    PaneHost.fill(host.element);
+    await vi.waitFor(() => expect(host.element.querySelector(".nol-terminal-pane-ended button")).not.toBeNull(), { timeout: SpecWait.milliseconds });
+    (field ?? host.element.querySelector<HTMLElement>(".nol-terminal-pane-ended button"))?.focus();
+    const before: string | undefined = document.activeElement?.tagName;
+    host.runtime.restartSession("s1");
+    await host.settleAsync();
+    const isOnShell: boolean = host.element.querySelector(".nol-terminal-pane-screen")?.contains(document.activeElement) === true;
+    return `${before} to ${isOnShell ? "the shell" : document.activeElement?.tagName}`;
+  }
+
+  it("moves the focus from the ended strip's Restart to the shell when its shell restarts", async () => {
+    expect(await focusAfterRestartAsync(null)).toBe("BUTTON to the shell");
+  });
+
+  it("leaves a focus outside the pane where it is when its shell restarts", async () => {
+    const field: HTMLInputElement = document.createElement("input");
+    document.body.append(field);
+    onTestFinished(() => field.remove());
+
+    expect(await focusAfterRestartAsync(field)).toBe("INPUT to INPUT");
+  });
+
   it("asks to start again at the size it grew to while ended, so the restarted shell's line feeds scroll its whole old screen away", async () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.runtime.snapshot = "\r\n".repeat(3) + "last words";
