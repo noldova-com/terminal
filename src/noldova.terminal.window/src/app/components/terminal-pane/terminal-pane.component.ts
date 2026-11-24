@@ -218,8 +218,6 @@ export class TerminalPaneComponent {
       SessionSizing.resized(sessionId, sized, size);
       this.resize(pager.connection, size);
     }, () => SessionSizing.isSizing(sessionId, sized), () => untracked(this.fixedRows), () => untracked(this.shown));
-    for (const code of Resources.colorQueryCodes)
-      terminal.parser.registerOscHandler(code, data => data.includes(Resources.colorQueryMark) && !SessionSizing.isSizing(sessionId, sized));
     const drawnScreens: NodeListOf<Element> = this.host.querySelectorAll(Resources.xtermScreenSelector);
     terminal.onRender(() => this.measure(terminal, drawnScreens));
     terminal.onWriteParsed(() => this.measure(terminal, drawnScreens));
@@ -227,7 +225,10 @@ export class TerminalPaneComponent {
     let leave: () => void = SessionSizing.join(sessionId, sized);
     const claim = (): void => SessionSizing.claim(sessionId, sized);
     this.host.addEventListener(Resources.focusInEvent, claim);
-    terminal.onData(t => pager.type(t));
+    terminal.onData(t => {
+      if (!Resources.colorReport.test(t) || SessionSizing.isSizing(sessionId, sized))
+        pager.type(t);
+    });
     terminal.onBinary(t => pager.type(t));
     terminal.onScroll(t => pager.scroll(t));
 

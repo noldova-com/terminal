@@ -184,8 +184,7 @@ export class Resources {
     { prefix: "?", intermediates: "$", final: "p" }
   ];
   public static readonly answeredSettingQuery: IFunctionIdentifier = { intermediates: "$", final: "q" };
-  public static readonly colorQueryCodes: readonly number[] = [4, 10, 11, 12];
-  public static readonly colorQueryMark: string = "?";
+  public static readonly colorReport: RegExp = /^\u001b\](?:4;\d+|1[0-2]);rgb:[0-9a-f]+\/[0-9a-f]+\/[0-9a-f]+(?:\u0007|\u001b\\)$/u;
   public static readonly commandColorsSetting: string = "terminal.commandColors";
   public static readonly completionListSetting: string = "terminal.completionList";
   public static readonly linkClickSetting: string = "terminal.linkClick";

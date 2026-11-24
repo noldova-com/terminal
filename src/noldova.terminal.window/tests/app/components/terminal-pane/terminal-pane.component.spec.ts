@@ -441,7 +441,8 @@ describe("TerminalPaneComponent", () => {
     expect(host.inputs).toEqual([]);
   });
 
-  it("answers a color query once for a session in two panes, from the pane that sizes it, as the sizing moves", async () => {
+  async function twoPanesAsync(): Promise<{ readonly wide: PaneHost<TerminalPaneComponent>; readonly narrow: ComponentFixture<TerminalPaneComponent>;
+    readonly element: HTMLElement; readonly drawnBy: (offset: number) => number; }> {
     const wide: PaneHost<TerminalPaneComponent> = createPane(true);
     wide.fixture.detectChanges();
     PaneHost.fill(wide.element);
@@ -455,9 +456,14 @@ describe("TerminalPaneComponent", () => {
     await narrow.whenStable();
     await vi.waitFor(() => expect([element.querySelector("textarea") !== null, wide.runtime.context.sent(TerminalNames.visibilityMethod).length >= 2]).toEqual([true, true]),
       { timeout: SpecWait.milliseconds });
-    const answers = (): number => wide.inputs.filter(t => t.startsWith("\u001b]11;rgb:")).length;
     const drawnBy = (offset: number): number => new Set(wide.runtime.context.sent(TerminalNames.ackMethod).map(t => TerminalAckParams.fromJson(t))
       .filter(t => t.offset === offset).map(t => t.paneId)).size;
+    return { wide, narrow, element, drawnBy };
+  }
+
+  it("answers a color query once for a session in two panes, from the pane that sizes it, as the sizing moves", async () => {
+    const { wide, narrow, element, drawnBy } = await twoPanesAsync();
+    const answers = (): number => wide.inputs.filter(t => t.startsWith("\u001b]11;rgb:")).length;
 
     wide.runtime.output("s1", 0, "\u001b]11;?\u0007one");
     await vi.waitFor(() => expect([drawnBy(10), answers() >= 1]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
@@ -471,6 +477,21 @@ describe("TerminalPaneComponent", () => {
     await vi.waitFor(() => expect([drawnBy(32), answers() >= 3]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
 
     expect([first, second, answers()]).toEqual([1, 2, 3]);
+    narrow.destroy();
+  });
+
+  it("sets a color a sequence sets and queries at once in every pane, so the pane the sizing moves to answers with it", async () => {
+    const { wide, narrow, element, drawnBy } = await twoPanesAsync();
+    const reports = (): readonly string[] => wide.inputs.filter(t => t.startsWith("\u001b]4;1;"));
+    wide.textarea.focus();
+
+    wide.runtime.output("s1", 0, "\u001b]4;1;#ff0000;1;?\u0007");
+    await vi.waitFor(() => expect([drawnBy(18), reports().length >= 1]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
+    PaneHost.find(element, "textarea", HTMLTextAreaElement).focus();
+    wide.runtime.output("s1", 18, "\u001b]4;1;?\u0007");
+    await vi.waitFor(() => expect([drawnBy(26), reports().length >= 2]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
+
+    expect(reports()).toEqual(["\u001b]4;1;rgb:ffff/0000/0000\u001b\\", "\u001b]4;1;rgb:ffff/0000/0000\u001b\\"]);
     narrow.destroy();
   });
 
