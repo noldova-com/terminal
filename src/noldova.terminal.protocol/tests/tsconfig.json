@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "noEmit": false,
+    "sourceMap": true,
+    "rootDir": "..",
+    "outDir": "../../../_build/tests/noldova.terminal.protocol"
+  },
+  "include": [
+    "../src/**/*.ts",
+    "**/*.ts"
+  ]
+}

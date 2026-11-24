@@ -6,16 +6,17 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { TerminalCompletionKind } from "../../src/enums/terminal-completion-kind.ts";
 import { TerminalCompletionItem } from "../../src/models/terminal-completion-item.ts";
 import { TerminalCompletion } from "../../src/models/terminal-completion.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalCompletion", () => {
-  it("writes and reads its wire form, with each kind of choice", () => {
+@TestClass
+export class TerminalCompletionTests {
+  @TestMethod
+  public writesAndReadsItsWireFormWithEachKindOfChoice(): void {
     const json: object = {
       replaceFrom: 3,
       items: Object.values(TerminalCompletionKind).map(t => ({ text: `My\\ ${t}`, label: `My ${t}`, kind: t })),
@@ -23,60 +24,61 @@ describe("TerminalCompletion", () => {
     };
     const completion: TerminalCompletion = TerminalCompletion.fromJson(json);
 
-    assert.equal(completion.replaceFrom, 3);
-    assert.deepEqual(completion.items.map(t => [t.text, t.label, t.kind]), [
+    Assert.areEqual(3, completion.replaceFrom);
+    Expect.same([
       ["My\\ File", "My File", "File"],
       ["My\\ Folder", "My Folder", "Folder"],
       ["My\\ Command", "My Command", "Command"],
       ["My\\ Branch", "My Branch", "Branch"],
       ["My\\ Script", "My Script", "Script"],
       ["My\\ Option", "My Option", "Option"]
-    ]);
-    assert.deepEqual(completion.toJson(), json);
-  });
+    ], completion.items.map(t => [t.text, t.label, t.kind]));
+    Expect.same(json, completion.toJson());
+  }
 
-  it("says when the shell got a plain Tab in place of a list, and that it didn't when left out", () => {
-    assert.equal(TerminalCompletion.fromJson({ replaceFrom: 0, items: [], isShellTab: true }).isShellTab, true);
-    assert.equal(TerminalCompletion.fromJson({ replaceFrom: 0, items: [] }).isShellTab, false);
-    assert.deepEqual(new TerminalCompletion(2, [], true).toJson(), { replaceFrom: 2, items: [], isShellTab: true });
-  });
+  @TestMethod
+  public saysWhenTheShellGotAPlainTabInPlaceOfAListAndThatItDidntWhenLeftOut(): void {
+    Assert.areEqual(true, TerminalCompletion.fromJson({ replaceFrom: 0, items: [], isShellTab: true }).isShellTab);
+    Assert.areEqual(false, TerminalCompletion.fromJson({ replaceFrom: 0, items: [] }).isShellTab);
+    Expect.same({ replaceFrom: 2, items: [], isShellTab: true }, new TerminalCompletion(2, [], true).toJson());
+  }
 
-  it("holds no choices, and up to 500 of them", () => {
+  @TestMethod
+  public holdsNoChoicesAndUpTo500OfThem(): void {
     const item: TerminalCompletionItem = new TerminalCompletionItem("ls", "ls", TerminalCompletionKind.Command);
 
-    assert.equal(new TerminalCompletion(0, []).items.length, 0);
-    assert.equal(new TerminalCompletion(4_096, Array.from({ length: 500 }, () => item)).items.length, 500);
-  });
+    Assert.areEqual(0, new TerminalCompletion(0, []).items.length);
+    Assert.areEqual(500, new TerminalCompletion(4_096, Array.from({ length: 500 }, () => item)).items.length);
+  }
 
-  it("refuses a start outside a line, more than 500 choices, and a blank or too long text or label", () => {
+  @TestMethod
+  public refusesAStartOutsideALineMoreThan500ChoicesAndABlankOrTooLongTextOrLabel(): void {
     const item: TerminalCompletionItem = new TerminalCompletionItem("ls", "ls", TerminalCompletionKind.Command);
 
     for (const replaceFrom of [-1, 4_097, 0.5])
-      assert.throws(() => new TerminalCompletion(replaceFrom, []), { name: "ArgumentOutOfRangeException", parameterName: "replaceFrom" });
-    assert.throws(() => new TerminalCompletion(0, Array.from({ length: 501 }, () => item)),
-      { name: "ArgumentException", parameterName: "items", message: "The value must hold at most 500 choices. (Parameter 'items')" });
-    assert.throws(() => new TerminalCompletionItem(" ", "ls", TerminalCompletionKind.File), { name: "ArgumentException", parameterName: "text" });
-    assert.throws(() => new TerminalCompletionItem("ls", "", TerminalCompletionKind.File), { name: "ArgumentException", parameterName: "label" });
-    assert.throws(() => new TerminalCompletionItem("x".repeat(4_097), "x", TerminalCompletionKind.File), { name: "ArgumentException", parameterName: "text" });
-  });
+      Expect.throwsMatching(() => new TerminalCompletion(replaceFrom, []), { name: "ArgumentOutOfRangeException", parameterName: "replaceFrom" });
+    Expect.throwsMatching(() => new TerminalCompletion(0, Array.from({ length: 501 }, () => item)), { name: "ArgumentException", parameterName: "items", message: "The value must hold at most 500 choices. (Parameter 'items')" });
+    Expect.throwsMatching(() => new TerminalCompletionItem(" ", "ls", TerminalCompletionKind.File), { name: "ArgumentException", parameterName: "text" });
+    Expect.throwsMatching(() => new TerminalCompletionItem("ls", "", TerminalCompletionKind.File), { name: "ArgumentException", parameterName: "label" });
+    Expect.throwsMatching(() => new TerminalCompletionItem("x".repeat(4_097), "x", TerminalCompletionKind.File), { name: "ArgumentException", parameterName: "text" });
+  }
 
-  it("names the field it cannot read", () => {
-    assert.throws(() => TerminalCompletion.fromJson({ replaceFrom: 0, items: [{ text: "ls", label: "ls", kind: "Flag" }] }),
-      { name: "JsonException", path: "$.items.0.kind" });
-    assert.throws(() => TerminalCompletion.fromJson({ replaceFrom: 0, items: [], isShellTab: 1 }), { name: "JsonException", path: "$.isShellTab" });
-    assert.throws(() => TerminalCompletion.fromJson({ replaceFrom: 0, items: [{ text: "ls", label: "ls", kind: "File", detail: "" }] }),
-      { name: "JsonException" });
-    assert.throws(() => TerminalCompletion.fromJson({ replaceFrom: 0, items: {} }), { name: "JsonException", path: "$.items" });
-    assert.throws(() => TerminalCompletion.fromJson({ items: [] }), { name: "JsonException", path: "$.replaceFrom" });
-    assert.throws(() => TerminalCompletion.fromJson({ replaceFrom: 0, items: Array.from({ length: 501 }, () => ({ text: "ls", label: "ls", kind: "Command" })) }),
-      { name: "JsonException", path: "$.items", message: "$.items: Expected at most 500 items." });
-  });
+  @TestMethod
+  public namesTheFieldItCannotRead(): void {
+    Expect.throwsMatching(() => TerminalCompletion.fromJson({ replaceFrom: 0, items: [{ text: "ls", label: "ls", kind: "Flag" }] }), { name: "JsonException", path: "$.items.0.kind" });
+    Expect.throwsMatching(() => TerminalCompletion.fromJson({ replaceFrom: 0, items: [], isShellTab: 1 }), { name: "JsonException", path: "$.isShellTab" });
+    Expect.throwsMatching(() => TerminalCompletion.fromJson({ replaceFrom: 0, items: [{ text: "ls", label: "ls", kind: "File", detail: "" }] }), { name: "JsonException" });
+    Expect.throwsMatching(() => TerminalCompletion.fromJson({ replaceFrom: 0, items: {} }), { name: "JsonException", path: "$.items" });
+    Expect.throwsMatching(() => TerminalCompletion.fromJson({ items: [] }), { name: "JsonException", path: "$.replaceFrom" });
+    Expect.throwsMatching(() => TerminalCompletion.fromJson({ replaceFrom: 0, items: Array.from({ length: 501 }, () => ({ text: "ls", label: "ls", kind: "Command" })) }), { name: "JsonException", path: "$.items", message: "$.items: Expected at most 500 items." });
+  }
 
-  it("keeps its own copy of the choices", () => {
+  @TestMethod
+  public keepsItsOwnCopyOfTheChoices(): void {
     const items: TerminalCompletionItem[] = [new TerminalCompletionItem("ls", "ls", TerminalCompletionKind.File)];
     const completion: TerminalCompletion = new TerminalCompletion(0, items);
     items.push(new TerminalCompletionItem("cd", "cd", TerminalCompletionKind.File));
 
-    assert.equal(completion.items.length, 1);
-  });
-});
+    Assert.areEqual(1, completion.items.length);
+  }
+}

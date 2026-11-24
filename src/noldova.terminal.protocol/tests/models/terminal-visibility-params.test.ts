@@ -6,26 +6,29 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { TerminalVisibilityParams } from "../../src/models/terminal-visibility-params.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalVisibilityParams", () => {
-  it("writes and reads its wire form", () => {
-    assert.equal(TerminalVisibilityParams.fromJson({ sessionId: "s1", paneId: "p1", visible: false }).isVisible, false);
-    assert.deepEqual(new TerminalVisibilityParams("s1", "p1", true).toJson(), { sessionId: "s1", paneId: "p1", visible: true });
-  });
+@TestClass
+export class TerminalVisibilityParamsTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
+    Assert.areEqual(false, TerminalVisibilityParams.fromJson({ sessionId: "s1", paneId: "p1", visible: false }).isVisible);
+    Expect.same({ sessionId: "s1", paneId: "p1", visible: true }, new TerminalVisibilityParams("s1", "p1", true).toJson());
+  }
 
-  it("refuses a blank pane id", () => {
-    assert.throws(() => new TerminalVisibilityParams("s1", "", true), ArgumentException);
-    assert.throws(() => TerminalVisibilityParams.fromJson({ sessionId: "s1", paneId: "p1", visible: 1 }), { name: "JsonException", path: "$.visible" });
-  });
+  @TestMethod
+  public refusesABlankPaneId(): void {
+    Assert.throws(() => new TerminalVisibilityParams("s1", "", true), ArgumentException);
+    Expect.throwsMatching(() => TerminalVisibilityParams.fromJson({ sessionId: "s1", paneId: "p1", visible: 1 }), { name: "JsonException", path: "$.visible" });
+  }
 
-  it("refuses a blank session", () => {
+  @TestMethod
+  public refusesABlankSession(): void {
     for (const id of ["", " "])
-      assert.throws(() => new TerminalVisibilityParams(id, "p1", true), { name: "ArgumentException", parameterName: "sessionId" });
-  });
-});
+      Expect.throwsMatching(() => new TerminalVisibilityParams(id, "p1", true), { name: "ArgumentException", parameterName: "sessionId" });
+  }
+}

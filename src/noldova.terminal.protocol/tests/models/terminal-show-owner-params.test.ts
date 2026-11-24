@@ -6,28 +6,29 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { TerminalShowOwnerParams } from "../../src/models/terminal-show-owner-params.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalShowOwnerParams", () => {
-  it("writes and reads its wire form, with an owner or none, shown or hidden, and as shown without isHidden", () => {
-    assert.equal(TerminalShowOwnerParams.fromJson({ owner: "example.chat/42" }).owner, "example.chat/42");
-    assert.equal(TerminalShowOwnerParams.fromJson({ owner: null }).owner, null);
-    assert.deepEqual([TerminalShowOwnerParams.fromJson({ owner: null }).isHidden, TerminalShowOwnerParams.fromJson({ owner: null, isHidden: true }).isHidden],
-      [false, true]);
-    assert.deepEqual(new TerminalShowOwnerParams("example.chat/7").toJson(), { owner: "example.chat/7", isHidden: false });
-    assert.deepEqual(new TerminalShowOwnerParams(null, true).toJson(), { owner: null, isHidden: true });
-  });
+@TestClass
+export class TerminalShowOwnerParamsTests {
+  @TestMethod
+  public writesAndReadsItsWireFormWithAnOwnerOrNoneShownOrHiddenAndAsShownWithoutIsHidden(): void {
+    Assert.areEqual("example.chat/42", TerminalShowOwnerParams.fromJson({ owner: "example.chat/42" }).owner);
+    Assert.areEqual(null, TerminalShowOwnerParams.fromJson({ owner: null }).owner);
+    Expect.same([false, true], [TerminalShowOwnerParams.fromJson({ owner: null }).isHidden, TerminalShowOwnerParams.fromJson({ owner: null, isHidden: true }).isHidden]);
+    Expect.same({ owner: "example.chat/7", isHidden: false }, new TerminalShowOwnerParams("example.chat/7").toJson());
+    Expect.same({ owner: null, isHidden: true }, new TerminalShowOwnerParams(null, true).toJson());
+  }
 
-  it("refuses a blank or over-long owner, a missing one, and another field", () => {
+  @TestMethod
+  public refusesABlankOrOverLongOwnerAMissingOneAndAnotherField(): void {
     for (const owner of ["", " ", "o".repeat(257)])
-      assert.throws(() => new TerminalShowOwnerParams(owner), { name: "ArgumentException", parameterName: "owner" });
-    assert.throws(() => TerminalShowOwnerParams.fromJson({ owner: 42 }), { name: "JsonException", path: "$.owner" });
-    assert.throws(() => TerminalShowOwnerParams.fromJson({}), { name: "JsonException", path: "$.owner" });
-    assert.throws(() => TerminalShowOwnerParams.fromJson({ owner: null, isHidden: "yes" }), { name: "JsonException", path: "$.isHidden" });
-    assert.throws(() => TerminalShowOwnerParams.fromJson({ owner: "a", sessionId: "s1" }), { name: "JsonException", path: "$.sessionId" });
-  });
-});
+      Expect.throwsMatching(() => new TerminalShowOwnerParams(owner), { name: "ArgumentException", parameterName: "owner" });
+    Expect.throwsMatching(() => TerminalShowOwnerParams.fromJson({ owner: 42 }), { name: "JsonException", path: "$.owner" });
+    Expect.throwsMatching(() => TerminalShowOwnerParams.fromJson({}), { name: "JsonException", path: "$.owner" });
+    Expect.throwsMatching(() => TerminalShowOwnerParams.fromJson({ owner: null, isHidden: "yes" }), { name: "JsonException", path: "$.isHidden" });
+    Expect.throwsMatching(() => TerminalShowOwnerParams.fromJson({ owner: "a", sessionId: "s1" }), { name: "JsonException", path: "$.sessionId" });
+  }
+}

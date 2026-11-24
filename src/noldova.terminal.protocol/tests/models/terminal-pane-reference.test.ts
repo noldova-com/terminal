@@ -6,29 +6,32 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { TerminalPaneReference } from "../../src/models/terminal-pane-reference.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalPaneReference", () => {
-  it("writes and reads its wire form", () => {
+@TestClass
+export class TerminalPaneReferenceTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
     const reference: TerminalPaneReference = TerminalPaneReference.fromJson({ sessionId: "s1", paneId: "p1" });
 
-    assert.equal(reference.sessionId, "s1");
-    assert.equal(reference.paneId, "p1");
-    assert.deepEqual(new TerminalPaneReference("s2", "p2").toJson(), { sessionId: "s2", paneId: "p2" });
-  });
+    Assert.areEqual("s1", reference.sessionId);
+    Assert.areEqual("p1", reference.paneId);
+    Expect.same({ sessionId: "s2", paneId: "p2" }, new TerminalPaneReference("s2", "p2").toJson());
+  }
 
-  it("refuses a blank pane id", () => {
-    assert.throws(() => new TerminalPaneReference("s1", " "), ArgumentException);
-    assert.throws(() => TerminalPaneReference.fromJson({ sessionId: "s1" }), { name: "JsonException", path: "$.paneId" });
-  });
+  @TestMethod
+  public refusesABlankPaneId(): void {
+    Assert.throws(() => new TerminalPaneReference("s1", " "), ArgumentException);
+    Expect.throwsMatching(() => TerminalPaneReference.fromJson({ sessionId: "s1" }), { name: "JsonException", path: "$.paneId" });
+  }
 
-  it("refuses a blank session", () => {
+  @TestMethod
+  public refusesABlankSession(): void {
     for (const id of ["", " "])
-      assert.throws(() => new TerminalPaneReference(id, "p1"), { name: "ArgumentException", parameterName: "sessionId" });
-  });
-});
+      Expect.throwsMatching(() => new TerminalPaneReference(id, "p1"), { name: "ArgumentException", parameterName: "sessionId" });
+  }
+}

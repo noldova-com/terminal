@@ -6,22 +6,24 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { TerminalOwnerReference } from "../../src/models/terminal-owner-reference.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalOwnerReference", () => {
-  it("writes and reads its wire form", () => {
-    assert.equal(TerminalOwnerReference.fromJson({ owner: "example.chat/42" }).owner, "example.chat/42");
-    assert.deepEqual(new TerminalOwnerReference("example.chat/7").toJson(), { owner: "example.chat/7" });
-  });
+@TestClass
+export class TerminalOwnerReferenceTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
+    Assert.areEqual("example.chat/42", TerminalOwnerReference.fromJson({ owner: "example.chat/42" }).owner);
+    Expect.same({ owner: "example.chat/7" }, new TerminalOwnerReference("example.chat/7").toJson());
+  }
 
-  it("refuses a blank or over-long owner, and another field", () => {
+  @TestMethod
+  public refusesABlankOrOverLongOwnerAndAnotherField(): void {
     for (const owner of ["", " ", "o".repeat(257)])
-      assert.throws(() => new TerminalOwnerReference(owner), { name: "ArgumentException", parameterName: "owner" });
-    assert.throws(() => TerminalOwnerReference.fromJson({ owner: 42 }), { name: "JsonException", path: "$.owner" });
-    assert.throws(() => TerminalOwnerReference.fromJson({ owner: "a", sessionId: "s1" }), { name: "JsonException", path: "$.sessionId" });
-  });
-});
+      Expect.throwsMatching(() => new TerminalOwnerReference(owner), { name: "ArgumentException", parameterName: "owner" });
+    Expect.throwsMatching(() => TerminalOwnerReference.fromJson({ owner: 42 }), { name: "JsonException", path: "$.owner" });
+    Expect.throwsMatching(() => TerminalOwnerReference.fromJson({ owner: "a", sessionId: "s1" }), { name: "JsonException", path: "$.sessionId" });
+  }
+}

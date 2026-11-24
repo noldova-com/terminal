@@ -215,10 +215,22 @@ export class Resources {
     ["scripts/checks/api-example-check.ts"],
     [Resources.typeScriptCompilerPath, Resources.projectOption, `scripts/${Resources.projectFile}`],
     [Resources.typeScriptCompilerPath, Resources.projectOption, `${Resources.windowFolder}/scripts/${Resources.projectFile}`],
-    [Resources.typeScriptCompilerPath, Resources.projectOption, `${Resources.protocolFolder}/${Resources.specProjectFile}`],
     [Resources.typeScriptCompilerPath, Resources.projectOption, `${Resources.moduleFolder}/${Resources.specProjectFile}`]
   ];
   public static readonly lineEnd: string = "\n";
+  public static readonly protocolTests: string = "scripts/testing/protocol-tests.ts";
+  public static readonly protocolTestPrefix: string = `${Resources.protocolFolder}/`;
+  public static readonly protocolTestProject: string = `${Resources.protocolFolder}/tests/${Resources.projectFile}`;
+  public static readonly protocolTestOutput: readonly string[] = ["_build", "tests", "noldova.terminal.protocol"];
+  public static readonly protocolCoverageOutput: readonly string[] = ["_build", "protocol-coverage"];
+  public static readonly compiledTestsFolder: string = "tests";
+  public static readonly testEntryPath: string = `${Resources.modulesFolder}/@noldova/context.testing/services/execution/test-run-entry-point.js`;
+  public static readonly sourceMapsOption: string = "--enable-source-maps";
+  public static readonly coverageVariable: string = "NODE_V8_COVERAGE";
+  public static readonly testFiltersVariable: string = "CONTEXT_TEST_FILTERS";
+  public static readonly skipTestDetailsVariable: string = "CONTEXT_SKIP_TEST_DETAILS";
+  public static readonly enabledValue: string = "1";
+  public static readonly protocolCoverageIncomplete: string = "The protocol's tests must cover every statement, branch and function of src/noldova.terminal.protocol/src.";
   public static readonly testWaitSourceFolders: readonly string[] = [Resources.sourceFolder, "scripts"];
   public static readonly testWaitSkippedFolders: ReadonlySet<string> = new Set([Resources.modulesFolder, Resources.gitFolder, "_build", "_packages", "dist", ".angular"]);
   public static readonly testWaitExtensions: ReadonlySet<string> = new Set([".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"]);

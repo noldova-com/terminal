@@ -7,7 +7,7 @@ A member set to `undefined` counts as absent, as in context's `JsonReader` and a
 A message read from JSON is built through `ProtocolReader.create`, so a field that breaks a rule only its constructor checks, such as a relative folder, is refused as a `JsonException` at the field's path, with the constructor's `ArgumentException` as its cause.
 An array item outside its allowed values gets `Resources.formatExpectedOneOf`, which keeps context's text for a field, "Expected one of a, b.", since context doesn't export its texts.
 `Resources`' members that `index.d.ts` doesn't declare are internal to the protocol and may change in any version.
-The tests' `tsconfig.spec.json` keeps the `DOM` library beside Node's types, although the package runs no browser code: Vitest's own declarations reach `@vitest/browser`'s, which name DOM types, and the declarations are type-checked, since `skipLibCheck` is off.
+Its tests are `@noldova/context.testing` test classes, which `tests/tsconfig.json` compiles with the package's source, and `npm test` at the repository's root runs.
 
 Both parts of [`@noldova/terminal`](https://github.com/noldova-com/terminal/tree/main/src/noldova.terminal) import it by its name, and the module pins it at its own version.
 [documents/ARCHITECTURE.md](https://github.com/noldova-com/terminal/blob/main/documents/ARCHITECTURE.md) says how the parts talk, and the [README](https://github.com/noldova-com/terminal#readme) how to build and test it.

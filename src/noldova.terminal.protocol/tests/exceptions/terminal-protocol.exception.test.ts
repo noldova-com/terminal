@@ -6,29 +6,30 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { Exception, ExceptionOptions } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { TerminalProtocolException } from "../../src/exceptions/terminal-protocol.exception.ts";
 
-describe("TerminalProtocolException", () => {
-  it("carries its name and message, as a context Exception", () => {
+@TestClass
+export class TerminalProtocolExceptionTests {
+  @TestMethod
+  public carriesItsNameAndMessageAsAContextException(): void {
     const error: TerminalProtocolException = new TerminalProtocolException("The protocol failed.");
 
-    assert.ok(error instanceof Exception);
-    assert.equal(error.name, "TerminalProtocolException");
-    assert.equal(error.message, "The protocol failed.");
-    assert.equal(error.cause, undefined);
-  });
+    Assert.isTrue(error instanceof Exception);
+    Assert.areEqual("TerminalProtocolException", error.name);
+    Assert.areEqual("The protocol failed.", error.message);
+    Assert.areEqual(undefined, error.cause);
+  }
 
-  it("keeps the cause it is given through ExceptionOptions", () => {
+  @TestMethod
+  public keepsTheCauseItIsGivenThroughExceptionOptions(): void {
     const cause: Error = new Error("The stream closed.");
 
     const error: TerminalProtocolException = new TerminalProtocolException("The protocol failed.", new ExceptionOptions(cause));
 
-    assert.equal(error.message, "The protocol failed.");
-    assert.equal(error.cause, cause);
-  });
-});
+    Assert.areEqual("The protocol failed.", error.message);
+    Assert.areEqual(cause, error.cause);
+  }
+}

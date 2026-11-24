@@ -6,22 +6,22 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { Exception } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { PackageCopiesException } from "../../src/exceptions/package-copies.exception.ts";
 import { TerminalProtocolException } from "../../src/exceptions/terminal-protocol.exception.ts";
 
-describe("PackageCopiesException", () => {
-  it("carries its name and formats its own message, which names the package and what to install", () => {
+@TestClass
+export class PackageCopiesExceptionTests {
+  @TestMethod
+  public carriesItsNameAndFormatsItsOwnMessageWhichNamesThePackageAndWhatToInstall(): void {
     const error: PackageCopiesException = new PackageCopiesException();
 
-    assert.ok(error instanceof TerminalProtocolException);
-    assert.ok(error instanceof Exception);
-    assert.equal(error.name, "PackageCopiesException");
-    assert.equal(error.message, "The terminal.owners service comes from another installed copy of @noldova/terminal.protocol: "
-      + "install one copy, at Terminal's version, so that RuntimeTerminalOwners matches it.");
-  });
-});
+    Assert.isTrue(error instanceof TerminalProtocolException);
+    Assert.isTrue(error instanceof Exception);
+    Assert.areEqual("PackageCopiesException", error.name);
+    Assert.areEqual("The terminal.owners service comes from another installed copy of @noldova/terminal.protocol: "
+      + "install one copy, at Terminal's version, so that RuntimeTerminalOwners matches it.", error.message);
+  }
+}

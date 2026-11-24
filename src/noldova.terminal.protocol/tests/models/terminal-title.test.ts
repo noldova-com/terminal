@@ -6,26 +6,29 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { TerminalTitle } from "../../src/models/terminal-title.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalTitle", () => {
-  it("writes and reads its wire form", () => {
-    assert.equal(TerminalTitle.fromJson({ sessionId: "s1", title: "vim notes.txt" }).title, "vim notes.txt");
-    assert.deepEqual(new TerminalTitle("s1", "").toJson(), { sessionId: "s1", title: "" });
-  });
+@TestClass
+export class TerminalTitleTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
+    Assert.areEqual("vim notes.txt", TerminalTitle.fromJson({ sessionId: "s1", title: "vim notes.txt" }).title);
+    Expect.same({ sessionId: "s1", title: "" }, new TerminalTitle("s1", "").toJson());
+  }
 
-  it("refuses a title longer than 4096 characters", () => {
-    assert.throws(() => new TerminalTitle("s1", "t".repeat(4097)), ArgumentException);
-    assert.throws(() => TerminalTitle.fromJson({ sessionId: "s1", title: "t".repeat(4097) }), { name: "JsonException", path: "$.title" });
-  });
+  @TestMethod
+  public refusesATitleLongerThan4096Characters(): void {
+    Assert.throws(() => new TerminalTitle("s1", "t".repeat(4097)), ArgumentException);
+    Expect.throwsMatching(() => TerminalTitle.fromJson({ sessionId: "s1", title: "t".repeat(4097) }), { name: "JsonException", path: "$.title" });
+  }
 
-  it("refuses a blank session", () => {
+  @TestMethod
+  public refusesABlankSession(): void {
     for (const id of ["", " "])
-      assert.throws(() => new TerminalTitle(id, "bash"), { name: "ArgumentException", parameterName: "sessionId" });
-  });
-});
+      Expect.throwsMatching(() => new TerminalTitle(id, "bash"), { name: "ArgumentException", parameterName: "sessionId" });
+  }
+}

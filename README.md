@@ -58,6 +58,11 @@ The three packages are the root's npm workspaces, `src/*`: `npm ci` installs the
 
 Every pull request into `main` must pass "Check / Linked issue", "Build and test / All targets" and "Build and test / All shells", which [documents/TESTING.md](documents/TESTING.md#the-pull-request-checks) describes.
 
+### Test runners
+
+The protocol's tests, under `src/noldova.terminal.protocol/tests`, are `@noldova/context.testing` test classes, since the organization tests UI with Vitest and all other code with context.testing: `npm test` compiles them with that folder's `tsconfig.json`, runs them with context.testing's runner and fails below 100% coverage of the protocol's production code, as [documents/TESTING.md](documents/TESTING.md#the-pull-request-checks) says.
+The module's tests still run with Vitest, until context.testing has the hooks, fake timers and conditional skips they use, and the window part's specs run with Angular's unit-test builder.
+
 ### Module range
 
 `.github/workflows/module-range.yml` calls Noldova Desktop's "Module range" workflow, pinned to Noldova Desktop 0.0.1's commit, with `src/noldova.terminal`, on every pull request into `main`, every night and by hand.
@@ -72,6 +77,7 @@ Its build step first runs `npm run peers:newest`, `scripts/move-peers.ts`, which
 |---|---|---|
 | `src/noldova.terminal.window/**` | The root's `vitest.config.ts` | The window part's specs measure it through Angular's unit-test builder, to the same 100%; the root's suite doesn't run them. |
 | `src/*/vitest.config.ts` | The root's `vitest.config.ts` | Each package's test settings, not production code. |
+| `src/noldova.terminal.protocol/**` | The root's `vitest.config.ts` | The protocol's context.testing tests measure it, to the same 100%; the root's Vitest suite doesn't run them. |
 | `src/app/enums/**` | `src/noldova.terminal.window/angular.json` | The window part's enum files, which the Angular standard leaves out of coverage. |
 | The compiler's development-mode class-metadata calls | `src/noldova.terminal.window/tests/coverage/class-metadata-coverage.ts` | Code Angular's compiler adds, which runs only in development mode, as the Angular standard says; the plugin marks the calls and reports how many it skipped. |
 

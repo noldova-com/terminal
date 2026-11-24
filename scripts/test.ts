@@ -34,16 +34,20 @@ class Test {
     const noGates: readonly string[] = Resources.coverageMetrics.map(t => Resources.formatNoCoverageGate(t));
     const filters: readonly string[] = values.filter(t => !t.startsWith(Resources.optionPrefix));
     const paths: readonly string[] = filters.map(t => t.replaceAll(Resources.windowsSeparator, Resources.posixSeparator));
-    const rootFilters: readonly string[] = paths.filter(t => !t.startsWith(Resources.windowSpecPrefix));
+    const rootFilters: readonly string[] = paths.filter(t => !t.startsWith(Resources.windowSpecPrefix) && !t.startsWith(Resources.protocolTestPrefix));
+    const protocolFilters: readonly string[] = paths.filter(t => t.startsWith(Resources.protocolTestPrefix)).map(t => path.posix.basename(t, Resources.sourceExtension));
     const windowSpecs: readonly string[] = paths.filter(t => t.startsWith(Resources.windowSpecPrefix)).map(t => t.slice(Resources.windowSpecPrefix.length));
     const timedTests: readonly string[] = [...rootTests, ...(options.includes(Resources.skipTestDetails) ? [] : [Resources.defaultReporter]), ...Resources.jsonReporter];
     if (filters.length === 0)
       return Test.runStages([
-        [Test.root, [...Resources.testChecks, timedTests, [Resources.testTimeCheck, Resources.testTimesReport]]],
+        [Test.root, [...Resources.testChecks, [Resources.protocolTests, ...options], timedTests, [Resources.testTimeCheck, Resources.testTimesReport]]],
         [Test.window, [...Test.prepareSteps(), Test.unitStep([]), Test.lookStep([])]],
         [Test.root, [[Resources.installedPackageTest]]]
       ]);
-    const rootSteps: (readonly string[])[] = rootFilters.length === 0 ? [] : [[...rootTests, ...noGates, ...rootFilters]];
+    const rootSteps: (readonly string[])[] = [
+      ...(protocolFilters.length === 0 ? [] : [[Resources.protocolTests, ...options, ...protocolFilters]]),
+      ...(rootFilters.length === 0 ? [] : [[...rootTests, ...noGates, ...rootFilters]])
+    ];
     if (windowSpecs.length === 0)
       return Test.runStages([[Test.root, [...Resources.testChecks, ...rootSteps]]]);
     return Test.runStages([[Test.root, [...Resources.testChecks, ...rootSteps]], [Test.window, Test.windowSteps(windowSpecs)]]);

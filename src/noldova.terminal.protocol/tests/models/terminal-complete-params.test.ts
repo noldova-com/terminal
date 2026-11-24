@@ -6,44 +6,48 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { TerminalCompleteParams } from "../../src/models/terminal-complete-params.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalCompleteParams", () => {
-  it("writes and reads its wire form", () => {
+@TestClass
+export class TerminalCompleteParamsTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
     const json: object = { sessionId: "s1", line: "git checkout ma", cursor: 15, asksShell: true };
     const params: TerminalCompleteParams = TerminalCompleteParams.fromJson(json);
 
-    assert.deepEqual([params.sessionId, params.line, params.cursor, params.asksShell], ["s1", "git checkout ma", 15, true]);
-    assert.deepEqual(params.toJson(), json);
-  });
+    Expect.same(["s1", "git checkout ma", 15, true], [params.sessionId, params.line, params.cursor, params.asksShell]);
+    Expect.same(json, params.toJson());
+  }
 
-  it("asks only the runtime when asksShell is left out", () => {
-    assert.equal(TerminalCompleteParams.fromJson({ sessionId: "s1", line: "ls", cursor: 2 }).asksShell, false);
-    assert.equal(new TerminalCompleteParams("s1", "ls", 2).asksShell, false);
-  });
+  @TestMethod
+  public asksOnlyTheRuntimeWhenAsksShellIsLeftOut(): void {
+    Assert.areEqual(false, TerminalCompleteParams.fromJson({ sessionId: "s1", line: "ls", cursor: 2 }).asksShell);
+    Assert.areEqual(false, new TerminalCompleteParams("s1", "ls", 2).asksShell);
+  }
 
-  it("takes an empty line, and a line of 4,096 code units with the cursor at either end", () => {
-    assert.equal(new TerminalCompleteParams("s1", "", 0).cursor, 0);
-    assert.equal(new TerminalCompleteParams("s1", "x".repeat(4_096), 4_096).cursor, 4_096);
-    assert.equal(new TerminalCompleteParams("s1", "x".repeat(4_096), 0).cursor, 0);
-  });
+  @TestMethod
+  public takesAnEmptyLineAndALineOf4096CodeUnitsWithTheCursorAtEitherEnd(): void {
+    Assert.areEqual(0, new TerminalCompleteParams("s1", "", 0).cursor);
+    Assert.areEqual(4_096, new TerminalCompleteParams("s1", "x".repeat(4_096), 4_096).cursor);
+    Assert.areEqual(0, new TerminalCompleteParams("s1", "x".repeat(4_096), 0).cursor);
+  }
 
-  it("refuses a blank session, a longer line, and a cursor outside the line or between code units", () => {
-    assert.throws(() => new TerminalCompleteParams(" ", "ls", 2), { name: "ArgumentException", parameterName: "sessionId" });
-    assert.throws(() => new TerminalCompleteParams("s1", "x".repeat(4_097), 0), { name: "ArgumentException", parameterName: "line" });
+  @TestMethod
+  public refusesABlankSessionALongerLineAndACursorOutsideTheLineOrBetweenCodeUnits(): void {
+    Expect.throwsMatching(() => new TerminalCompleteParams(" ", "ls", 2), { name: "ArgumentException", parameterName: "sessionId" });
+    Expect.throwsMatching(() => new TerminalCompleteParams("s1", "x".repeat(4_097), 0), { name: "ArgumentException", parameterName: "line" });
     for (const cursor of [-1, 3, 1.5])
-      assert.throws(() => new TerminalCompleteParams("s1", "ls", cursor), { name: "ArgumentOutOfRangeException", parameterName: "cursor" });
-  });
+      Expect.throwsMatching(() => new TerminalCompleteParams("s1", "ls", cursor), { name: "ArgumentOutOfRangeException", parameterName: "cursor" });
+  }
 
-  it("names the field it cannot read", () => {
-    assert.throws(() => TerminalCompleteParams.fromJson({ sessionId: "s1", line: "ls", cursor: 3 }), { name: "JsonException", path: "$.cursor" });
-    assert.throws(() => TerminalCompleteParams.fromJson({ sessionId: "s1", line: 7, cursor: 0 }), { name: "JsonException", path: "$.line" });
-    assert.throws(() => TerminalCompleteParams.fromJson({ sessionId: "s1", line: "ls", cursor: 0, shell: "bash" }), { name: "JsonException" });
-    assert.throws(() => TerminalCompleteParams.fromJson({ sessionId: "s1", line: "ls", cursor: 0, asksShell: "yes" }),
-      { name: "JsonException", path: "$.asksShell" });
-  });
-});
+  @TestMethod
+  public namesTheFieldItCannotRead(): void {
+    Expect.throwsMatching(() => TerminalCompleteParams.fromJson({ sessionId: "s1", line: "ls", cursor: 3 }), { name: "JsonException", path: "$.cursor" });
+    Expect.throwsMatching(() => TerminalCompleteParams.fromJson({ sessionId: "s1", line: 7, cursor: 0 }), { name: "JsonException", path: "$.line" });
+    Expect.throwsMatching(() => TerminalCompleteParams.fromJson({ sessionId: "s1", line: "ls", cursor: 0, shell: "bash" }), { name: "JsonException" });
+    Expect.throwsMatching(() => TerminalCompleteParams.fromJson({ sessionId: "s1", line: "ls", cursor: 0, asksShell: "yes" }), { name: "JsonException", path: "$.asksShell" });
+  }
+}

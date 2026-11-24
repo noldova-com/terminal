@@ -6,13 +6,12 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { RuntimeTerminalOwners as ExportedTerminalOwners } from "../../src/api/index.ts";
 import { Resources } from "../../src/resources.ts";
 import { RuntimeTerminalOwners } from "../../src/services/runtime-terminal-owners.ts";
+import { Expect } from "../support/expect.ts";
 
 const BRAND: symbol = Symbol.for("@noldova/terminal.protocol/RuntimeTerminalOwners");
 const COPIES: string = "The terminal.owners service comes from another installed copy of @noldova/terminal.protocol: "
@@ -45,46 +44,51 @@ class OtherOwners extends RuntimeTerminalOwners {
   public override unbindAgentSession(): void {}
 }
 
-describe("RuntimeTerminalOwners", () => {
-  it("is the class the package exports, so a service that extends it passes a check against the export", async () => {
+@TestClass
+export class RuntimeTerminalOwnersTests {
+  @TestMethod
+  public async isTheClassThePackageExportsSoAServiceThatExtendsItPassesACheckAgainstTheExport(): Promise<void> {
     const owners: RecordingOwners = new RecordingOwners();
 
     owners.bindAgentSession("session-1", "example.chat/42");
     owners.unbindAgentSession("session-1");
     await owners.closeAsync("example.chat/42");
 
-    assert.equal(ExportedTerminalOwners, RuntimeTerminalOwners);
-    assert.ok(owners instanceof ExportedTerminalOwners);
-    assert.deepEqual(owners.calls, ["bind session-1 example.chat/42", "unbind session-1", "close example.chat/42"]);
-  });
+    Assert.areEqual(RuntimeTerminalOwners, ExportedTerminalOwners);
+    Assert.isTrue(owners instanceof ExportedTerminalOwners);
+    Expect.same(["bind session-1 example.chat/42", "unbind session-1", "close example.chat/42"], owners.calls);
+  }
 
-  it("names another installed copy of the package when a check meets its service, and tells an object of another kind from an instance", () => {
+  @TestMethod
+  public namesAnotherInstalledCopyOfThePackageWhenACheckMeetsItsServiceAndTellsAnObjectOfAnotherKindFromAnInstance(): void {
     const fromAnotherCopy: object = { [BRAND]: true };
 
     const others: readonly unknown[] = [{}, null, "owners", new Error("other")];
 
-    assert.throws(() => fromAnotherCopy instanceof RuntimeTerminalOwners, { name: "PackageCopiesException", message: COPIES });
-    assert.deepEqual(others.map(t => t instanceof RuntimeTerminalOwners), [false, false, false, false]);
-    assert.equal(new RecordingOwners() instanceof RecordingOwners, true);
-    assert.throws(() => fromAnotherCopy instanceof RecordingOwners, { name: "PackageCopiesException", message: COPIES });
-    assert.equal(Resources.runtimeOwnersCopies, COPIES);
-  });
+    Expect.throwsMatching(() => fromAnotherCopy instanceof RuntimeTerminalOwners, { name: "PackageCopiesException", message: COPIES });
+    Expect.same([false, false, false, false], others.map(t => t instanceof RuntimeTerminalOwners));
+    Assert.areEqual(true, new RecordingOwners() instanceof RecordingOwners);
+    Expect.throwsMatching(() => fromAnotherCopy instanceof RecordingOwners, { name: "PackageCopiesException", message: COPIES });
+    Assert.areEqual(COPIES, Resources.runtimeOwnersCopies);
+  }
 
-  it("tells an instance of another subclass from the same copy from one of the subclass checked, without naming copies", () => {
+  @TestMethod
+  public tellsAnInstanceOfAnotherSubclassFromTheSameCopyFromOneOfTheSubclassCheckedWithoutNamingCopies(): void {
     const owners: RecordingOwners = new RecordingOwners();
 
-    assert.equal(owners instanceof OtherOwners, false);
-    assert.equal(new OtherOwners() instanceof RecordingOwners, false);
-    assert.equal(new OtherOwners() instanceof RuntimeTerminalOwners, true);
-  });
+    Assert.areEqual(false, owners instanceof OtherOwners);
+    Assert.areEqual(false, new OtherOwners() instanceof RecordingOwners);
+    Assert.areEqual(true, new OtherOwners() instanceof RuntimeTerminalOwners);
+  }
 
-  it("keeps the brand on the prototype, so a copy of a service's fields isn't taken for another copy's service", () => {
+  @TestMethod
+  public keepsTheBrandOnThePrototypeSoACopyOfAServicesFieldsIsntTakenForAnotherCopysService(): void {
     const owners: RecordingOwners = new RecordingOwners();
     const fields: object = { ...owners };
 
-    assert.equal(BRAND in owners, true);
-    assert.equal(Object.getOwnPropertyDescriptor(RuntimeTerminalOwners.prototype, BRAND)?.get?.call(owners), true);
-    assert.equal(Object.hasOwn(owners, BRAND), false);
-    assert.equal(fields instanceof RuntimeTerminalOwners, false);
-  });
-});
+    Assert.areEqual(true, BRAND in owners);
+    Assert.areEqual(true, Object.getOwnPropertyDescriptor(RuntimeTerminalOwners.prototype, BRAND)?.get?.call(owners));
+    Assert.areEqual(false, Object.hasOwn(owners, BRAND));
+    Assert.areEqual(false, fields instanceof RuntimeTerminalOwners);
+  }
+}

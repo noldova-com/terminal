@@ -6,26 +6,28 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
 
 import { TerminalName } from "../../src/models/terminal-name.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalName", () => {
-  it("writes and reads a name and its clearing", () => {
-    assert.deepEqual(TerminalName.fromJson({ sessionId: "s1", name: "Server" }).toJson(), { sessionId: "s1", name: "Server" });
-    assert.equal(TerminalName.fromJson({ sessionId: "s1", name: null }).name, null);
-    assert.deepEqual(new TerminalName("s1", null).toJson(), { sessionId: "s1", name: null });
-  });
+@TestClass
+export class TerminalNameTests {
+  @TestMethod
+  public writesAndReadsANameAndItsClearing(): void {
+    Expect.same({ sessionId: "s1", name: "Server" }, TerminalName.fromJson({ sessionId: "s1", name: "Server" }).toJson());
+    Assert.areEqual(null, TerminalName.fromJson({ sessionId: "s1", name: null }).name);
+    Expect.same({ sessionId: "s1", name: null }, new TerminalName("s1", null).toJson());
+  }
 
-  it("refuses a blank or too long name, a missing one and an unknown field", () => {
-    assert.throws(() => new TerminalName("s1", " "), ArgumentException);
-    assert.throws(() => new TerminalName("s1", "n".repeat(4097)), ArgumentException);
-    assert.throws(() => TerminalName.fromJson({ sessionId: "s1", name: " " }), { name: "JsonException", path: "$.name" });
-    assert.throws(() => TerminalName.fromJson({ sessionId: "s1", name: "n".repeat(4097) }), { name: "JsonException", path: "$.name" });
-    assert.throws(() => TerminalName.fromJson({ sessionId: "s1" }), { name: "JsonException", path: "$.name" });
-    assert.throws(() => TerminalName.fromJson({ sessionId: "s1", name: null, title: "x" }), { name: "JsonException", path: "$.title" });
-  });
-});
+  @TestMethod
+  public refusesABlankOrTooLongNameAMissingOneAndAnUnknownField(): void {
+    Assert.throws(() => new TerminalName("s1", " "), ArgumentException);
+    Assert.throws(() => new TerminalName("s1", "n".repeat(4097)), ArgumentException);
+    Expect.throwsMatching(() => TerminalName.fromJson({ sessionId: "s1", name: " " }), { name: "JsonException", path: "$.name" });
+    Expect.throwsMatching(() => TerminalName.fromJson({ sessionId: "s1", name: "n".repeat(4097) }), { name: "JsonException", path: "$.name" });
+    Expect.throwsMatching(() => TerminalName.fromJson({ sessionId: "s1" }), { name: "JsonException", path: "$.name" });
+    Expect.throwsMatching(() => TerminalName.fromJson({ sessionId: "s1", name: null, title: "x" }), { name: "JsonException", path: "$.title" });
+  }
+}

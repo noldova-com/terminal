@@ -6,37 +6,41 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
-import { describe, it } from "vitest";
+import { TestClass, TestMethod } from "@noldova/context.testing";
 
 import { TerminalMissingCommands } from "../../src/models/terminal-missing-commands.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalMissingCommands", () => {
-  it("writes and reads its wire form", () => {
+@TestClass
+export class TerminalMissingCommandsTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
     const json: object = { names: ["gti"] };
 
-    assert.deepEqual(TerminalMissingCommands.fromJson(json).names, ["gti"]);
-    assert.deepEqual(TerminalMissingCommands.fromJson(json).toJson(), json);
-    assert.deepEqual(new TerminalMissingCommands([]).toJson(), { names: [] });
-  });
+    Expect.same(["gti"], TerminalMissingCommands.fromJson(json).names);
+    Expect.same(json, TerminalMissingCommands.fromJson(json).toJson());
+    Expect.same({ names: [] }, new TerminalMissingCommands([]).toJson());
+  }
 
-  it("refuses a blank name and a 65th name", () => {
-    assert.throws(() => new TerminalMissingCommands([" "]), { name: "ArgumentException", parameterName: "names" });
-    assert.throws(() => new TerminalMissingCommands(Array.from({ length: 65 }, () => "ls")), { name: "ArgumentException", parameterName: "names" });
-  });
+  @TestMethod
+  public refusesABlankNameAndA65thName(): void {
+    Expect.throwsMatching(() => new TerminalMissingCommands([" "]), { name: "ArgumentException", parameterName: "names" });
+    Expect.throwsMatching(() => new TerminalMissingCommands(Array.from({ length: 65 }, () => "ls")), { name: "ArgumentException", parameterName: "names" });
+  }
 
-  it("names the field it cannot read", () => {
-    assert.throws(() => TerminalMissingCommands.fromJson({ names: [""] }), { name: "JsonException", path: "$.names.0" });
-    assert.throws(() => TerminalMissingCommands.fromJson({}), { name: "JsonException", path: "$.names" });
-    assert.throws(() => TerminalMissingCommands.fromJson({ names: [], extra: 1 }), { name: "JsonException" });
-  });
+  @TestMethod
+  public namesTheFieldItCannotRead(): void {
+    Expect.throwsMatching(() => TerminalMissingCommands.fromJson({ names: [""] }), { name: "JsonException", path: "$.names.0" });
+    Expect.throwsMatching(() => TerminalMissingCommands.fromJson({}), { name: "JsonException", path: "$.names" });
+    Expect.throwsMatching(() => TerminalMissingCommands.fromJson({ names: [], extra: 1 }), { name: "JsonException" });
+  }
 
-  it("keeps its own copy of the names", () => {
+  @TestMethod
+  public keepsItsOwnCopyOfTheNames(): void {
     const names: string[] = ["git"];
     const missing: TerminalMissingCommands = new TerminalMissingCommands(names);
     names.push("npm");
 
-    assert.deepEqual(missing.names, ["git"]);
-  });
-});
+    Expect.same(["git"], missing.names);
+  }
+}

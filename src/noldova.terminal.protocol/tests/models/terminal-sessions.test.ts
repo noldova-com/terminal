@@ -6,16 +6,17 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
-import { describe, it } from "vitest";
+import { TestClass, TestMethod } from "@noldova/context.testing";
 
 import { TerminalShellKind } from "../../src/enums/terminal-shell-kind.ts";
 import { TerminalSessions } from "../../src/models/terminal-sessions.ts";
 import { TerminalSummary } from "../../src/models/terminal-summary.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalSessions", () => {
-  it("writes and reads its sessions in order", () => {
+@TestClass
+export class TerminalSessionsTests {
+  @TestMethod
+  public writesAndReadsItsSessionsInOrder(): void {
     const json: object = {
       sessions: [
         { sessionId: "s1", shellId: "bash", folder: "/work", title: "", exit: null, isAgentTerminal: false, isPanelTerminal: true, owner: null, opensTab: true, name: null, shellName: null, shellKind: "Other" },
@@ -23,28 +24,29 @@ describe("TerminalSessions", () => {
       ]
     };
 
-    assert.deepEqual(TerminalSessions.fromJson(json).sessions.map(t => t.sessionId), ["s1", "s2"]);
-    assert.deepEqual(
-      new TerminalSessions([
+    Expect.same(["s1", "s2"], TerminalSessions.fromJson(json).sessions.map(t => t.sessionId));
+    Expect.same(json, new TerminalSessions([
         new TerminalSummary("s1", "bash", "/work", "", null, false, true, null, true, null, null, TerminalShellKind.Other),
         new TerminalSummary("s2", "zsh", "/work", "", null, true, false, null, true, null, null, TerminalShellKind.Other)
-      ]).toJson(),
-      json);
-  });
+      ]).toJson());
+  }
 
-  it("keeps its own copy of the sessions", () => {
+  @TestMethod
+  public keepsItsOwnCopyOfTheSessions(): void {
     const sessions: TerminalSummary[] = [];
     const answer: TerminalSessions = new TerminalSessions(sessions);
     sessions.push(new TerminalSummary("s1", "bash", "/work", "", null, false, true, null, true, null, null, TerminalShellKind.Other));
 
-    assert.deepEqual(answer.sessions, []);
-  });
+    Expect.same([], answer.sessions);
+  }
 
-  it("writes and reads no sessions", () => {
-    assert.deepEqual(TerminalSessions.fromJson({ sessions: [] }).sessions, []);
-  });
+  @TestMethod
+  public writesAndReadsNoSessions(): void {
+    Expect.same([], TerminalSessions.fromJson({ sessions: [] }).sessions);
+  }
 
-  it("names the session it cannot read", () => {
-    assert.throws(() => TerminalSessions.fromJson({ sessions: [null] }), { name: "JsonException", path: "$.sessions.0" });
-  });
-});
+  @TestMethod
+  public namesTheSessionItCannotRead(): void {
+    Expect.throwsMatching(() => TerminalSessions.fromJson({ sessions: [null] }), { name: "JsonException", path: "$.sessions.0" });
+  }
+}
