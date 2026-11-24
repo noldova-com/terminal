@@ -184,7 +184,6 @@ export class Resources {
     { prefix: "?", intermediates: "$", final: "p" }
   ];
   public static readonly answeredSettingQuery: IFunctionIdentifier = { intermediates: "$", final: "q" };
-  /** The OSC color codes xterm answers a query of itself: the palette (4), the foreground (10), the background (11) and the cursor (12). */
   public static readonly colorQueryCodes: readonly number[] = [4, 10, 11, 12];
   public static readonly colorQueryMark: string = "?";
   public static readonly commandColorsSetting: string = "terminal.commandColors";

@@ -218,7 +218,6 @@ export class TerminalPaneComponent {
       SessionSizing.resized(sessionId, sized, size);
       this.resize(pager.connection, size);
     }, () => SessionSizing.isSizing(sessionId, sized), () => untracked(this.fixedRows), () => untracked(this.shown));
-    // The runtime's mirror has no colors to answer a color query with, so the session's sizing pane alone answers it, and its other panes don't answer twice.
     for (const code of Resources.colorQueryCodes)
       terminal.parser.registerOscHandler(code, data => data.includes(Resources.colorQueryMark) && !SessionSizing.isSizing(sessionId, sized));
     const drawnScreens: NodeListOf<Element> = this.host.querySelectorAll(Resources.xtermScreenSelector);
