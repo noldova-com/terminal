@@ -225,7 +225,10 @@ export class TerminalPaneComponent {
     let leave: () => void = SessionSizing.join(sessionId, sized);
     const claim = (): void => SessionSizing.claim(sessionId, sized);
     this.host.addEventListener(Resources.focusInEvent, claim);
-    terminal.onData(t => pager.type(t));
+    terminal.onData(t => {
+      if (!Resources.colorReport.test(t) || SessionSizing.isSizing(sessionId, sized))
+        pager.type(t);
+    });
     terminal.onBinary(t => pager.type(t));
     terminal.onScroll(t => pager.scroll(t));
 

@@ -12,7 +12,7 @@ import { TestBed, type ComponentFixture } from "@angular/core/testing";
 import type { SettingEntry } from "@noldova/desktop.protocol";
 import { LinkPlace, type IInAppBrowser, type ISelectionSource } from "@noldova/desktop.window";
 import {
-  EndedBy, Resources as ProtocolResources, TerminalCompletion, TerminalCompletionItem, TerminalCompletionKind, TerminalExit, TerminalInputEdge, TerminalInputMark, TerminalInputStart,
+  EndedBy, Resources as ProtocolResources, TerminalAckParams, TerminalCompletion, TerminalCompletionItem, TerminalCompletionKind, TerminalExit, TerminalInputEdge, TerminalInputMark, TerminalInputStart,
   TerminalLine, TerminalLineRange, TerminalMissingCommands, TerminalNames, TerminalPaneReference, TerminalResizeParams, TerminalShellKind, TerminalSize, TerminalTextRun,
   TerminalVisibilityParams, WindowsPty
 } from "@noldova/terminal.protocol";
@@ -439,6 +439,60 @@ describe("TerminalPaneComponent", () => {
 
     await vi.waitFor(() => expect(host.text).toContain("ready"), { timeout: SpecWait.milliseconds });
     expect(host.inputs).toEqual([]);
+  });
+
+  async function twoPanesAsync(): Promise<{ readonly wide: PaneHost<TerminalPaneComponent>; readonly narrow: ComponentFixture<TerminalPaneComponent>;
+    readonly element: HTMLElement; readonly drawnBy: (offset: number) => number; }> {
+    const wide: PaneHost<TerminalPaneComponent> = createPane(true);
+    wide.fixture.detectChanges();
+    PaneHost.fill(wide.element);
+    await wide.attachedAsync();
+    const narrow: ComponentFixture<TerminalPaneComponent> = TestBed.createComponent(TerminalPaneComponent);
+    document.body.append(wide.element);
+    const element: HTMLElement = PaneHost.hostOf(narrow);
+    narrow.componentRef.setInput("sessionId", "s1");
+    narrow.detectChanges();
+    PaneHost.fill(element);
+    await narrow.whenStable();
+    await vi.waitFor(() => expect([element.querySelector("textarea") !== null, wide.runtime.context.sent(TerminalNames.visibilityMethod).length >= 2]).toEqual([true, true]),
+      { timeout: SpecWait.milliseconds });
+    const drawnBy = (offset: number): number => new Set(wide.runtime.context.sent(TerminalNames.ackMethod).map(t => TerminalAckParams.fromJson(t))
+      .filter(t => t.offset === offset).map(t => t.paneId)).size;
+    return { wide, narrow, element, drawnBy };
+  }
+
+  it("answers a color query once for a session in two panes, from the pane that sizes it, as the sizing moves", async () => {
+    const { wide, narrow, element, drawnBy } = await twoPanesAsync();
+    const answers = (): number => wide.inputs.filter(t => t.startsWith("\u001b]11;rgb:")).length;
+
+    wide.runtime.output("s1", 0, "\u001b]11;?\u0007one");
+    await vi.waitFor(() => expect([drawnBy(10), answers() >= 1]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
+    const first: number = answers();
+    PaneHost.find(element, "textarea", HTMLTextAreaElement).focus();
+    wide.runtime.output("s1", 10, "\u001b]11;?\u0007two");
+    await vi.waitFor(() => expect([drawnBy(20), answers() >= 2]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
+    const second: number = answers();
+    wide.textarea.focus();
+    wide.runtime.output("s1", 20, "\u001b]11;?\u0007three");
+    await vi.waitFor(() => expect([drawnBy(32), answers() >= 3]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
+
+    expect([first, second, answers()]).toEqual([1, 2, 3]);
+    narrow.destroy();
+  });
+
+  it("sets a color a sequence sets and queries at once in every pane, so the pane the sizing moves to answers with it", async () => {
+    const { wide, narrow, element, drawnBy } = await twoPanesAsync();
+    const reports = (): readonly string[] => wide.inputs.filter(t => t.startsWith("\u001b]4;1;"));
+    wide.textarea.focus();
+
+    wide.runtime.output("s1", 0, "\u001b]4;1;#ff0000;1;?\u0007");
+    await vi.waitFor(() => expect([drawnBy(18), reports().length >= 1]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
+    PaneHost.find(element, "textarea", HTMLTextAreaElement).focus();
+    wide.runtime.output("s1", 18, "\u001b]4;1;?\u0007");
+    await vi.waitFor(() => expect([drawnBy(26), reports().length >= 2]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
+
+    expect(reports()).toEqual(["\u001b]4;1;rgb:ffff/0000/0000\u001b\\", "\u001b]4;1;rgb:ffff/0000/0000\u001b\\"]);
+    narrow.destroy();
   });
 
   it("shows a web link's target on hover and opens it on the open click only, as a Ctrl+click, never on a middle or right button with Ctrl", async () => {
