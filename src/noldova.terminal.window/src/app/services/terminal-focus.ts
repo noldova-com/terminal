@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { ITerminalFocusTarget } from "../interfaces/i-terminal-focus-target.ts";
 
 export class TerminalFocus {
@@ -41,7 +43,7 @@ export class TerminalFocus {
     const targets: readonly ITerminalFocusTarget[] = [...TerminalFocus.targets];
     const active: Element | null = document.activeElement;
     const focused: ITerminalFocusTarget | undefined = targets.find(t => t.contains(active));
-    if (focused !== undefined) {
+    if (!Object.isUndefined(focused)) {
       const returnTo: HTMLElement | null = TerminalFocus.returnTo;
       TerminalFocus.returnTo = null;
       returnTo?.focus();
@@ -51,7 +53,7 @@ export class TerminalFocus {
       return true;
     }
     const last: ITerminalFocusTarget | null = TerminalFocus.lastUsed;
-    for (const target of [...(last === null ? [] : [last]), ...targets.filter(t => t !== last).reverse()])
+    for (const target of [...(Object.isNull(last) ? [] : [last]), ...targets.filter(t => t !== last).reverse()])
       if (await target.showAsync())
         return true;
     return false;

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Terminal, type IMarker } from "@xterm/xterm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -31,7 +33,7 @@ describe("CommandColorRun", () => {
   it("holds its marker, place, kind and text, and no decoration until one is drawn", () => {
     const marker: IMarker | undefined = terminal.registerMarker(0);
     expect(marker).toBeDefined();
-    if (marker === undefined)
+    if (Object.isUndefined(marker))
       return;
 
     const run: CommandColorRun = new CommandColorRun(marker, 2, 4, CommandTokenKind.Command, "echo");

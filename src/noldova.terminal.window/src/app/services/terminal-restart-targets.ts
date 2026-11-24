@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { ITerminalRestartTarget } from "../interfaces/i-terminal-restart-target.ts";
 import type { TerminalTabKey } from "../models/terminal-tab-key.ts";
 
@@ -26,7 +28,7 @@ export class TerminalRestartTargets {
   }
 
   public static find(tab: TerminalTabKey | null): ITerminalRestartTarget | undefined {
-    return tab === null ? undefined : TerminalRestartTargets.targets.get(TerminalRestartTargets.keyOf(tab.view, tab.instance));
+    return Object.isNull(tab) ? undefined : TerminalRestartTargets.targets.get(TerminalRestartTargets.keyOf(tab.view, tab.instance));
   }
 
   private static keyOf(view: string, instance: string | null): string {

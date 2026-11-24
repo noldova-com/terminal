@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { signal, type Provider, type Type, type WritableSignal } from "@angular/core";
 import { TestBed, type ComponentFixture } from "@angular/core/testing";
 import { WindowPartTokens } from "@noldova/desktop.window";
@@ -49,7 +51,7 @@ export class PaneHost<T> {
 
   public static fill(element: HTMLElement): void {
     const screen: HTMLElement | null = element.querySelector(".nol-terminal-pane-screen");
-    if (screen === null)
+    if (Object.isNull(screen))
       throw new Error("The pane has no screen yet.");
     element.style.display = "flex";
     element.style.flexDirection = "column";
@@ -57,7 +59,7 @@ export class PaneHost<T> {
     screen.style.minBlockSize = "0";
     screen.style.position = "relative";
     const bar: HTMLElement | null = screen.querySelector(".nol-terminal-pane-scrollbar");
-    if (bar === null)
+    if (Object.isNull(bar))
       return;
     bar.style.position = "absolute";
     bar.style.insetBlock = "0";
@@ -82,7 +84,7 @@ export class PaneHost<T> {
 
   public static async untilAsync(root: HTMLElement, selector: string): Promise<Element> {
     const found: Element | null = root.querySelector(selector);
-    if (found !== null)
+    if (!Object.isNull(found))
       return found;
     let appear: (element: Element) => void = () => undefined;
     const added: Promise<Element> = new Promise<Element>(resolve => {
@@ -90,7 +92,7 @@ export class PaneHost<T> {
     });
     const observer: MutationObserver = new MutationObserver(() => {
       const element: Element | null = root.querySelector(selector);
-      if (element !== null)
+      if (!Object.isNull(element))
         appear(element);
     });
     observer.observe(root, { childList: true, subtree: true });
@@ -127,7 +129,7 @@ export class PaneHost<T> {
 
   public static lastSize(runtime: FakeRuntime): string {
     const sent: unknown = runtime.context.sent(TerminalNames.resizeMethod).at(-1);
-    if (sent === undefined)
+    if (Object.isUndefined(sent))
       return "";
     const size: TerminalResizeParams["size"] = TerminalResizeParams.fromJson(sent).size;
     return `${size.columns}x${size.rows}`;
@@ -139,7 +141,7 @@ export class PaneHost<T> {
 
   public get textarea(): HTMLTextAreaElement {
     const textarea: HTMLTextAreaElement | null = this.element.querySelector("textarea");
-    if (textarea === null)
+    if (Object.isNull(textarea))
       throw new Error("The pane has no terminal yet.");
     return textarea;
   }
@@ -150,7 +152,7 @@ export class PaneHost<T> {
 
   public get screen(): HTMLElement {
     const screen: HTMLElement | null = this.element.querySelector(".xterm-screen");
-    if (screen === null)
+    if (Object.isNull(screen))
       throw new Error("The pane has no terminal yet.");
     return screen;
   }
@@ -183,7 +185,7 @@ export class PaneHost<T> {
   public pointAt(type: string, column: number, row: number, init: MouseEventInit = {}): void {
     const bounds: DOMRect = this.screen.getBoundingClientRect();
     const size: unknown = this.runtime.context.sent(TerminalNames.resizeMethod).at(-1);
-    const columns: number = size === undefined ? 80 : TerminalResizeParams.fromJson(size).size.columns;
+    const columns: number = Object.isUndefined(size) ? 80 : TerminalResizeParams.fromJson(size).size.columns;
     const rows: number = this.element.querySelectorAll(".xterm-rows > div").length;
     const cellWidth: number = bounds.width / columns;
     const cellHeight: number = bounds.height / Math.max(rows, 1);

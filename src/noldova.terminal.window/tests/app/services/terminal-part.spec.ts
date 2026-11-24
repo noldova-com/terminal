@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IWindowPartContext } from "@noldova/desktop.window";
 import { FakeWindowPartContext } from "@noldova/desktop.window/testing";
 import { afterEach, describe, expect, it } from "vitest";
@@ -15,7 +17,7 @@ import { TerminalPart } from "../../../src/app/services/terminal-part.ts";
 describe("TerminalPart", () => {
   afterEach(() => {
     const served: IWindowPartContext | null = TerminalPart.context;
-    if (served !== null)
+    if (!Object.isNull(served))
       TerminalPart.serve(served)();
   });
 

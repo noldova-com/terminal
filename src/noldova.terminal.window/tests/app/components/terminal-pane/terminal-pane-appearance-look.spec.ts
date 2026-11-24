@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TestBed } from "@angular/core/testing";
 import type { JsonValue } from "@noldova/context.json";
 import { TerminalNames, TerminalResizeParams, type TerminalSize } from "@noldova/terminal.protocol";
@@ -52,7 +54,7 @@ describe("TerminalPaneComponent when the appearance changes", () => {
 
   const sizeOf = (shown: PaneHost<TerminalPanelComponent>): { cols: number; rows: number } => {
     const sent: JsonValue | undefined = shown.runtime.context.sent(TerminalNames.resizeMethod).at(-1);
-    const size: TerminalSize | undefined = sent === undefined ? undefined : TerminalResizeParams.fromJson(sent).size;
+    const size: TerminalSize | undefined = Object.isUndefined(sent) ? undefined : TerminalResizeParams.fromJson(sent).size;
     return { cols: size?.columns ?? 0, rows: size?.rows ?? 0 };
   };
 

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TerminalLinePage, TerminalLineRange, type TerminalAttachment, type TerminalSize, type WindowsPty } from "@noldova/terminal.protocol";
 import type { IBuffer, IModes, Terminal } from "@xterm/xterm";
 
@@ -69,11 +71,11 @@ export class TerminalPager {
   }
 
   public type(data: string): void {
-    if (this.waiting !== null) {
+    if (!Object.isNull(this.waiting)) {
       this.waiting.push(() => this.type(data));
       return;
     }
-    if (this.held !== null && this.held.length > 0) {
+    if (!Object.isNull(this.held) && this.held.length > 0) {
       this.held.push(() => this.type(data));
       return;
     }
@@ -87,7 +89,7 @@ export class TerminalPager {
   }
 
   public paste(text: string): void {
-    if (this.waiting !== null)
+    if (!Object.isNull(this.waiting))
       this.waiting.push(() => this.terminal.paste(text));
     else if (!this.isAttached) {
       this.waiting = [() => this.terminal.paste(text)];
@@ -109,7 +111,7 @@ export class TerminalPager {
   }
 
   private async drawNowAsync(drawPagesAsync: ((attachment: TerminalAttachment) => Promise<void>) | null, attachment: TerminalAttachment): Promise<void> {
-    if (drawPagesAsync !== null) {
+    if (!Object.isNull(drawPagesAsync)) {
       try {
         await drawPagesAsync(attachment);
         return;
@@ -141,11 +143,11 @@ export class TerminalPager {
     }
     finally {
       this.isRebuilding = false;
-      if (this.followed !== null)
+      if (!Object.isNull(this.followed))
         this.window.follow(this.followed);
       this.followed = null;
     }
-    if (this.waiting === null)
+    if (Object.isNull(this.waiting))
       return;
     if (this.isAttached)
       this.sendWaiting();
@@ -184,7 +186,7 @@ export class TerminalPager {
       }
       this.window.follow(page.stored);
     }
-    if (attachment !== null)
+    if (!Object.isNull(attachment))
       await this.rebuildAsync(attachment, anchor, 0);
   }
 
@@ -239,7 +241,7 @@ export class TerminalPager {
 
   private async rebuildAsync(attachment: TerminalAttachment | null, anchor: number, offset: number): Promise<void> {
     await this.writeAsync("");
-    if (attachment === null) {
+    if (Object.isNull(attachment)) {
       const modes: string = this.keyModes();
       this.terminal.reset();
       this.writeModes(modes);
@@ -260,7 +262,7 @@ export class TerminalPager {
     }
     if (anchor >= this.window.last)
       anchorRow = this.cursorRow();
-    if (attachment === null)
+    if (Object.isNull(attachment))
       this.isAttached = false;
     else {
       await this.writeAsync(attachment.snapshot + attachment.pending);
@@ -286,7 +288,7 @@ export class TerminalPager {
   }
 
   private sendOrHold(send: () => void): void {
-    if (this.held === null)
+    if (Object.isNull(this.held))
       send();
     else
       this.held.push(send);

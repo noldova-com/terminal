@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { CommandContribution, IWindowPartContext, MenuRowContribution } from "@noldova/desktop.window";
 import { ArgumentException } from "@noldova/context.exceptions";
 import { JsonException, type JsonValue } from "@noldova/context.json";
@@ -38,7 +40,7 @@ import { HeldAnswer } from "../../fixtures/held-answer.fixture.ts";
 import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 
 const PLUS_ROW = menus.groups[0]?.items?.[0];
-const PLUS_ARGUMENTS: Readonly<Record<string, JsonValue>> | undefined = PLUS_ROW !== undefined && "arguments" in PLUS_ROW ? PLUS_ROW.arguments : undefined;
+const PLUS_ARGUMENTS: Readonly<Record<string, JsonValue>> | undefined = !Object.isUndefined(PLUS_ROW) && "arguments" in PLUS_ROW ? PLUS_ROW.arguments : undefined;
 
 describe("TerminalWindowPart", () => {
   const parts: TerminalWindowPart[] = [];
@@ -53,7 +55,7 @@ describe("TerminalWindowPart", () => {
     for (const part of parts.splice(0))
       await part.deactivateAsync();
     const served: IWindowPartContext | null = TerminalPart.context;
-    if (served !== null)
+    if (!Object.isNull(served))
       TerminalPart.serve(served)();
   });
 

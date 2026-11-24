@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { FocusTrapFactory, type FocusTrap } from "@angular/cdk/a11y";
 import { ErrorHandler, type Provider } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
@@ -48,7 +50,7 @@ function dock(host: PaneHost<TerminalSessionComponent>, side: DockSide | null): 
 
 function lastSize(host: PaneHost<TerminalSessionComponent>): TerminalSize | undefined {
   const sent: unknown = host.runtime.context.sent(TerminalNames.resizeMethod).at(-1);
-  return sent === undefined ? undefined : TerminalResizeParams.fromJson(sent).size;
+  return Object.isUndefined(sent) ? undefined : TerminalResizeParams.fromJson(sent).size;
 }
 
 function addField(): HTMLInputElement {
@@ -213,7 +215,7 @@ describe("TerminalSessionComponent", () => {
     host.runtime.exit = new TerminalExit(0, EndedBy.Exit);
     await host.attachedAsync();
 
-    await vi.waitFor(() => expect([host.element.querySelector(".nol-terminal-pane-ended") === null, host.element.querySelector(".nol-terminal-pane-ended button")]).toEqual([false, null]), SOON);
+    await vi.waitFor(() => expect([Object.isNull(host.element.querySelector(".nol-terminal-pane-ended")), host.element.querySelector(".nol-terminal-pane-ended button")]).toEqual([false, null]), SOON);
     expect(host.element.querySelector(".nol-terminal-pane-ended")?.textContent).toContain("The shell exited with code 0.");
   });
 
@@ -222,7 +224,7 @@ describe("TerminalSessionComponent", () => {
     host.runtime.context.handlers.set(TerminalNames.sessionsMethod, async () => { throw FakeRuntime.refusal("the runtime is restarting"); });
     await host.attachedAsync();
 
-    await vi.waitFor(() => expect([host.runtime.context.sent(TerminalNames.sessionsMethod).length, lastSize(host) === undefined]).toEqual([1, false]), SOON);
+    await vi.waitFor(() => expect([host.runtime.context.sent(TerminalNames.sessionsMethod).length, Object.isUndefined(lastSize(host))]).toEqual([1, false]), SOON);
     await host.settleAsync();
     expect(tabMenuTarget()?.canRestart()).toBe(false);
     expect(host.runtime.context.logs).toEqual(["terminal.sessions failed: the runtime is restarting"]);
@@ -241,7 +243,7 @@ describe("TerminalSessionComponent", () => {
       return new TerminalSessions(host.runtime.sessions).toJson();
     });
     await host.attachedAsync();
-    await vi.waitFor(() => expect([host.runtime.context.sent(TerminalNames.sessionsMethod).length, lastSize(host) === undefined]).toEqual([1, false]), SOON);
+    await vi.waitFor(() => expect([host.runtime.context.sent(TerminalNames.sessionsMethod).length, Object.isUndefined(lastSize(host))]).toEqual([1, false]), SOON);
 
     expect(tabMenuTarget()?.canRestart()).toBe(false);
     answer();

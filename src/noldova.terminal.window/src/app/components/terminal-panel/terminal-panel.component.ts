@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { LiveAnnouncer } from "@angular/cdk/a11y";
 import { Component, DestroyRef, effect, ElementRef, ErrorHandler, inject, signal, untracked, viewChild, type Signal, type WritableSignal } from "@angular/core";
 import { WindowPartTokens, type IWindowPartContext } from "@noldova/desktop.window";
@@ -66,7 +68,7 @@ export class TerminalPanelComponent implements ITerminalRestartTarget, ITerminal
 
   public async showAsync(): Promise<boolean> {
     const pane: TerminalPaneComponent | undefined = this.pane();
-    if (pane === undefined)
+    if (Object.isUndefined(pane))
       return false;
     if (!untracked(this.shown))
       this.context.showView(Resources.panelView);
@@ -79,7 +81,7 @@ export class TerminalPanelComponent implements ITerminalRestartTarget, ITerminal
   }
 
   public canRestart(): boolean {
-    return untracked(this.failure) !== null || (this.pane()?.size ?? null) !== null;
+    return !Object.isNull(untracked(this.failure)) || !Object.isNull((this.pane()?.size ?? null));
   }
 
   public async restartAsync(): Promise<void> {
@@ -96,7 +98,7 @@ export class TerminalPanelComponent implements ITerminalRestartTarget, ITerminal
       return;
     this.isRestarting = true;
     const ended: string | null = this.sessionId();
-    await this.runAsync(() => ended === null ? this.client.openAsync(null, null, true) : this.client.restartAsync(ended, size, true)).finally(() => {
+    await this.runAsync(() => Object.isNull(ended) ? this.client.openAsync(null, null, true) : this.client.restartAsync(ended, size, true)).finally(() => {
       this.isRestarting = false;
     });
   }

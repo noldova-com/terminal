@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { LiveAnnouncer } from "@angular/cdk/a11y";
 import {
   afterNextRender,
@@ -120,7 +122,7 @@ export class TerminalPaneComponent {
   public readonly titleChanged: OutputEmitterRef<string> = output<string>();
   public readonly cwdChanged: OutputEmitterRef<string> = output<string>();
   public readonly restartRequested: OutputEmitterRef<TerminalSize> = output<TerminalSize>();
-  public readonly hasEnded: Signal<boolean> = computed(() => this.ended() !== null);
+  public readonly hasEnded: Signal<boolean> = computed(() => !Object.isNull(this.ended()));
   public readonly drawnRows: Signal<number> = this.drawn.asReadonly();
   public readonly rowHeight: Signal<number> = this.height.asReadonly();
   public readonly isFullScreen: Signal<boolean> = this.fullScreen.asReadonly();
@@ -136,7 +138,7 @@ export class TerminalPaneComponent {
   }
 
   public get size(): TerminalSize | null {
-    return this.terminal === undefined ? null : new TerminalSize(this.terminal.cols, this.terminal.rows);
+    return Object.isUndefined(this.terminal) ? null : new TerminalSize(this.terminal.cols, this.terminal.rows);
   }
 
   public focus(): void {
@@ -145,7 +147,7 @@ export class TerminalPaneComponent {
   }
 
   public focusWhenShown(): void {
-    if (this.terminal !== undefined && untracked(this.shown))
+    if (!Object.isUndefined(this.terminal) && untracked(this.shown))
       this.terminal.focus();
     else
       this.isFocusWanted = true;
@@ -399,7 +401,7 @@ export class TerminalPaneComponent {
   private reset(terminal: Terminal, fitter: PaneFitter, size: TerminalSize, windowsPty: WindowsPty | null): void {
     terminal.reset();
     terminal.options.disableStdin = false;
-    terminal.options.windowsPty = windowsPty === null ? {} : { backend: Resources.conptyBackend, buildNumber: windowsPty.buildNumber };
+    terminal.options.windowsPty = Object.isNull(windowsPty) ? {} : { backend: Resources.conptyBackend, buildNumber: windowsPty.buildNumber };
     terminal.resize(size.columns, size.rows);
     this.ended.set(null);
     fitter.requestReport();
@@ -441,7 +443,7 @@ export class TerminalPaneComponent {
   }
 
   private resize(connection: TerminalConnection, size: TerminalSize): void {
-    if (this.ended() === null)
+    if (Object.isNull(this.ended()))
       connection.resize(size);
   }
 
@@ -464,7 +466,7 @@ export class TerminalPaneComponent {
   }
 
   private startInput(suggestion: CommandSuggestion, coloring: CommandColoring, input: TerminalInputStart | null): void {
-    if (input === null) {
+    if (Object.isNull(input)) {
       suggestion.endInput();
       coloring.endInput();
     }
@@ -490,7 +492,7 @@ export class TerminalPaneComponent {
   }
 
   private chooseFontSize(value: JsonValue): void {
-    this.fontSize = typeof value === "number" ? value : Resources.defaultFontSize;
+    this.fontSize = Object.isNumber(value) ? value : Resources.defaultFontSize;
     this.restyleTerminal?.();
   }
 
@@ -506,7 +508,7 @@ export class TerminalPaneComponent {
     if (completions.take(event))
       return false;
     const rest: string | null = suggestion.take(event);
-    if (rest !== null) {
+    if (!Object.isNull(rest)) {
       event.preventDefault();
       type(rest);
       return false;

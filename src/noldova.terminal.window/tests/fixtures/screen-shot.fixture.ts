@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { page } from "vitest/browser";
 
 export class ScreenShot {
@@ -32,7 +34,7 @@ export class ScreenShot {
     const bitmap: ImageBitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${shot.base64}`)).blob());
     const canvas: OffscreenCanvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context: OffscreenCanvasRenderingContext2D | null = canvas.getContext("2d");
-    if (context === null)
+    if (Object.isNull(context))
       throw new Error(`The browser gave no 2d context to read the screenshot ${path}.`);
     context.drawImage(bitmap, 0, 0);
     return new ScreenShot(box, bitmap.width, context.getImageData(0, 0, bitmap.width, bitmap.height).data);

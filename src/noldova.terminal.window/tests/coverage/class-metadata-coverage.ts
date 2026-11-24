@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IVitestPlugin } from "./interfaces/i-vitest-plugin.ts";
 import type { IVitestPluginContext } from "./interfaces/i-vitest-plugin-context.ts";
 import { MarkedModule } from "./marked-module.ts";
@@ -15,7 +17,7 @@ export class ClassMetadataCoverage implements IVitestPlugin {
   private static readonly LINE_BREAK: string = "\n";
   private static readonly OPENING: string = "(() => {";
   private static readonly CLOSING: string = "})();";
-  private static readonly CALL: RegExp = /^[\t ]+\(typeof ngDevMode === "undefined" \|\| ngDevMode\) && i\d+\.(?:ɵ|\\u0275)setClassMetadata\(([A-Za-z_$][\w$]*), /u;
+  private static readonly CALL: RegExp = /^[\t ]+\(Object.isUndefined(ngDevMode) \|\| ngDevMode\) && i\d+\.(?:ɵ|\\u0275)setClassMetadata\(([A-Za-z_$][\w$]*), /u;
   private static readonly HINT: string = " /* v8 ignore next */";
 
   private readonly ignored: Map<string, readonly string[]> = new Map();
@@ -35,7 +37,7 @@ export class ClassMetadataCoverage implements IVitestPlugin {
     const classes: string[] = [];
     for (let index: number = 0; index < lines.length; index++) {
       const name: string | undefined = this.classAt(lines, index);
-      if (name === undefined)
+      if (Object.isUndefined(name))
         continue;
       lines[index] += ClassMetadataCoverage.HINT;
       classes.push(name);

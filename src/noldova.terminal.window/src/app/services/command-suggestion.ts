@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources as ProtocolResources } from "@noldova/terminal.protocol";
 import type { IBuffer, IBufferLine, IDecoration, IDisposable, IMarker, Terminal } from "@xterm/xterm";
 
@@ -66,7 +68,7 @@ export class CommandSuggestion {
     const isNormal: boolean = this.terminal.buffer.active.type !== Resources.alternateBuffer;
     this.start = isNormal ? this.terminal.registerMarker(-rowsAbove) : null;
     this.startColumn = column;
-    this.rightPrompt = isNormal && rightPrompt !== null ? this.terminal.registerMarker(-rowsAbove) : null;
+    this.rightPrompt = isNormal && !Object.isNull(rightPrompt) ? this.terminal.registerMarker(-rowsAbove) : null;
     this.rightPromptColumn = rightPrompt ?? 0;
     this.update();
   }
@@ -74,7 +76,7 @@ export class CommandSuggestion {
   public markRightPrompt(): void {
     const start: IMarker | null = this.start;
     const buffer: IBuffer = this.terminal.buffer.active;
-    if (start === null || start.isDisposed || buffer.baseY + buffer.cursorY !== start.line)
+    if (Object.isNull(start) || start.isDisposed || buffer.baseY + buffer.cursorY !== start.line)
       return;
     this.rightPrompt?.dispose();
     this.rightPrompt = this.terminal.registerMarker(0);
@@ -92,7 +94,7 @@ export class CommandSuggestion {
 
   public take(event: KeyboardEvent): string | null {
     const rest: string | null = this.shown;
-    if (rest === null || event.isComposing || event.key === Resources.composingKey || event.type !== Resources.keyDownEvent
+    if (Object.isNull(rest) || event.isComposing || event.key === Resources.composingKey || event.type !== Resources.keyDownEvent
       || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !Resources.suggestionKeys.includes(event.key))
       return null;
     this.hold(rest);
@@ -106,7 +108,7 @@ export class CommandSuggestion {
   public readTyped(): string | null {
     const start: IMarker | null = this.start;
     const buffer: IBuffer = this.terminal.buffer.active;
-    if (start === null || start.isDisposed || buffer.type === Resources.alternateBuffer)
+    if (Object.isNull(start) || start.isDisposed || buffer.type === Resources.alternateBuffer)
       return null;
     return CommandSuggestion.readBetween(buffer, start.line, this.startColumn, buffer.baseY + buffer.cursorY, buffer.cursorX);
   }
@@ -125,7 +127,7 @@ export class CommandSuggestion {
 
   private hold(input: string): void {
     const typed: string | null = this.isHeld ? this.expected : this.readTyped();
-    this.expected = typed !== null && Resources.plainInput.test(input) ? typed + input : null;
+    this.expected = !Object.isNull(typed) && Resources.plainInput.test(input) ? typed + input : null;
     this.isHeld = true;
     this.isQuiet = false;
     this.isLost = false;
@@ -155,7 +157,7 @@ export class CommandSuggestion {
       return false;
     const typed: string | null = this.readTyped();
     const expected: string | null = this.expected;
-    this.isHeld = typed !== expected && !((this.isQuiet || this.isLost) && (typed === null || expected?.startsWith(typed) !== true));
+    this.isHeld = typed !== expected && !((this.isQuiet || this.isLost) && (Object.isNull(typed) || expected?.startsWith(typed) !== true));
     return this.isHeld;
   }
 
@@ -168,22 +170,22 @@ export class CommandSuggestion {
     if (rest === this.shown && at === this.shownAt)
       return;
     this.hide();
-    if (rest !== null)
+    if (!Object.isNull(rest))
       this.show(rest, written - buffer.cursorX, at);
   }
 
   private find(row: number, written: number): string | null {
     const typed: string | null = this.readTyped();
-    if (typed === null || typed.trim().length === 0 || written === -1 || written === this.terminal.buffer.active.cursorX
+    if (Object.isNull(typed) || typed.trim().length === 0 || written === -1 || written === this.terminal.buffer.active.cursorX
       || written < this.findRightPrompt(row))
       return null;
     const command: string | undefined = this.commands.find(t => t.length > typed.length && t.startsWith(typed));
-    return command === undefined ? null : command.slice(typed.length);
+    return Object.isUndefined(command) ? null : command.slice(typed.length);
   }
 
   private findRightPrompt(row: number): number {
     const marker: IMarker | null = this.rightPrompt;
-    return marker !== null && !marker.isDisposed && marker.line === row ? this.rightPromptColumn : this.terminal.cols;
+    return !Object.isNull(marker) && !marker.isDisposed && marker.line === row ? this.rightPromptColumn : this.terminal.cols;
   }
 
   private show(rest: string, room: number, at: string): void {
@@ -191,7 +193,7 @@ export class CommandSuggestion {
     const characters: string[] = [...rest].slice(0, room);
     const marker: IMarker = this.terminal.registerMarker(0);
     const decoration: IDecoration | undefined = this.terminal.registerDecoration({ marker, x: buffer.cursorX, width: characters.length, layer: Resources.suggestionDecorationLayer });
-    if (decoration === undefined) {
+    if (Object.isUndefined(decoration)) {
       marker.dispose();
       return;
     }
@@ -231,7 +233,7 @@ export class CommandSuggestion {
     let text: string = "";
     for (let index: number = row; index <= cursorRow; index++) {
       const line: IBufferLine | undefined = buffer.getLine(index);
-      if (line === undefined || index > row && !line.isWrapped)
+      if (Object.isUndefined(line) || index > row && !line.isWrapped)
         return null;
       text += line.translateToString(false, index === row ? column : 0, index === cursorRow ? cursorColumn : undefined);
     }
@@ -242,7 +244,7 @@ export class CommandSuggestion {
     let written: number = -1;
     for (let index: number = row; ; index++) {
       const line: IBufferLine | undefined = buffer.getLine(index);
-      if (line === undefined || index > row && !line.isWrapped)
+      if (Object.isUndefined(line) || index > row && !line.isWrapped)
         return written;
       const text: string = line.translateToString(false, index === row ? column : 0);
       const found: number = text.search(Resources.nonBlankPattern);

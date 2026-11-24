@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TestBed } from "@angular/core/testing";
 import { Resources as ProtocolResources, TerminalInputEdge, TerminalInputMark, TerminalNames } from "@noldova/terminal.protocol";
 import { AppearanceService, ModePreference, Typography } from "@noldova/ui.components.angular";
@@ -31,8 +33,8 @@ describe("TerminalPaneComponent's suggestion of an earlier command", () => {
   const paneOf = (shown: PaneHost<TerminalPanelComponent>): HTMLElement => shown.element.querySelector<HTMLElement>("nol-terminal-pane") ?? shown.element;
   const sizeOf = (shown: PaneHost<TerminalPanelComponent>): { cols: number; rows: number } => {
     const size: unknown = shown.runtime.context.sent(TerminalNames.resizeMethod).at(-1);
-    return typeof size === "object" && size !== null && "size" in size && typeof size.size === "object" && size.size !== null
-      && "cols" in size.size && "rows" in size.size && typeof size.size.cols === "number" && typeof size.size.rows === "number"
+    return Object.isObject(size) && "size" in size && Object.isObject(size.size)
+      && "cols" in size.size && "rows" in size.size && Object.isNumber(size.size.cols) && Object.isNumber(size.size.rows)
       ? { cols: size.size.cols, rows: size.size.rows } : { cols: 0, rows: 0 };
   };
   const shownOf = (shown: PaneHost<TerminalPanelComponent>): HTMLElement | null => shown.element.querySelector<HTMLElement>(`.${Resources.suggestionClass}`);
@@ -67,7 +69,7 @@ describe("TerminalPaneComponent's suggestion of an earlier command", () => {
     const shown: PaneHost<TerminalPanelComponent> = await openAsync(mode);
     const element: HTMLElement | null = shownOf(shown);
     expect(element).not.toBeNull();
-    if (element === null)
+    if (Object.isNull(element))
       return;
 
     const screen: DOMRect = shown.screen.getBoundingClientRect();

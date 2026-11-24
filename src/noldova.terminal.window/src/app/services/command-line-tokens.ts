@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources } from "../../resources.ts";
 import { CommandTokenKind } from "../enums/command-token-kind.ts";
 import { CommandToken } from "../models/command-token.ts";
@@ -116,7 +118,7 @@ export class CommandLineTokens {
           afterRepeat = startsRepeat;
           inLoopNames = startsLoop || inLoopNames && word !== Resources.loopListKeyword;
         }
-        expectsOptionValue = !expectsTarget && !expectsOptionValue && afterModifier && modifier !== null
+        expectsOptionValue = !expectsTarget && !expectsOptionValue && afterModifier && !Object.isNull(modifier)
           && Resources.precommandValueOptions.get(modifier)?.includes(word) === true;
         expectsTarget = false;
         afterBrace = isZsh && word === Resources.blockEnd;
@@ -131,7 +133,7 @@ export class CommandLineTokens {
     if (delimiters.length === 0)
       return start;
     let lineStart: number = start;
-    for (let open: [string, boolean] | undefined = delimiters[0]; open !== undefined && lineStart < text.length; open = delimiters[0]) {
+    for (let open: [string, boolean] | undefined = delimiters[0]; !Object.isUndefined(open) && lineStart < text.length; open = delimiters[0]) {
       const found: number = text.indexOf(Resources.commandLineBreak, lineStart);
       const lineEnd: number = found === -1 ? text.length : found;
       const line: string = text.slice(lineStart, lineEnd);
@@ -271,7 +273,7 @@ export class CommandLineTokens {
       const kind: CommandTokenKind | null | undefined = kinds[start];
       if (index < kinds.length && kinds[index] === kind)
         continue;
-      if (kind !== null && kind !== undefined)
+      if (!Object.isNull(kind) && !Object.isUndefined(kind))
         tokens.push(new CommandToken(start, index, kind));
       start = index;
     }

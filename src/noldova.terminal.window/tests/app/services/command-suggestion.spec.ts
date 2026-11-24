@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Terminal, type IMarker, type ITheme } from "@xterm/xterm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -34,7 +36,7 @@ describe("CommandSuggestion", () => {
 
   async function restAsync(): Promise<string | null> {
     const rest: string | null = suggestion.take(keyDown("End"));
-    if (rest !== null) {
+    if (!Object.isNull(rest)) {
       await writeAsync(`\u001b7${rest}`);
       await writeAsync("\u001b8\u001b[J");
     }
@@ -96,7 +98,7 @@ describe("CommandSuggestion", () => {
     const screen: HTMLElement | null = host.querySelector<HTMLElement>(".xterm-screen");
     expect(element).not.toBeNull();
     expect(screen).not.toBeNull();
-    if (element === null || screen === null)
+    if (Object.isNull(element) || Object.isNull(screen))
       return;
     const drawn: DOMRect = screen.getBoundingClientRect();
     const cellWidth: number = drawn.width / terminal.cols;

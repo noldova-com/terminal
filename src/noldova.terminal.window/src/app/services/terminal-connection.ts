@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonValue } from "@noldova/context.json";
 import type { IWindowPartContext } from "@noldova/desktop.window";
 import { TerminalAckParams, TerminalAttachment, TerminalCommandAdded, TerminalCwd, TerminalExited, TerminalInputParams, TerminalLinePage, TerminalLinesParams, TerminalNames, TerminalOutput, TerminalPaneReference, TerminalReference, TerminalResizeParams, TerminalTitle, TerminalVisibilityParams, type TerminalExit, type TerminalSize } from "@noldova/terminal.protocol";
@@ -70,7 +72,7 @@ export class TerminalConnection {
       if (!this.isGone())
         this.send(TerminalNames.visibilityMethod, new TerminalVisibilityParams(this.sessionId, this.paneId, isVisible).toJson());
     }
-    else if (isVisible && this.buffered === null)
+    else if (isVisible && Object.isNull(this.buffered))
       void this.attachAsync();
   }
 
@@ -157,7 +159,7 @@ export class TerminalConnection {
     for (const command of addedCommands)
       this.sink.addCommand(command);
     this.sink.showTitle(attachment.title);
-    if (attachment.cwd !== null)
+    if (!Object.isNull(attachment.cwd))
       this.sink.showCwd(attachment.cwd);
     const heldExit: TerminalExit | null = this.heldExit;
     const isRunningHeld: boolean = this.isRunningHeld;
@@ -165,11 +167,11 @@ export class TerminalConnection {
     this.isRunningHeld = false;
     this.expected = attachment.offset;
     this.isAttached = true;
-    if (heldExit !== null)
+    if (!Object.isNull(heldExit))
       this.sink.showExit(heldExit);
     else if (isRunningHeld)
       this.sink.showRunning();
-    else if (attachment.exit !== null)
+    else if (!Object.isNull(attachment.exit))
       this.sink.showExit(attachment.exit);
     this.send(TerminalNames.visibilityMethod, new TerminalVisibilityParams(this.sessionId, this.paneId, this.isVisible).toJson());
     for (const output of buffered)
@@ -194,7 +196,7 @@ export class TerminalConnection {
   private accept(output: TerminalOutput): void {
     if (output.sessionId !== this.sessionId)
       return;
-    if (this.buffered !== null) {
+    if (!Object.isNull(this.buffered)) {
       this.buffered.push(output);
       return;
     }
@@ -223,7 +225,7 @@ export class TerminalConnection {
   private addCommand(added: TerminalCommandAdded): void {
     if (added.sessionId !== this.sessionId)
       return;
-    if (this.addedCommands === null)
+    if (Object.isNull(this.addedCommands))
       this.sink.addCommand(added.command);
     else
       this.addedCommands.push(added.command);
@@ -232,7 +234,7 @@ export class TerminalConnection {
   private showExit(exited: TerminalExited): void {
     if (exited.sessionId !== this.sessionId)
       return;
-    if (this.buffered === null)
+    if (Object.isNull(this.buffered))
       this.sink.showExit(exited.exit);
     else {
       this.heldExit = exited.exit;
@@ -243,7 +245,7 @@ export class TerminalConnection {
   private showRunning(reference: TerminalReference): void {
     if (reference.sessionId !== this.sessionId)
       return;
-    if (this.buffered !== null) {
+    if (!Object.isNull(this.buffered)) {
       this.heldExit = null;
       this.isRunningHeld = true;
     }

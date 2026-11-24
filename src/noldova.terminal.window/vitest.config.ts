@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vitest/config";
@@ -24,7 +26,7 @@ export default defineConfig({
       config: {
         order: "post",
         handler: config => {
-          if (config.optimizeDeps?.include !== undefined)
+          if (!Object.isUndefined(config.optimizeDeps?.include))
             config.optimizeDeps.include = config.optimizeDeps.include.filter(t => !workspacePackages.includes(t));
         }
       }

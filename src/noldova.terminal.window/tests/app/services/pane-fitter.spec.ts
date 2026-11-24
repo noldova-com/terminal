@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { TerminalSize } from "@noldova/terminal.protocol";
 import { FitAddon, type ITerminalDimensions } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
@@ -51,7 +53,7 @@ class FitHarness {
 
   public proposed(): ITerminalDimensions {
     const proposed: ITerminalDimensions | undefined = this.fit.proposeDimensions();
-    if (proposed === undefined)
+    if (Object.isUndefined(proposed))
       throw new Error("The fit proposed no size for the sized host.");
     return proposed;
   }

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TerminalRunOutcome, TerminalShellKind, TerminalTextStyle, type TerminalCompletionKind } from "@noldova/terminal.protocol";
 import type { IFunctionIdentifier } from "@xterm/xterm";
 
@@ -412,7 +414,7 @@ export class Resources {
   }
 
   public static formatExit(exitCode: number | null): string {
-    return exitCode === null ? Resources.ended : `The shell exited with code ${exitCode}.`;
+    return Object.isNull(exitCode) ? Resources.ended : `The shell exited with code ${exitCode}.`;
   }
 
   public static formatCloseFailed(error: unknown): string {

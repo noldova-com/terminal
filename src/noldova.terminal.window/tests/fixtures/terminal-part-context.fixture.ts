@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { signal, type WritableSignal } from "@angular/core";
 import type { JsonValue } from "@noldova/context.json";
 import { QualifiedName, SettingEntry } from "@noldova/desktop.protocol";
@@ -156,13 +158,13 @@ export class TerminalPartContext extends FakeWindowPartContext {
       this.links.push(url);
       this.linkGestures.push(options?.gesture);
       this.linkPlaces.push(options?.place ?? this.inAppBrowser?.placeFor(url, options?.gesture ?? LinkGesture.Plain) ?? LinkPlace.System);
-      if (this.linkFailure !== null)
+      if (!Object.isNull(this.linkFailure))
         throw this.linkFailure;
     });
     this.answer("requestAsync", async (method, parameters) => {
       this.requests.push(new SentRequest(method, parameters));
       const handlerAsync: ((parameters: JsonValue) => Promise<JsonValue>) | undefined = this.handlers.get(method);
-      if (handlerAsync === undefined)
+      if (Object.isUndefined(handlerAsync))
         throw new UnansweredCallException(`requestAsync(${method})`);
       return handlerAsync(parameters);
     });
@@ -170,15 +172,15 @@ export class TerminalPartContext extends FakeWindowPartContext {
 
   public entryOf(name: string): SettingEntry {
     const value: JsonValue | undefined = this.settings.get(name);
-    return new SettingEntry(QualifiedName.parse(name), value ?? TerminalPartContext.defaultOf(name), value !== undefined);
+    return new SettingEntry(QualifiedName.parse(name), value ?? TerminalPartContext.defaultOf(name), !Object.isUndefined(value));
   }
 
   public changeSetting(name: string, value: JsonValue | undefined): void {
-    if (value === undefined)
+    if (Object.isUndefined(value))
       this.settings.delete(name);
     else
       this.settings.set(name, value);
-    this.raiseSettingChanged(name, value ?? TerminalPartContext.defaultOf(name), null, value !== undefined);
+    this.raiseSettingChanged(name, value ?? TerminalPartContext.defaultOf(name), null, !Object.isUndefined(value));
   }
 
   public closeTab(name: string, instance: string): void {
@@ -202,17 +204,17 @@ export class TerminalPartContext extends FakeWindowPartContext {
   }
 
   private requireOwn(name: string): void {
-    if (this.moduleId !== null && !name.startsWith(`${this.moduleId}.`))
+    if (!Object.isNull(this.moduleId) && !name.startsWith(`${this.moduleId}.`))
       throw new Error(`TerminalPartContext's own guard for Noldova Desktop's ForeignNameException: the module ${this.moduleId} may contribute only names of its own, not ${name}.`);
   }
 
   private static tabOf(name: string, instance: string | undefined): string {
-    return instance === undefined ? name : `${name}/${instance}`;
+    return Object.isUndefined(instance) ? name : `${name}/${instance}`;
   }
 
   private static defaultOf(name: string): JsonValue {
     const value: JsonValue | undefined = TerminalPartContext.defaults.get(name);
-    if (value === undefined)
+    if (Object.isUndefined(value))
       throw new UnansweredCallException(`the default of the setting ${name}`);
     return value;
   }
