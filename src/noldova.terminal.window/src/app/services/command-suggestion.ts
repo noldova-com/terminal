@@ -92,8 +92,8 @@ export class CommandSuggestion {
 
   public take(event: KeyboardEvent): string | null {
     const rest: string | null = this.shown;
-    if (rest === null || event.type !== Resources.keyDownEvent || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey
-      || !Resources.suggestionKeys.includes(event.key))
+    if (rest === null || event.isComposing || event.key === Resources.composingKey || event.type !== Resources.keyDownEvent
+      || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !Resources.suggestionKeys.includes(event.key))
       return null;
     this.hold(rest);
     return rest;

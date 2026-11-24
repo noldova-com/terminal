@@ -437,6 +437,15 @@ describe("CommandSuggestion", () => {
     await writeAsync("\b\b\b\b\b\b\u001b[K");
     expect(suggestion.take(keyDown("ArrowRight"))).toBe("status");
   });
+
+  it("leaves the keys an input method composes with to it, and gives the rest once the composition ends", async () => {
+    open(40);
+    await promptAsync();
+    await writeAsync("git st");
+    const composing: readonly KeyboardEvent[] = [keyDown("ArrowRight", { isComposing: true }), keyDown("End", { isComposing: true }), keyDown("Process")];
+
+    expect([composing.map(t => suggestion.take(t)), suggestion.take(keyDown("End"))]).toEqual([[null, null, null], "atus"]);
+  });
 });
 
 describe("CommandSuggestion's fake timers", () => {
