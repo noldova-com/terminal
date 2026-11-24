@@ -48,6 +48,10 @@ export class VersionRange {
     return index === undefined ? 0 : (a?.[index] ?? 0) - (b?.[index] ?? 0);
   }
 
+  public get isStandard(): boolean {
+    return this.refused === VersionRange.from(this.lowest).refused;
+  }
+
   public includes(version: string): boolean {
     return VersionRange.compare(this.lowest, version) <= 0 && VersionRange.compare(version, this.refused) < 0;
   }
