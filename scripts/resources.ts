@@ -140,8 +140,8 @@ export class Resources {
   public static readonly packagePeersInvalid: string = `The package's manifest's ${Resources.peersField} must be an object.`;
   public static readonly packagePrivate: string = "The package's manifest must not be private: the module ships as published packages.";
   public static readonly desktopCoreInvalid: string = "module.json's noldovaDesktop must be >=<lowest> <first refused>, from the Noldova Desktop version the module builds against to the next minor below 1.0, or the next major from 1.0.";
-  public static readonly rangeAlternative: string = " or a range of the form >=<lowest> <first refused>";
-  public static readonly peerRangeAlternative: string = ", or a range of the form >=<lowest> <first refused>,";
+  public static readonly rangeAlternative: string = " or a range of the form >=<lowest> <first refused>, where the first refused is the next minor below 1.0 and the next major from 1.0";
+  public static readonly peerRangeAlternative: string = ", or a range of the form >=<lowest> <first refused>, where the first refused is the next minor below 1.0 and the next major from 1.0,";
   public static readonly angularForm: string = "a range of the form >=<the Angular it builds with> <the next major>";
   public static readonly nothingText: string = "nothing";
   public static readonly missingText: string = "missing";

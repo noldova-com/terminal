@@ -173,7 +173,7 @@ export class ArchiveCheck {
           continue;
         }
         const isRanged = field === Resources.peersField && VersionRange.isRanged(name);
-        if (typeof pin !== "string" || !(Resources.archivePinPattern.test(pin) || (isRanged && VersionRange.parse(pin) !== null)))
+        if (typeof pin !== "string" || !(Resources.archivePinPattern.test(pin) || (isRanged && VersionRange.parse(pin)?.isStandard === true)))
           findings.push(Resources.formatArchivePinInvalid(archiveName, name, pin, field, isRanged));
       }
     }

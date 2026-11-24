@@ -175,7 +175,7 @@ class DeclarationCheck {
         if (desktopCore !== null && text !== desktopCore.toString())
           this.problems.push(Resources.formatPackageCorePeerDiffers(name, desktopCore.toString()));
       }
-      else if (!Resources.declarationPinPattern.test(text) && !(VersionRange.isRanged(name) && VersionRange.parse(text) !== null))
+      else if (!Resources.declarationPinPattern.test(text) && !(VersionRange.isRanged(name) && VersionRange.parse(text)?.isStandard === true))
         this.problems.push(Resources.formatPackagePeerPinInvalid(name, VersionRange.isRanged(name)));
     }
   }
