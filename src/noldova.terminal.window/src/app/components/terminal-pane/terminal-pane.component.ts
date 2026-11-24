@@ -410,8 +410,15 @@ export class TerminalPaneComponent {
 
   private run(terminal: Terminal, connection: TerminalConnection): void {
     terminal.options.disableStdin = false;
+    this.keepFocusInPane(terminal);
     this.ended.set(null);
     connection.resize(new TerminalSize(terminal.cols, terminal.rows));
+  }
+
+  private keepFocusInPane(terminal: Terminal): void {
+    const active: Element | null = document.activeElement;
+    if (this.host.contains(active) && !this.screen().nativeElement.contains(active))
+      terminal.focus();
   }
 
   private measure(terminal: Terminal, drawnScreens: NodeListOf<Element>): void {
