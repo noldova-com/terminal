@@ -5,6 +5,9 @@
  * This source code is licensed under the license found in the
  * LICENSE file in the root directory of this source tree.
  */
+
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { constants } from "node:os";
 
@@ -99,7 +102,7 @@ describe("ContextPtyProcess", () => {
           throw new Error(`The listener failed on ${t}.`);
         output.push(t);
       });
-      for (let task: (() => void) | undefined = tasks.shift(); task !== undefined; task = tasks.shift())
+      for (let task: (() => void) | undefined = tasks.shift(); !Object.isUndefined(task); task = tasks.shift())
         try {
           task();
         }

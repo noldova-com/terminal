@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -25,7 +27,7 @@ import { SessionRecorder } from "../fixtures/session-recorder.fixture.ts";
 const SIGNAL: AbortSignal = new AbortController().signal;
 
 function mark(kind: string, value?: string): string {
-  return `\u001b]6973;${kind};n1${value === undefined ? "" : `;${value}`}\u0007`;
+  return `\u001b]6973;${kind};n1${Object.isUndefined(value) ? "" : `;${value}`}\u0007`;
 }
 
 class CommandFixture {

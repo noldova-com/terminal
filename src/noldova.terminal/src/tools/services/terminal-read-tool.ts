@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { type IToolDescriptor, type ToolResult, ToolRisk } from "@noldova/desktop.runtime";
 
 import { Resources } from "../../resources.ts";
@@ -59,7 +61,7 @@ export class TerminalReadTool extends TerminalTool<TerminalReadInput> {
     const cursor: ReadCursor = this.cursors.find(context.agentSessionId, input.terminalId) ?? ReadCursor.forTerminal(access.terminal, 0);
     await cursor.source.waitForOutputAsync(cursor.offset, input.waitMilliseconds, context.signal);
     const chunk: OutputChunk = cursor.source.readSince(cursor.offset);
-    const cwd: string | null = cursor.command === null ? access.terminal.readPrompt().cwd : cursor.command.cwd;
+    const cwd: string | null = Object.isNull(cursor.command) ? access.terminal.readPrompt().cwd : cursor.command.cwd;
     const report: TerminalOutputReport = new TerminalOutputReport(access, cursor.command, OutputExcerpt.of(chunk, input.maximumCharacters), cwd);
     if (context.signal.aborted)
       throw TerminalTool.failEndedCall(Resources.readToolName, cursor.command, report, context.signal);

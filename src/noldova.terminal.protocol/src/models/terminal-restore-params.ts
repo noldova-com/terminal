@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonObject } from "@noldova/context.json";
 
 import { Resources } from "../resources.ts";
@@ -19,7 +21,7 @@ export class TerminalRestoreParams {
   public readonly storedLimit: number;
 
   public constructor(size: TerminalSize, shellId: string | null = null, storedLimit: number = Resources.defaultStoredLimit) {
-    if (shellId !== null)
+    if (!Object.isNull(shellId))
       ArgumentValidator.requireIdentifier(Resources.shellIdField, shellId);
     ArgumentValidator.requireIntegerInRange(Resources.storedLimitField, storedLimit, Resources.minimumStoredLimit, Resources.maximumStoredLimit);
 

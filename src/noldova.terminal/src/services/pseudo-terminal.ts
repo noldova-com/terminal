@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { ForegroundProcess } from "@noldova/desktop.runtime";
 import type { TerminalSize } from "@noldova/terminal.protocol";
 
@@ -139,6 +141,6 @@ export class PseudoTerminal {
   }
 
   private static toExitCode(event: IPtyExitEvent): number | null {
-    return event.signal === undefined || event.signal === 0 ? event.exitCode ?? null : null;
+    return Object.isUndefined(event.signal) || event.signal === 0 ? event.exitCode ?? null : null;
   }
 }

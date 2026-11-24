@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ApiResources } from "./api.resources.ts";
 
 export class ApiSurface {
@@ -23,7 +25,7 @@ export class ApiSurface {
     const differences: string[] = [];
     for (const [path, implemented] of this.entries) {
       const declared = declarations.entries.get(path);
-      if (declared === undefined)
+      if (Object.isUndefined(declared))
         differences.push(ApiResources.formatSurfaceMissing(path, implemented));
       else if (declared !== implemented)
         differences.push(ApiResources.formatSurfaceDiffers(path, implemented, declared));

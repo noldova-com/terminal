@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -562,7 +564,7 @@ describe("TerminalSession", () => {
     const second: MirrorLine | null = await session.promptLine;
     await vi.waitFor(() => assert.equal(first?.index, null));
     const run: MirrorLine = await session.anchorRunAsync();
-    const lines: readonly string[] = first === null ? [] : (await session.readRunLinesAsync(first, second, 10)).lines.map(t => t.text);
+    const lines: readonly string[] = Object.isNull(first) ? [] : (await session.readRunLinesAsync(first, second, 10)).lines.map(t => t.text);
     process.exit(0);
     session.restart(new FakePtyProcess(4_243), null, new TerminalSize(80, 24));
     await vi.waitFor(() => assert.equal(second?.index, null));

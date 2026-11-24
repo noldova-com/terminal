@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { TrackedCommand } from "../models/tracked-command.ts";
 import type { TypedLine } from "../models/typed-line.ts";
 import { Resources } from "../resources.ts";
@@ -42,29 +44,29 @@ export class ShellCommand implements IAgentCommand {
   }
 
   public get status(): CommandStatus {
-    if (this.givenUp !== null)
+    if (!Object.isNull(this.givenUp))
       return CommandStatus.Killed;
-    if (this.tracked?.hasEnded === true || this.unmarkedEnd !== null)
+    if (this.tracked?.hasEnded === true || !Object.isNull(this.unmarkedEnd))
       return this.isKilled ? CommandStatus.Killed : CommandStatus.Exited;
-    if (this.restartEnd !== null || this.session.hasExited)
+    if (!Object.isNull(this.restartEnd) || this.session.hasExited)
       return CommandStatus.Killed;
     return this.session.text.isAwaitingSecret ? CommandStatus.AwaitingInput : CommandStatus.Running;
   }
 
   public get exitCode(): number | null {
-    return this.givenUp === null ? this.tracked?.exitCode ?? null : null;
+    return Object.isNull(this.givenUp) ? this.tracked?.exitCode ?? null : null;
   }
 
   public get cwd(): string | null {
-    return this.givenUp === null ? this.tracked?.cwd ?? null : null;
+    return Object.isNull(this.givenUp) ? this.tracked?.cwd ?? null : null;
   }
 
   private get hasEnded(): boolean {
-    return this.givenUp !== null || this.tracked?.hasEnded === true || this.unmarkedEnd !== null || this.restartEnd !== null || this.session.hasExited;
+    return !Object.isNull(this.givenUp) || this.tracked?.hasEnded === true || !Object.isNull(this.unmarkedEnd) || !Object.isNull(this.restartEnd) || this.session.hasExited;
   }
 
   private get outputStart(): number {
-    if (this.givenUp !== null)
+    if (!Object.isNull(this.givenUp))
       return this.givenUp[0];
     const tracked: TrackedCommand | null = this.tracked;
     return tracked?.hasOutputStart === true ? tracked.outputStart : this.line.startOffset;

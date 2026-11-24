@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { MarkKind } from "../enums/mark-kind.ts";
 import type { ShellMark } from "../models/shell-mark.ts";
 import { TrackedCommand } from "../models/tracked-command.ts";
@@ -145,9 +147,9 @@ export class CommandTracker {
   private endPrompt(offset: number): void {
     const from: number | null = this.canRedraw ? this.lineOffset : this.redrawFrom;
     const drawn: string | null = this.canRedraw ? CommandTracker.lastLine(this.promptText) : this.promptText;
-    if (from === null || drawn === null || CommandTracker.drawing(this.read(from, offset)) !== drawn) {
+    if (Object.isNull(from) || Object.isNull(drawn) || CommandTracker.drawing(this.read(from, offset)) !== drawn) {
       this.promptOffset = offset;
-      this.promptText = this.promptStart === null ? null : CommandTracker.drawing(this.read(this.promptStart, offset));
+      this.promptText = Object.isNull(this.promptStart) ? null : CommandTracker.drawing(this.read(this.promptStart, offset));
     }
     this.lineOffset = offset;
     this.promptStart = null;
@@ -163,7 +165,7 @@ export class CommandTracker {
   }
 
   private static lastLine(text: string | null): string | null {
-    return text === null ? null : text.slice(text.lastIndexOf(Resources.lineFeed) + 1);
+    return Object.isNull(text) ? null : text.slice(text.lastIndexOf(Resources.lineFeed) + 1);
   }
 
   private stopRedraws(): void {
@@ -173,7 +175,7 @@ export class CommandTracker {
 
   private end(mark: ShellMark): void {
     const command: TrackedCommand = this.current ?? new TrackedCommand(this.lineOffset ?? mark.offset, false);
-    const exitCode: number | null = mark.value !== null && Resources.commandTrackerExitCode.test(mark.value) ? Number.parseInt(mark.value, Resources.decimalRadix) : null;
+    const exitCode: number | null = !Object.isNull(mark.value) && Resources.commandTrackerExitCode.test(mark.value) ? Number.parseInt(mark.value, Resources.decimalRadix) : null;
     command.end(mark.offset, exitCode, this.cwd);
     this.isAtPrompt = false;
     this.current = null;

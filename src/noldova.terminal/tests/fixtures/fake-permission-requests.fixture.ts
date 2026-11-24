@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Fake } from "@noldova/desktop.protocol/testing";
 import { type IPermissionAnswerer, type IPermissionRequest, type IToolCallPermissions, PermissionDecision, PermissionOutcome,
   type PermissionQuestion } from "@noldova/desktop.runtime";
@@ -23,7 +25,7 @@ export class FakePermissionRequests extends Fake<IToolCallPermissions & IPermiss
     this.requests.push(request);
     this.onRaised?.();
     const decision: PermissionDecision | Promise<PermissionDecision> | undefined = this.decisions.shift();
-    if (decision !== undefined)
+    if (!Object.isUndefined(decision))
       return new PermissionOutcome(await decision);
     if (signal.aborted)
       return new PermissionOutcome(PermissionDecision.Withdrawn);

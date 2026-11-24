@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TerminalInputMark } from "@noldova/terminal.protocol";
 
 import type { IOutputBatcherListener } from "../interfaces/i-output-batcher-listener.ts";
@@ -58,7 +60,7 @@ export class OutputBatcher {
   }
 
   private cancelTimer(): void {
-    if (this.timer === null)
+    if (Object.isNull(this.timer))
       return;
     clearTimeout(this.timer);
     this.timer = null;

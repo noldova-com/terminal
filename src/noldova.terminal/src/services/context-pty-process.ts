@@ -5,6 +5,9 @@
  * This source code is licensed under the license found in the
  * LICENSE file in the root directory of this source tree.
  */
+
+import "@noldova/context.core";
+
 import { constants } from "node:os";
 
 import type { ForegroundProcess, PseudoTerminal, PseudoTerminalExit, Registration } from "@noldova/desktop.runtime";
@@ -38,7 +41,7 @@ export class ContextPtyProcess implements IPtyProcess {
       isHolding = false;
     else
       queueMicrotask(() => {
-        for (let text: string | undefined = early.shift(); text !== undefined; text = early.shift())
+        for (let text: string | undefined = early.shift(); !Object.isUndefined(text); text = early.shift())
           if (isListening)
             try {
               listener(text);
@@ -92,6 +95,6 @@ export class ContextPtyProcess implements IPtyProcess {
   }
 
   private static toEvent(exit: PseudoTerminalExit): IPtyExitEvent {
-    return exit.signal === null ? { exitCode: exit.code ?? undefined } : { exitCode: undefined, signal: constants.signals[exit.signal] };
+    return Object.isNull(exit.signal) ? { exitCode: exit.code ?? undefined } : { exitCode: undefined, signal: constants.signals[exit.signal] };
   }
 }

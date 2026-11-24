@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { homedir } from "node:os";
@@ -70,7 +72,7 @@ describe("CompletionSource with this computer's PowerShell, Windows PowerShell o
   });
 
   it("finds none missing once PowerShell's lookup runs past its time, lets that PowerShell run on to its own end, and then looks up again", { timeout: TEST_MS }, async context => {
-    if (POWERSHELL === null)
+    if (Object.isNull(POWERSHELL))
       return context.skip("No PowerShell is installed.");
     const runtime: FakeRuntimePartContext = new FakeRuntimePartContext();
     runtime.answer("startProcessAsync", t => programs.startAsync(t));

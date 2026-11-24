@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import path from "node:path";
 
 import type { IModuleLog } from "@noldova/desktop.runtime";
@@ -49,7 +51,7 @@ export class TerminalHistoryFolder {
       this.folder = null;
       throw error;
     }
-    if (folder === null) {
+    if (Object.isNull(folder)) {
       this.folder = null;
       return null;
     }
@@ -61,7 +63,7 @@ export class TerminalHistoryFolder {
   public async removeAsync(): Promise<void> {
     const creating: Promise<string | null> | null = this.folder;
     this.folder = null;
-    if (creating === null)
+    if (Object.isNull(creating))
       return;
     let folder: string | null;
     try {
@@ -71,7 +73,7 @@ export class TerminalHistoryFolder {
       this.log.write(Resources.formatTerminalHistoryCreateFailed(FailureText.read(error)));
       return;
     }
-    if (folder !== null)
+    if (!Object.isNull(folder))
       await this.removeFolderAsync(folder);
   }
 
@@ -92,7 +94,7 @@ export class TerminalHistoryFolder {
   private async removeLeftoversAsync(): Promise<void> {
     for (const name of await this.reader.readFolderNamesAsync(this.temporaryFolder)) {
       const pid: number | null = TerminalHistoryFolder.toPid(name);
-      if (pid !== null && pid !== this.pid && !this.signaller.isRunning(pid))
+      if (!Object.isNull(pid) && pid !== this.pid && !this.signaller.isRunning(pid))
         await this.removeFolderAsync(path.join(this.temporaryFolder, name));
     }
   }

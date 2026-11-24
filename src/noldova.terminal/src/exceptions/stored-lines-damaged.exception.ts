@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ExceptionOptions } from "@noldova/context.exceptions";
 
 import { Resources } from "../resources.ts";
@@ -13,6 +15,6 @@ import { TerminalException } from "./terminal.exception.ts";
 
 export class StoredLinesDamagedException extends TerminalException {
   public constructor(cause?: unknown) {
-    super(Resources.storedLinesDamaged, cause === undefined ? undefined : new ExceptionOptions(cause));
+    super(Resources.storedLinesDamaged, Object.isUndefined(cause) ? undefined : new ExceptionOptions(cause));
   }
 }

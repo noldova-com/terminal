@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IPseudoTerminalHandle } from "@noldova/desktop.runtime";
 
 import type { IDisposable } from "../../src/interfaces/i-disposable.ts";
@@ -50,7 +52,7 @@ export class FakePtyHandle implements IPseudoTerminalHandle {
   public write(data: string): void {
     this.writes.push(data);
     const answer: string | undefined = this.answers.get(data);
-    if (answer !== undefined)
+    if (!Object.isUndefined(answer))
       this.emitData(answer);
   }
 
@@ -70,7 +72,7 @@ export class FakePtyHandle implements IPseudoTerminalHandle {
     const name: string = signal ?? "default";
     this.kills.push(name);
     if (this.exitsOn.includes(name))
-      this.exit(signal === undefined ? 1 : 0, signal === undefined ? 0 : 1);
+      this.exit(Object.isUndefined(signal) ? 1 : 0, Object.isUndefined(signal) ? 0 : 1);
   }
 
   public emitData(data: string): void {
@@ -79,7 +81,7 @@ export class FakePtyHandle implements IPseudoTerminalHandle {
   }
 
   public exit(exitCode: number | undefined, signal?: number): void {
-    const event: IPtyExitEvent = signal === undefined ? { exitCode } : { exitCode, signal };
+    const event: IPtyExitEvent = Object.isUndefined(signal) ? { exitCode } : { exitCode, signal };
     for (const listener of this.exitListeners)
       listener(event);
   }

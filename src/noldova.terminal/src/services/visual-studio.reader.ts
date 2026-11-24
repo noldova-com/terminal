@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import path from "node:path";
 
 import { ArgumentException } from "@noldova/context.exceptions";
@@ -26,11 +28,11 @@ export class VisualStudioReader {
   public constructor(runner: ICommandRunner, fileSystem: IFileSystemReader, programFilesX86: string | undefined) {
     this.runner = runner;
     this.fileSystem = fileSystem;
-    this.vswhere = programFilesX86 === undefined || programFilesX86.length === 0 ? null : path.win32.join(programFilesX86, ...Resources.vswherePath);
+    this.vswhere = Object.isUndefined(programFilesX86) || programFilesX86.length === 0 ? null : path.win32.join(programFilesX86, ...Resources.vswherePath);
   }
 
   public async readAsync(): Promise<readonly VisualStudioInstallation[]> {
-    if (this.vswhere === null || !await this.fileSystem.isFileAsync(this.vswhere))
+    if (Object.isNull(this.vswhere) || !await this.fileSystem.isFileAsync(this.vswhere))
       return [];
     let output: string;
     try {

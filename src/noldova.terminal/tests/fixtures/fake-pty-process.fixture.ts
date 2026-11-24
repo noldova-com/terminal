@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ForegroundProcess } from "@noldova/desktop.runtime";
 
 import type { IPtyProcess } from "../../src/interfaces/i-pty-process.ts";
@@ -25,7 +27,7 @@ export class FakePtyProcess extends FakePtyHandle implements IPtyProcess {
 
   public readForegroundProcessAsync(): Promise<ForegroundProcess | null> {
     const group: number | null = this.foregroundProcessGroup;
-    if (group === null)
+    if (Object.isNull(group))
       return Promise.resolve(null);
     const isShell: boolean = this.isForegroundShellCopy || group === this.pid;
     return Promise.resolve(new ForegroundProcess(group, isShell ? "/bin/bash" : "/usr/bin/make", isShell ? "bash" : "make", "/bin/bash", "bash"));

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -38,7 +40,7 @@ describe("HostedTerminal", () => {
     await Promise.all(starts);
 
     assert.deepEqual(kept, [100, "run-1", "run-100", [null, 0]]);
-    assert.deepEqual([terminal.runs.size, lines.filter(t => t.index !== null).length], [0, 0]);
+    assert.deepEqual([terminal.runs.size, lines.filter(t => !Object.isNull(t.index)).length], [0, 0]);
     await session.disposeAsync();
   });
 

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { type IToolDescriptor, ToolFailureCode, type ToolResult, ToolRisk } from "@noldova/desktop.runtime";
 
 import { Resources } from "../../resources.ts";
@@ -79,12 +81,12 @@ export class TerminalRunTool extends TerminalTool<TerminalRunInput> {
 
   private static readOneShotLine(terminal: IAgentTerminal, command: CommandLine): string | null {
     const line: string | null = terminal.readOneShotLine(command.text);
-    return line === null ? null : TerminalTextEscaper.escapeHidden(line);
+    return Object.isNull(line) ? null : TerminalTextEscaper.escapeHidden(line);
   }
 
   private static askFor(input: TerminalRunInput, access: AgentTerminalAccess, prompt: ITerminalPrompt, context: ToolCallContext): PermissionAsk {
     const oneShotLine: string | null = TerminalRunTool.readOneShotLine(access.terminal, input.command);
-    const folder: string | null = oneShotLine === null ? prompt.cwd : access.terminal.startFolder;
+    const folder: string | null = Object.isNull(oneShotLine) ? prompt.cwd : access.terminal.startFolder;
     return new PermissionAsk(
       Resources.runToolName,
       Resources.runAction,
@@ -93,10 +95,10 @@ export class TerminalRunTool extends TerminalTool<TerminalRunInput> {
       [
         ...PermissionDetails.forTerminal(access),
         ...PermissionDetails.forShell(access),
-        ...PermissionDetails.forFolder(folder, folder !== null && context.isInsideWorkingFolder(folder)),
+        ...PermissionDetails.forFolder(folder, !Object.isNull(folder) && context.isInsideWorkingFolder(folder)),
         PermissionDetails.code(Resources.commandLabel, input.command.display),
         PermissionDetails.yesNo(Resources.hiddenCharactersLabel, input.command.hasHiddenCharacters),
-        oneShotLine === null ? PermissionDetails.text(Resources.methodLabel, Resources.inShellMethod) : PermissionDetails.code(Resources.oneShotLineLabel, oneShotLine),
+        Object.isNull(oneShotLine) ? PermissionDetails.text(Resources.methodLabel, Resources.inShellMethod) : PermissionDetails.code(Resources.oneShotLineLabel, oneShotLine),
         ...PermissionDetails.forExplanation(input.explanation)
       ],
       PermissionAsk.hashSubject([access.terminal.id, folder, input.command.text]));

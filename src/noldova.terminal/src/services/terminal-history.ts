@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TerminalLinePage, TerminalLineRange, type TerminalLine } from "@noldova/terminal.protocol";
 
 import { StoredLinesUnwritableException } from "../exceptions/stored-lines-unwritable.exception.ts";
@@ -29,13 +31,13 @@ export class TerminalHistory {
     this.paths = paths;
     this.segmentLimit = Math.floor(limit / 2);
     this.onWritten = onWritten;
-    this.newer = paths === null ? null : new TerminalHistorySegment(paths.first, 0);
-    if (paths === null)
+    this.newer = Object.isNull(paths) ? null : new TerminalHistorySegment(paths.first, 0);
+    if (Object.isNull(paths))
       this.fail(null);
   }
 
   public get stored(): TerminalLineRange {
-    if (this.newer === null)
+    if (Object.isNull(this.newer))
       return new TerminalLineRange(0, 0, 0);
     return new TerminalLineRange(this.older?.first ?? this.newer.first, this.newer.end, this.dropped);
   }
@@ -45,7 +47,7 @@ export class TerminalHistory {
   }
 
   public append(line: TerminalLine): void {
-    if (this.paths === null || this.newer === null || this.failure !== null || this.isClosed)
+    if (Object.isNull(this.paths) || Object.isNull(this.newer) || !Object.isNull(this.failure) || this.isClosed)
       return;
 
     const text: string = `${JSON.stringify(line.toJson())}${Resources.lineFeed}`;
@@ -60,7 +62,7 @@ export class TerminalHistory {
   }
 
   public clear(): void {
-    if (this.isClosed || this.paths === null || this.newer === null)
+    if (this.isClosed || Object.isNull(this.paths) || Object.isNull(this.newer))
       return;
 
     const end: number = this.newer.end;
@@ -85,12 +87,12 @@ export class TerminalHistory {
   }
 
   private get segments(): readonly TerminalHistorySegment[] {
-    return [this.older, this.newer].filter(t => t !== null);
+    return [this.older, this.newer].filter(t => !Object.isNull(t));
   }
 
   private rotate(paths: TerminalHistoryPaths, newer: TerminalHistorySegment): TerminalHistorySegment {
-    const path: string = this.older === null ? paths.second : this.older.path;
-    if (this.older !== null) {
+    const path: string = Object.isNull(this.older) ? paths.second : this.older.path;
+    if (!Object.isNull(this.older)) {
       this.dropped += this.older.end - this.older.first;
       this.discard(this.older, false);
     }
@@ -137,7 +139,7 @@ export class TerminalHistory {
     const pending: [TerminalHistorySegment, Buffer][] = segments.map(t => [t, t.take()]);
     for (const [segment, buffer] of pending)
       await this.storeAsync(segment, buffer);
-    if (this.failure !== null)
+    if (!Object.isNull(this.failure))
       throw this.failure;
 
     const first: number = Math.min(Math.max(start, stored.start), stored.end);

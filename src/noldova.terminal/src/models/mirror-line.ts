@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IMarker } from "@xterm/headless";
 
 export class MirrorLine {
@@ -22,7 +24,7 @@ export class MirrorLine {
   }
 
   public get index(): number | null {
-    return this.marker === undefined || this.marker.isDisposed ? null : this.marker.line;
+    return Object.isUndefined(this.marker) || this.marker.isDisposed ? null : this.marker.line;
   }
 
   public renumber(number: number): void {

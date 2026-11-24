@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { CommandNotStartedException } from "../../src/exceptions/command-not-started.exception.ts";
 import type { ICommandRunner } from "../../src/interfaces/i-command-runner.ts";
 import { CommandRun } from "../../src/models/command-run.ts";
@@ -27,7 +29,7 @@ export class FakeCommandRunner implements ICommandRunner {
     this.runs.push([file, args, timeoutMilliseconds]);
     this.environments.push(environment);
     const answer: string | Error | Promise<string> | undefined = this.answers.get(file);
-    if (answer === undefined)
+    if (Object.isUndefined(answer))
       throw new CommandNotStartedException(file, new Error("not found"));
     if (answer instanceof Error)
       throw answer;

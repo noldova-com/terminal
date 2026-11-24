@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { PermissionDecision, type PermissionOutcome, ToolFailureCode } from "@noldova/desktop.runtime";
 
 import { Resources } from "../../resources.ts";
@@ -30,7 +32,7 @@ export class PermissionGate {
       throw ToolFailures.create(ToolFailureCode.Refused, Resources.requestTooLargeCode, Resources.formatRequestTooLarge(ask.toolName));
     const outcome: PermissionOutcome = await context.requestPermissionAsync(ask.request);
     const failure: ToolFailureCode | null = PermissionGate.failures[outcome.decision];
-    if (failure !== null)
+    if (!Object.isNull(failure))
       throw ToolFailures.create(failure, null, Resources.formatNotGranted(ask.toolName, outcome.decision));
     PermissionGate.requireOpenCall(ask, context);
   }

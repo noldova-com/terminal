@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -98,7 +100,7 @@ class RuntimeFixture {
 
   public channel(event: string): FakeEventChannel {
     const channel: FakeEventChannel | undefined = this.context.events.get(event);
-    assert.ok(channel !== undefined, `The part declared no event ${event}.`);
+    assert.ok(!Object.isUndefined(channel), `The part declared no event ${event}.`);
     return channel;
   }
 
@@ -130,7 +132,7 @@ class RuntimeFixture {
   public async callAsync(method: string, payload: JsonValue, client: string = ShellClients.mainProcess, connection: number = 1,
     window: number | null = 1): Promise<JsonValue> {
     const handler: IMethodHandler | undefined = this.context.methods.get(method);
-    assert.ok(handler !== undefined, `The part has no method ${method}.`);
+    assert.ok(!Object.isUndefined(handler), `The part has no method ${method}.`);
     return handler.handleAsync(new RequestContext(client, payload, new AbortController().signal, connection, window));
   }
 
@@ -168,7 +170,7 @@ class RuntimeFixture {
   }
 
   public openToolSession(folder: string, owner: string | null): ToolSession {
-    return this.context.tools.openSession("chats.chat", { "terminal.folder": folder, "terminal.shared": [], ...(owner === null ? {} : { "terminal.owner": owner }) });
+    return this.context.tools.openSession("chats.chat", { "terminal.folder": folder, "terminal.shared": [], ...(Object.isNull(owner) ? {} : { "terminal.owner": owner }) });
   }
 
   public async openAgentAsync(session: ToolSession): Promise<string> {
@@ -176,7 +178,7 @@ class RuntimeFixture {
     const result: unknown = await session.callAsync("terminal_open", {});
     assert.ok(result instanceof ToolResult, `The agent's open failed: ${JSON.stringify(result)}`);
     const sessionId: unknown = result.structured?.["terminal_id"];
-    assert.ok(typeof sessionId === "string");
+    assert.ok(Object.isString(sessionId));
     return sessionId;
   }
 
@@ -188,7 +190,7 @@ class RuntimeFixture {
   public async openAsync(folder: string, columns: number = 400): Promise<string> {
     const shells: TerminalShells = TerminalShells.fromJson(await this.callAsync("terminal.shells", null));
     const shell: string | undefined = shells.shells.find(t => t.isDefault)?.id;
-    assert.ok(shell !== undefined, "No default shell was found.");
+    assert.ok(!Object.isUndefined(shell), "No default shell was found.");
     return TerminalReference.fromJson(await this.callAsync("terminal.open", { shellId: shell, folder, size: { cols: columns, rows: 30 }, storedLimit: 104_857_600 })).sessionId;
   }
 
@@ -299,7 +301,7 @@ describe("the runtime part with real shells", () => {
     const attachment: TerminalAttachment = TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId: "p1" }));
     assert.ok(attachment.snapshot.includes(second));
     assert.deepEqual(attachment.size.toJson(), { cols: 60, rows: 20 });
-    assert.equal(attachment.windowsPty === null, !IS_WINDOWS);
+    assert.equal(Object.isNull(attachment.windowsPty), !IS_WINDOWS);
 
     await fixture.callAsync("terminal.close", { sessionId });
 
@@ -464,7 +466,7 @@ describe("the runtime part with real shells", () => {
   ];
   for (const [shellId, platformGap, setPrompt, sum] of wrappedShells)
     it(`[${shellId}] runs into the owner's ${shellId} at its prompt when the prompt wraps over several rows`, async context => {
-      context.skip(platformGap !== null, platformGap ?? "");
+      context.skip(!Object.isNull(platformGap), platformGap ?? "");
       const fixture: RuntimeFixture = new RuntimeFixture();
       await fixture.part.activateAsync(fixture.context);
       const shells: readonly string[] = TerminalShells.fromJson(await fixture.callAsync("terminal.shells", null)).shells.map(t => t.id);
@@ -488,7 +490,7 @@ describe("the runtime part with real shells", () => {
   for (const [shellId, platformGap] of wrappedShells)
     it(`[${shellId}] tells the window that asked of a run's end in the owner's ${shellId}, with its code, its last line's for two lines, or as TerminalEnded when its terminal closes first`,
       async context => {
-        context.skip(platformGap !== null, platformGap ?? "");
+        context.skip(!Object.isNull(platformGap), platformGap ?? "");
         const fixture: RuntimeFixture = new RuntimeFixture();
         await fixture.part.activateAsync(fixture.context);
         const shells: readonly string[] = TerminalShells.fromJson(await fixture.callAsync("terminal.shells", null)).shells.map(t => t.id);
@@ -500,9 +502,9 @@ describe("the runtime part with real shells", () => {
             size: { cols: 120, rows: 30 }, storedLimit: 104_857_600, sessionId, whenBusy, opensTab: true });
         const endOf = async (result: TerminalRunResult): Promise<TerminalRunEnded> => {
           const find = (): TerminalRunEnded | undefined => fixture.published("terminal.runEnded").map(t => TerminalRunEnded.fromJson(t)).find(t => t.runId === result.runId);
-          await fixture.channel("terminal.runEnded").waitUntilAsync(`The end of run ${result.runId}`, () => find() !== undefined);
+          await fixture.channel("terminal.runEnded").waitUntilAsync(`The end of run ${result.runId}`, () => !Object.isUndefined(find()));
           const ended: TerminalRunEnded | undefined = find();
-          assert.ok(ended !== undefined, "The run's end didn't come.");
+          assert.ok(!Object.isUndefined(ended), "The run's end didn't come.");
           return ended;
         };
         const codeOf = async (result: TerminalRunResult): Promise<readonly unknown[]> => {
@@ -514,7 +516,7 @@ describe("the runtime part with real shells", () => {
           await fixture.waitForOutputAsync(`Terminal ${sessionId}'s prompt after a run that exited ${previousCode}`, () => {
             const text: string = fixture.text(sessionId).slice(since);
             const end: RegExpExecArray | undefined = [...text.matchAll(COMMAND_END_PATTERN)].findLast(t => t[1] === String(previousCode));
-            return end !== undefined && hasPromptEnd(text, end.index);
+            return !Object.isUndefined(end) && hasPromptEnd(text, end.index);
           });
           since = fixture.text(sessionId).length;
           const result: TerminalRunResult = await run(command, sessionId, whenBusy);
@@ -524,7 +526,7 @@ describe("the runtime part with real shells", () => {
 
         const failed: TerminalRunResult = await run(exit(3), null);
         const sessionId: string | null = failed.sessionId;
-        assert.ok(sessionId !== null, "The first run opened no terminal.");
+        assert.ok(!Object.isNull(sessionId), "The first run opened no terminal.");
         const failedEnd: readonly unknown[] = await codeOf(failed);
         const passedEnd: readonly unknown[] = await codeOf(await runAfterEndAsync(exit(0), sessionId, 3));
         const twoLinesEnd: readonly unknown[] = await codeOf(await runAfterEndAsync(`${exit(0)}\n${exit(4)}`, sessionId, 0));
@@ -612,7 +614,7 @@ describe("the runtime part with real shells", () => {
     finally {
       stopAcknowledging();
     }
-    assert.deepEqual((await Promise.all(acks)).filter(t => t !== null), [], "An acknowledgement failed.");
+    assert.deepEqual((await Promise.all(acks)).filter(t => !Object.isNull(t)), [], "An acknowledgement failed.");
 
     const outputs: readonly TerminalOutput[] = fixture.outputs;
     for (let index: number = 1; index < outputs.length; index++)
@@ -885,7 +887,7 @@ describe("the runtime part with real shells", () => {
       await vi.waitFor(() => assert.equal(ProcessState.isRunning(child), false, `Child process ${child} is still running.`), { timeout: WAIT_MS, interval: POLL_MS });
     }
     finally {
-      if (pid !== null && ProcessState.isRunning(pid))
+      if (!Object.isNull(pid) && ProcessState.isRunning(pid))
         process.kill(pid);
       await fixture.part.deactivateAsync();
     }
@@ -907,7 +909,7 @@ describe("the runtime part with real shells", () => {
       await vi.waitFor(() => assert.equal(ProcessState.isRunning(child), false, `Child process ${child} is still running.`), { timeout: WAIT_MS, interval: POLL_MS });
     }
     finally {
-      if (pid !== null && ProcessState.isRunning(pid))
+      if (!Object.isNull(pid) && ProcessState.isRunning(pid))
         process.kill(pid);
       await fixture.part.deactivateAsync();
     }

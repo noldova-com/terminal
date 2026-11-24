@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { basename, dirname, win32 } from "node:path";
 
 import type { IFileSystemReader } from "../../src/interfaces/i-file-system-reader.ts";
@@ -33,7 +35,7 @@ export class FakeFileSystemReader implements IFileSystemReader {
   }
 
   public async isFolderAsync(path: string): Promise<boolean> {
-    if (this.hold !== null) {
+    if (!Object.isNull(this.hold)) {
       this.held.resolve();
       await this.hold;
     }
@@ -43,7 +45,7 @@ export class FakeFileSystemReader implements IFileSystemReader {
   public async readTextOrNullAsync(path: string): Promise<string | null> {
     this.listed.push(path);
     const stall: Promise<void> | undefined = this.stalled.get(path);
-    if (stall !== undefined)
+    if (!Object.isUndefined(stall))
       await stall;
     return this.files.get(path) ?? null;
   }
@@ -59,7 +61,7 @@ export class FakeFileSystemReader implements IFileSystemReader {
   public async readEntriesAsync(path: string): Promise<readonly FolderEntry[]> {
     this.listed.push(path);
     const stall: Promise<void> | undefined = this.stalled.get(path);
-    if (stall !== undefined)
+    if (!Object.isUndefined(stall))
       await stall;
     return [
       ...[...this.folders].filter(t => this.parentOf(t) === path).map(t => new FolderEntry(this.nameOf(t), true)),
@@ -70,10 +72,10 @@ export class FakeFileSystemReader implements IFileSystemReader {
   public async readRealPathOrNullAsync(path: string): Promise<string | null> {
     this.resolved.push(path);
     const stall: Promise<void> | undefined = this.stalled.get(path);
-    if (stall !== undefined)
+    if (!Object.isUndefined(stall))
       await stall;
     const failure: Error | undefined = this.realPathFailures.get(path);
-    if (failure !== undefined)
+    if (!Object.isUndefined(failure))
       throw failure;
     return this.realPaths.get(path) ?? null;
   }

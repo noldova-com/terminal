@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { CommandStatus } from "../../src/tools/enums/command-status.ts";
 import { RunMethod } from "../../src/tools/enums/run-method.ts";
 import { StaleTerminalException } from "../../src/tools/exceptions/stale-terminal.exception.ts";
@@ -118,7 +120,7 @@ export class FakeAgentTerminal extends FakeOutputSource implements IAgentTermina
   }
 
   public readOneShotLine(command: string): string | null {
-    return this.oneShotProgram === null ? null : `${this.oneShotProgram} ${command}`;
+    return Object.isNull(this.oneShotProgram) ? null : `${this.oneShotProgram} ${command}`;
   }
 
   public run(command: string, expected: ITerminalPrompt, timeoutMilliseconds: number): IAgentCommand {

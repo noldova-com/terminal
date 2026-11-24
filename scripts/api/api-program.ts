@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import ts from "typescript";
 
 import { Resources } from "../resources.ts";
@@ -38,7 +40,7 @@ export class ApiProgram {
       }
     });
     problems.push(...(parsed?.errors ?? []).map(t => ApiProgram.describe(t)));
-    if (parsed === undefined || problems.length > 0)
+    if (Object.isUndefined(parsed) || problems.length > 0)
       throw new ApiProgramUnreadableException(projectFile, problems);
     return parsed;
   }
@@ -49,8 +51,8 @@ export class ApiProgram {
 
   public readModule(file: string): readonly [ts.SourceFile, ts.Symbol] {
     const source = this.program.getSourceFile(file);
-    const module = source === undefined ? undefined : this.checker.getSymbolAtLocation(source);
-    if (source === undefined || module === undefined)
+    const module = Object.isUndefined(source) ? undefined : this.checker.getSymbolAtLocation(source);
+    if (Object.isUndefined(source) || Object.isUndefined(module))
       throw new ApiNotModuleException(file);
     return [source, module];
   }

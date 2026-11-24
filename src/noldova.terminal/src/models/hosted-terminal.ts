@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { TerminalExited } from "@noldova/terminal.protocol";
 
 import { Resources } from "../resources.ts";
@@ -101,17 +103,17 @@ export class HostedTerminal {
   public get hasUnreadInput(): boolean {
     const commands: CommandTracker = this.session.commands;
     const prompt: number | null = commands.promptIdentity;
-    return this.hasRecentInput && (this.inputPrompt === null || prompt === null || prompt === this.inputPrompt
+    return this.hasRecentInput && (Object.isNull(this.inputPrompt) || Object.isNull(prompt) || prompt === this.inputPrompt
       || commands.commandMarks === this.inputCommandMarks);
   }
 
   public get isFree(): boolean {
-    return this.ownerSessionId === null && !this.session.hasExited && !this.isRestarting && this.pendingCommand === null
+    return Object.isNull(this.ownerSessionId) && !this.session.hasExited && !this.isRestarting && Object.isNull(this.pendingCommand)
       && this.session.commands.hasMarks && !this.hasUnreadInput && this.session.readPromptLine() === "";
   }
 
   public get isDrawingPrompt(): boolean {
-    return this.ownerSessionId === null && !this.session.hasExited && !this.isRestarting && this.pendingCommand === null
+    return Object.isNull(this.ownerSessionId) && !this.session.hasExited && !this.isRestarting && Object.isNull(this.pendingCommand)
       && this.session.commands.isDrawingPrompt;
   }
 

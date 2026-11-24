@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonObject } from "@noldova/context.json";
 import type { ToolResult } from "@noldova/desktop.runtime";
 
@@ -55,8 +57,8 @@ export class TerminalOutputReport {
   }
 
   public toResult(note: string = ""): ToolResult {
-    const status: CommandStatus | null = this.command === null ? null : this.command.status;
-    const exitCode: number | null = this.command === null ? null : this.command.exitCode;
+    const status: CommandStatus | null = Object.isNull(this.command) ? null : this.command.status;
+    const exitCode: number | null = Object.isNull(this.command) ? null : this.command.exitCode;
     const isAwaitingSecret: boolean = this.access.terminal.isAwaitingSecret;
     return ToolResults.create(
       this.excerpt.text + Resources.formatCommandSummary(status, exitCode, this.cwd, isAwaitingSecret) + note,
@@ -65,13 +67,13 @@ export class TerminalOutputReport {
         [Resources.titleField]: this.access.terminal.title,
         [Resources.nameField]: this.access.terminal.name,
         [Resources.shellNameField]: this.access.terminal.shellName,
-        [Resources.terminalOutputReportMethodField]: this.command === null ? null : this.command.method,
+        [Resources.terminalOutputReportMethodField]: Object.isNull(this.command) ? null : this.command.method,
         [Resources.terminalOutputReportStatusField]: status,
         [Resources.terminalOutputReportExitCodeField]: exitCode,
         [Resources.cwdField]: this.cwd,
         [Resources.terminalOutputReportOutputField]: this.excerpt.text,
         [Resources.terminalOutputReportOmittedCharactersField]: this.excerpt.omittedCharacters,
-        [Resources.terminalOutputReportLogFileField]: this.command === null ? null : this.command.logFile,
+        [Resources.terminalOutputReportLogFileField]: Object.isNull(this.command) ? null : this.command.logFile,
         [Resources.terminalOutputReportIsAwaitingSecretField]: isAwaitingSecret
       },
       this.access.origin);

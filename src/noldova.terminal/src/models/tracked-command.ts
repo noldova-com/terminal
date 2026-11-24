@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 export class TrackedCommand {
   public readonly outputStart: number;
   public readonly hasOutputStart: boolean;
@@ -19,7 +21,7 @@ export class TrackedCommand {
   }
 
   public get hasEnded(): boolean {
-    return this.outputEnd !== null;
+    return !Object.isNull(this.outputEnd);
   }
 
   public end(outputEnd: number, exitCode: number | null, cwd: string | null): void {

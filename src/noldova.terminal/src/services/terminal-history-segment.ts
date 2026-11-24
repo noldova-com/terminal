@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { type FileHandle, open, rm } from "node:fs/promises";
 
 import { JsonException } from "@noldova/context.json";
@@ -99,7 +101,7 @@ export class TerminalHistorySegment {
   }
 
   public async closeAsync(): Promise<void> {
-    if (this.handle !== null)
+    if (!Object.isNull(this.handle))
       await this.handle.close();
     this.handle = null;
   }

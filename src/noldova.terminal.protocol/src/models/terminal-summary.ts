@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonObject } from "@noldova/context.json";
 
 import { TerminalShellKind } from "../enums/terminal-shell-kind.ts";
@@ -34,11 +36,11 @@ export class TerminalSummary {
     ArgumentValidator.requireIdentifier(Resources.shellIdField, shellId);
     ArgumentValidator.requireNonBlank(Resources.folderField, folder, Resources.maximumPathLength);
     ArgumentValidator.requireMaximumLength(Resources.titleField, title, Resources.maximumTitleLength);
-    if (owner !== null)
+    if (!Object.isNull(owner))
       ArgumentValidator.requireNonBlank(Resources.ownerField, owner, Resources.maximumOwnerLength);
-    if (name !== null)
+    if (!Object.isNull(name))
       ArgumentValidator.requireNonBlank(Resources.nameField, name, Resources.maximumTitleLength);
-    if (shellName !== null)
+    if (!Object.isNull(shellName))
       ArgumentValidator.requireNonBlank(Resources.shellNameField, shellName, Resources.maximumTitleLength);
 
     this.sessionId = sessionId;
@@ -80,7 +82,7 @@ export class TerminalSummary {
       reader.readNonBlankString(Resources.shellIdField, Resources.maximumIdentifierLength),
       reader.readNonBlankString(Resources.folderField, Resources.maximumPathLength),
       reader.readString(Resources.titleField, Resources.maximumTitleLength),
-      exit === null ? null : TerminalExit.fromReader(exit),
+      Object.isNull(exit) ? null : TerminalExit.fromReader(exit),
       reader.readBoolean(Resources.isAgentTerminalField),
       reader.readBoolean(Resources.isPanelTerminalField),
       reader.readNullableNonBlankString(Resources.ownerField, Resources.maximumOwnerLength),
@@ -96,7 +98,7 @@ export class TerminalSummary {
       shellId: this.shellId,
       folder: this.folder,
       title: this.title,
-      exit: this.exit === null ? null : this.exit.toJson(),
+      exit: Object.isNull(this.exit) ? null : this.exit.toJson(),
       isAgentTerminal: this.isAgentTerminal,
       isPanelTerminal: this.isPanelTerminal,
       owner: this.owner,

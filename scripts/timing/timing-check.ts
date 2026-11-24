@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { spawnSync } from "node:child_process";
 import type { SpawnSyncReturns } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -22,7 +24,7 @@ class TimingCheck {
   private readonly testTimes: Map<string, Map<string, number[]>> = new Map<string, Map<string, number[]>>();
 
   private static field(value: unknown, name: string): unknown {
-    return typeof value === "object" && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value))[name] : undefined;
+    return Object.isObject(value) && !Array.isArray(value) ? Object.fromEntries(Object.entries(value))[name] : undefined;
   }
 
   private static list(value: unknown): readonly unknown[] {
@@ -41,7 +43,7 @@ class TimingCheck {
 
   private static spawn(folder: string, step: readonly string[]): number {
     const result: SpawnSyncReturns<string | Buffer> = spawnSync(process.execPath, step, { cwd: folder, stdio: Resources.inheritedStdio });
-    if (result.error !== undefined)
+    if (!Object.isUndefined(result.error))
       console.error(result.error.message);
     return result.status ?? 1;
   }
@@ -55,7 +57,7 @@ class TimingCheck {
       if (!line.startsWith(Resources.testWaitTableRowPrefix))
         break;
       const file: string | undefined = Resources.slowFileListRow.exec(line)?.[1];
-      if (file !== undefined)
+      if (!Object.isUndefined(file))
         files.add(file);
     }
     return files;
@@ -90,11 +92,11 @@ class TimingCheck {
     const acceptedFiles: ReadonlySet<string> | undefined = TimingCheck.readAccepted(lines, Resources.slowFileListHeader);
     const acceptedSpecs: ReadonlySet<string> | undefined = TimingCheck.readAccepted(lines, Resources.slowSpecListHeader);
     for (const [header, accepted] of [[Resources.slowFileListHeader, acceptedFiles], [Resources.slowSpecListHeader, acceptedSpecs]] as const)
-      if (accepted === undefined)
+      if (Object.isUndefined(accepted))
         console.error(Resources.formatTimingListMissing(header));
     for (const problem of problems)
       console.error(problem);
-    if (problems.length > 0 || acceptedFiles === undefined || acceptedSpecs === undefined)
+    if (problems.length > 0 || Object.isUndefined(acceptedFiles) || Object.isUndefined(acceptedSpecs))
       return 1;
     const slowFiles: number = this.reportUnitFiles(acceptedFiles);
     const slowSpecs: number = this.reportSpecs(acceptedSpecs);
@@ -111,7 +113,7 @@ class TimingCheck {
       const name: unknown = TimingCheck.field(file, Resources.vitestFileName);
       const start: unknown = TimingCheck.field(file, Resources.vitestStartTime);
       const end: unknown = TimingCheck.field(file, Resources.vitestEndTime);
-      if (typeof name !== "string" || typeof start !== "number" || typeof end !== "number")
+      if (!Object.isString(name) || !Object.isNumber(start) || !Object.isNumber(end))
         continue;
       const relative: string = TimingCheck.relative(name);
       this.fileTimes.set(relative, [...this.fileTimes.get(relative) ?? [], end - start]);
@@ -121,14 +123,14 @@ class TimingCheck {
   private readSpecs(report: string): void {
     for (const file of this.files(report)) {
       const name: unknown = TimingCheck.field(file, Resources.vitestFileName);
-      if (typeof name !== "string")
+      if (!Object.isString(name))
         continue;
       const relative: string = TimingCheck.relative(name);
       const tests: Map<string, number[]> = this.testTimes.get(relative) ?? new Map<string, number[]>();
       for (const test of TimingCheck.list(TimingCheck.field(file, Resources.vitestTests))) {
         const title: unknown = TimingCheck.field(test, Resources.vitestName);
         const duration: unknown = TimingCheck.field(test, Resources.vitestDuration);
-        if (typeof title === "string" && typeof duration === "number")
+        if (Object.isString(title) && Object.isNumber(duration))
           tests.set(title, [...tests.get(title) ?? [], duration]);
       }
       this.testTimes.set(relative, tests);

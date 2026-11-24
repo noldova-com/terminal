@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { release, tmpdir } from "node:os";
@@ -192,7 +194,7 @@ describe("RuntimePart", () => {
     const handler: IMethodHandler | undefined = context.methods.get("terminal.restore");
 
     assert.deepEqual(part.migrations.map(t => t.id), ["create-terminals", "add-terminal-owner", "add-terminal-opens-tab", "add-terminal-name"]);
-    assert.ok(handler !== undefined);
+    assert.ok(!Object.isUndefined(handler));
     assert.equal(await handler.handleAsync(new RequestContext(ShellClients.mainProcess, { size: { cols: 80, rows: 24 }, shellId: null, storedLimit: 104_857_600 }, new AbortController().signal, 1, 1)), null);
     assert.deepEqual(context.database.statements, []);
     await part.deactivateAsync();
@@ -244,7 +246,7 @@ describe("RuntimePart", () => {
     await part.activateAsync(context);
     const handler: IMethodHandler | undefined = context.methods.get("terminal.sessions");
 
-    assert.ok(handler !== undefined);
+    assert.ok(!Object.isUndefined(handler));
     assert.deepEqual(await handler.handleAsync(new RequestContext("test", null, new AbortController().signal, 1)), { sessions: [] });
     await part.deactivateAsync();
   });

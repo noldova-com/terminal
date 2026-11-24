@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IModuleLog } from "@noldova/desktop.runtime";
 import { Resources as ProtocolResources, TerminalSize } from "@noldova/terminal.protocol";
 
@@ -43,7 +45,7 @@ export class AgentTerminals implements IAgentTerminals {
 
   public find(id: string): IAgentTerminal | undefined {
     const hosted: HostedTerminal | undefined = this.host.findTerminal(id);
-    return hosted === undefined ? undefined : this.wrap(hosted);
+    return Object.isUndefined(hosted) ? undefined : this.wrap(hosted);
   }
 
   public async openAsync(opening: AgentTerminalOpening, signal: AbortSignal): Promise<IAgentTerminal> {
@@ -65,7 +67,7 @@ export class AgentTerminals implements IAgentTerminals {
 
   private wrap(hosted: HostedTerminal): AgentTerminal {
     let terminal: AgentTerminal | undefined = this.terminals.get(hosted.session.sessionId);
-    if (terminal === undefined) {
+    if (Object.isUndefined(terminal)) {
       terminal = new AgentTerminal(hosted, this.host, this.writer, this.logFolder, this.log);
       this.terminals.set(hosted.session.sessionId, terminal);
     }

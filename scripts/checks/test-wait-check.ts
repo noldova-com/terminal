@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -43,7 +45,7 @@ export class TestWaitCheck {
   private listFiles(folders: readonly string[]): readonly string[] {
     const files: string[] = [];
     const pending: string[] = [...folders];
-    for (let folder = pending.pop(); folder !== undefined; folder = pending.pop())
+    for (let folder = pending.pop(); !Object.isUndefined(folder); folder = pending.pop())
       for (const entry of readdirSync(path.join(this.root, folder), { withFileTypes: true })) {
         const file: string = `${folder}${Resources.posixSeparator}${entry.name}`;
         if (entry.isDirectory() && !Resources.testWaitSkippedFolders.has(entry.name))
@@ -79,7 +81,7 @@ export class TestWaitCheck {
 
   private static hasLimit(text: string, start: number): boolean {
     const options: string | undefined = TestWaitCheck.readItems(text, start)[1]?.trim();
-    if (options === undefined || options === "")
+    if (Object.isUndefined(options) || options === "")
       return false;
     if (!options.startsWith(Resources.testWaitObjectStart))
       return true;
@@ -105,7 +107,7 @@ export class TestWaitCheck {
         else if (character === quote && !isInClass)
           quote = null;
       }
-      else if (quote !== null) {
+      else if (!Object.isNull(quote)) {
         if (character === Resources.testWaitEscape)
           position++;
         else if (character === quote)
@@ -137,7 +139,7 @@ export class TestWaitCheck {
     let quote: string | null = null;
     for (let position = lineStart; position < index; position++) {
       const character: string = text.charAt(position);
-      if (quote === null) {
+      if (Object.isNull(quote)) {
         if (Resources.testWaitQuotes.includes(character))
           quote = character;
       }
@@ -146,7 +148,7 @@ export class TestWaitCheck {
       else if (character === quote)
         quote = null;
     }
-    return quote !== null;
+    return !Object.isNull(quote);
   }
 
   private readList(): ReadonlyMap<string, number> {
@@ -159,7 +161,7 @@ export class TestWaitCheck {
       if (!line.startsWith(Resources.testWaitTableRowPrefix))
         break;
       const file: string | undefined = Resources.testWaitListRow.exec(line)?.[1];
-      if (file !== undefined)
+      if (!Object.isUndefined(file))
         files.set(file, start + offset + 3);
     }
     return files;

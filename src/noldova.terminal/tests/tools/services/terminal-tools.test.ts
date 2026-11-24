@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import type { JsonObject } from "@noldova/context.json";
@@ -172,7 +174,7 @@ describe("TerminalTools", () => {
     assert.deepEqual([own.closes, persons.closes, others.closes], [1, 0, 0]);
     assert.deepEqual(fixture.terminals.endedSessions, ["session-1"]);
     const readTool: TerminalTool<unknown> | undefined = fixture.tools.tools.find(t => t.descriptor.name === "terminal_read");
-    assert.ok(readTool !== undefined);
+    assert.ok(!Object.isUndefined(readTool));
     const reread: ToolResult = await readTool.handleAsync(createCall({ terminal_id: "own" }, undefined, [], SESSION_ID, fixture.permissions));
     assert.equal(reread.structured?.["output"], "abc");
   });

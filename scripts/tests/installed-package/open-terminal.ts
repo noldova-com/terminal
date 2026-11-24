@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -27,7 +29,7 @@ class InstalledTerminal {
   private output: string = "";
 
   private static field(value: unknown, name: string): unknown {
-    return typeof value === "object" && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value))[name] : undefined;
+    return Object.isObject(value) && !Array.isArray(value) ? Object.fromEntries(Object.entries(value))[name] : undefined;
   }
 
   public async runAsync(): Promise<void> {
@@ -75,7 +77,7 @@ class InstalledTerminal {
 
   private publish(name: string, payload: JsonValue): void {
     const data: unknown = InstalledTerminal.field(payload, OpenTerminalResources.dataField);
-    if (name !== OpenTerminalResources.outputEvent || typeof data !== "string")
+    if (name !== OpenTerminalResources.outputEvent || !Object.isString(data))
       return;
     this.output += data;
     const answer: number = this.output.indexOf(OpenTerminalResources.marker);
@@ -91,12 +93,12 @@ class InstalledTerminal {
       const shells: readonly unknown[] = Array.isArray(listed) ? listed : [];
       const shell: unknown = shells.find(t => InstalledTerminal.field(t, OpenTerminalResources.defaultField) === true) ?? shells[0];
       const shellId: unknown = InstalledTerminal.field(shell, OpenTerminalResources.idField);
-      if (typeof shellId !== "string")
+      if (!Object.isString(shellId))
         throw new InstalledPartFailedException(OpenTerminalResources.noShell);
       const size: JsonValue = { cols: OpenTerminalResources.columns, rows: OpenTerminalResources.rows };
       const opened: JsonValue = await this.callAsync(OpenTerminalResources.openMethod, { shellId, folder: tmpdir(), size, storedLimit: OpenTerminalResources.storedLimit });
       const sessionId: unknown = InstalledTerminal.field(opened, OpenTerminalResources.sessionField);
-      if (typeof sessionId !== "string")
+      if (!Object.isString(sessionId))
         throw new InstalledPartFailedException(OpenTerminalResources.noTerminal);
       const deadline: AbortSignal = AbortSignal.timeout(OpenTerminalResources.echoTimeout);
       deadline.addEventListener("abort", () => this.echoed.reject(new InstalledPartFailedException(OpenTerminalResources.formatEchoMissing(this.output))), { once: true });
@@ -126,7 +128,7 @@ class InstalledTerminal {
 
   private async callAsync(name: string, payload: JsonValue): Promise<JsonValue> {
     const handler: IMethodHandler | undefined = this.handlers.get(name);
-    if (handler === undefined)
+    if (Object.isUndefined(handler))
       throw new InstalledPartFailedException(OpenTerminalResources.formatMethodMissing(name));
     const signal: AbortSignal = AbortSignal.timeout(OpenTerminalResources.requestTimeout);
     return handler.handleAsync(new RequestContext(ShellClients.mainProcess, payload, signal, OpenTerminalResources.connection, OpenTerminalResources.window));

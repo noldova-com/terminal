@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ToolFailureCode } from "@noldova/desktop.runtime";
 
 import { Resources } from "../../resources.ts";
@@ -24,9 +26,9 @@ export class TerminalAccessPolicy {
 
   public resolve(terminalId: string, context: ToolCallContext): AgentTerminalAccess {
     const terminal: IAgentTerminal | undefined = this.terminals.find(terminalId);
-    const access: AgentTerminalAccess | null = terminal === undefined ? null
+    const access: AgentTerminalAccess | null = Object.isUndefined(terminal) ? null
       : TerminalAccessPolicy.accessTo(terminal, context, this.ownerOf(context));
-    if (access === null)
+    if (Object.isNull(access))
       throw ToolFailures.create(ToolFailureCode.Refused, Resources.notFoundCode, Resources.formatTerminalNotFound(terminalId));
     return access;
   }
@@ -36,21 +38,21 @@ export class TerminalAccessPolicy {
     const sessionOwner: string | null = this.ownerOf(context);
     for (const terminal of this.terminals.list()) {
       const access: AgentTerminalAccess | null = TerminalAccessPolicy.accessTo(terminal, context, sessionOwner);
-      if (access !== null)
+      if (!Object.isNull(access))
         accesses.push(access);
     }
     return accesses;
   }
 
   public listClosingWith(agentSessionId: string): readonly IAgentTerminal[] {
-    return this.terminals.list().filter(t => t.ownerSessionId === agentSessionId && t.owner === null);
+    return this.terminals.list().filter(t => t.ownerSessionId === agentSessionId && Object.isNull(t.owner));
   }
 
   public requireStill(access: AgentTerminalAccess, context: ToolCallContext): void {
     const terminal: IAgentTerminal | undefined = this.terminals.find(access.terminal.id);
-    const now: AgentTerminalAccess | null = terminal === undefined ? null
+    const now: AgentTerminalAccess | null = Object.isUndefined(terminal) ? null
       : TerminalAccessPolicy.accessTo(terminal, context, this.ownerOf(context));
-    if (now === null || now.isShared !== access.isShared)
+    if (Object.isNull(now) || now.isShared !== access.isShared)
       throw ToolFailures.create(ToolFailureCode.Stale, Resources.staleCode, Resources.formatTerminalStale(access.terminal.id));
   }
 
@@ -61,7 +63,7 @@ export class TerminalAccessPolicy {
   private static accessTo(terminal: IAgentTerminal, context: ToolCallContext, sessionOwner: string | null): AgentTerminalAccess | null {
     if (terminal.ownerSessionId === context.agentSessionId)
       return new AgentTerminalAccess(terminal, false);
-    if (terminal.ownerSessionId !== null && sessionOwner !== null && terminal.owner === sessionOwner)
+    if (!Object.isNull(terminal.ownerSessionId) && !Object.isNull(sessionOwner) && terminal.owner === sessionOwner)
       return new AgentTerminalAccess(terminal, false);
     if (context.isBound(terminal.id))
       return new AgentTerminalAccess(terminal, true);

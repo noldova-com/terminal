@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import path from "node:path";
 
 import type { IModuleLog } from "@noldova/desktop.runtime";
@@ -84,7 +86,7 @@ export class OneShotCommand implements IAgentCommand {
 
   public async endAsync(): Promise<void> {
     await this.started;
-    if (this.terminal !== null && !this.hasEnded)
+    if (!Object.isNull(this.terminal) && !this.hasEnded)
       await this.terminal.endAsync();
   }
 
@@ -105,7 +107,7 @@ export class OneShotCommand implements IAgentCommand {
       case Resources.pwshExecutable:
       case Resources.windowsPowerShellExecutable:
         return new OneShotLaunch(shell.file,
-          [...Resources.powerShellOneShotArguments, shell.startCommand === null ? command : `${shell.startCommand}${Resources.lineFeed}${command}`]);
+          [...Resources.powerShellOneShotArguments, Object.isNull(shell.startCommand) ? command : `${shell.startCommand}${Resources.lineFeed}${command}`]);
       default:
         return new OneShotLaunch(shell.file, [...Resources.posixOneShotArguments, command]);
     }

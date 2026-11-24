@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources } from "../resources.ts";
 
 export class OneShotLaunch {
@@ -20,7 +22,7 @@ export class OneShotLaunch {
   }
 
   public get commandLine(): string {
-    if (typeof this.args !== "string")
+    if (!Object.isString(this.args))
       return [this.file, ...this.args].map(t => OneShotLaunch.quote(t)).join(Resources.oneShotLaunchArgumentSeparator);
     let line: string = this.args;
     for (const [name, value] of Object.entries(this.environment))

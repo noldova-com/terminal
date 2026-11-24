@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import path from "node:path";
 
@@ -104,7 +106,7 @@ class ExportRunner implements ICommandRunner {
 
   public async runAsync(file: string, args: readonly string[], timeoutMilliseconds: number): Promise<string> {
     this.runs.push([file, args, timeoutMilliseconds]);
-    if (this.held !== null) {
+    if (!Object.isNull(this.held)) {
       this.entered.resolve();
       await this.held.promise;
     }
@@ -112,18 +114,18 @@ class ExportRunner implements ICommandRunner {
     if (verb === "query")
       return this.query(key);
     const failure: Error | undefined = this.failures.get(key)?.shift();
-    if (failure !== undefined)
+    if (!Object.isUndefined(failure))
       throw failure;
     const answer: Scope | Error | undefined = this.answers.get(key);
     if (answer instanceof Error)
       throw answer;
-    if (answer !== undefined)
+    if (!Object.isUndefined(answer))
       this.reader.bytes.set(target, exported(key, answer));
     return "The operation completed successfully.\r\n";
   }
 
   private query(key: string): string {
-    if (this.queryFailure !== null)
+    if (!Object.isNull(this.queryFailure))
       throw this.queryFailure;
     if (!this.present.has(key))
       throw new CommandExitedException("reg.exe", new ProcessExit(1, null), "ERROR: The system was unable to find the specified registry key or value.\r\n");

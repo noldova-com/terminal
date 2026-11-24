@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { chmod, lstat, mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -96,7 +98,7 @@ describe("FileSystemReader", () => {
     });
     const links: boolean[] = await Promise.all(names.map(async t => (await lstat(join(aliasFolder, t))).isSymbolicLink()));
     const alias: string | undefined = names.find((t, i) => t.endsWith(".exe") && links[i] === true);
-    context.skip(alias === undefined, "This Windows has no app execution alias.");
+    context.skip(Object.isUndefined(alias), "This Windows has no app execution alias.");
     const reader: FileSystemReader = new FileSystemReader();
 
     assert.equal(await reader.isFileAsync(join(aliasFolder, alias ?? "")), false);

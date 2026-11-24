@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { ProcessExit } from "@noldova/desktop.runtime";
@@ -49,7 +51,7 @@ class SourceFixture {
     kind: TerminalShellKind = TerminalShellKind.Bash, key: string = "s1", prompt: number = 1, shell: CommandTracker = this.shellOf(key),
     folder: string = "/work"): Promise<readonly string[]> {
     const missing: TerminalMissingCommands = await this.source.findMissingAsync(key, shell, prompt, kind, folder, names,
-      shellNames === null ? null : new Set(shellNames), environment);
+      Object.isNull(shellNames) ? null : new Set(shellNames), environment);
     return missing.names;
   }
 

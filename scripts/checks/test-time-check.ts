@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -21,7 +23,7 @@ class TestTimeCheck {
   }
 
   private static field(value: unknown, name: string): unknown {
-    return typeof value === "object" && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value))[name] : undefined;
+    return Object.isObject(value) && !Array.isArray(value) ? Object.fromEntries(Object.entries(value))[name] : undefined;
   }
 
   public run(): readonly string[] {
@@ -35,7 +37,7 @@ class TestTimeCheck {
       const name: unknown = TestTimeCheck.field(file, Resources.vitestFileName);
       const start: unknown = TestTimeCheck.field(file, Resources.vitestStartTime);
       const end: unknown = TestTimeCheck.field(file, Resources.vitestEndTime);
-      if (typeof name !== "string" || typeof start !== "number" || typeof end !== "number")
+      if (!Object.isString(name) || !Object.isNumber(start) || !Object.isNumber(end))
         continue;
       measured++;
       const relative: string = path.relative(this.root, name).replaceAll(Resources.windowsSeparator, Resources.posixSeparator);
@@ -61,7 +63,7 @@ class TestTimeCheck {
       if (!line.startsWith(Resources.testWaitTableRowPrefix))
         break;
       const file: string | undefined = Resources.slowFileListRow.exec(line)?.[1];
-      if (file !== undefined)
+      if (!Object.isUndefined(file))
         files.add(file);
     }
     return files;
@@ -69,7 +71,7 @@ class TestTimeCheck {
 }
 
 const [report] = process.argv.slice(2);
-const findings: readonly string[] = report === undefined ? [Resources.testTimeUsage] : new TestTimeCheck(process.cwd(), report).run();
+const findings: readonly string[] = Object.isUndefined(report) ? [Resources.testTimeUsage] : new TestTimeCheck(process.cwd(), report).run();
 for (const finding of findings)
   console.error(finding);
 process.exitCode = findings.length > 0 ? 1 : 0;

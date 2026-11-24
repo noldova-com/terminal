@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { ForegroundProcess } from "@noldova/desktop.runtime";
 
 import type { IDisposable } from "../interfaces/i-disposable.ts";
@@ -33,7 +35,7 @@ export class DeferredPtyProcess implements IPtyProcess {
   }
 
   public get hasStarted(): boolean {
-    return this.starting !== undefined;
+    return !Object.isUndefined(this.starting);
   }
 
   public get pid(): number | null {
@@ -57,7 +59,7 @@ export class DeferredPtyProcess implements IPtyProcess {
   public resize(columns: number, rows: number): void {
     this.columns = columns;
     this.rows = rows;
-    if (this.process === undefined)
+    if (Object.isUndefined(this.process))
       this.start();
     else
       this.process.resize(columns, rows);
@@ -80,14 +82,14 @@ export class DeferredPtyProcess implements IPtyProcess {
   public async endAsync(): Promise<boolean> {
     this.isEnded = true;
     await this.starting;
-    if (this.process !== undefined)
+    if (!Object.isUndefined(this.process))
       return this.process.endAsync();
     this.exit({ exitCode: undefined });
     return true;
   }
 
   public start(): void {
-    if (this.starting !== undefined || this.isEnded)
+    if (!Object.isUndefined(this.starting) || this.isEnded)
       return;
     const [columns, rows]: [number, number] = [this.columns, this.rows];
     this.starting = this.startProcessAsync(columns, rows).then(process => {

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IFlowControllerListener } from "../interfaces/i-flow-controller-listener.ts";
 import { PaneProgress } from "../models/pane-progress.ts";
 import { Resources } from "../resources.ts";
@@ -50,7 +52,7 @@ export class FlowController {
 
   public acknowledge(paneId: string, offset: number): void {
     const pane: PaneProgress | undefined = this.panes.get(paneId);
-    if (pane === undefined)
+    if (Object.isUndefined(pane))
       return;
     pane.offset = Math.max(pane.offset, Math.min(offset, this.producedOffset));
     this.update();
@@ -58,7 +60,7 @@ export class FlowController {
 
   public setVisible(paneId: string, isVisible: boolean): void {
     const pane: PaneProgress | undefined = this.panes.get(paneId);
-    if (pane === undefined)
+    if (Object.isUndefined(pane))
       return;
     pane.isVisible = isVisible;
     this.update();
@@ -66,7 +68,7 @@ export class FlowController {
 
   public detach(paneId: string): boolean {
     const pane: PaneProgress | undefined = this.panes.get(paneId);
-    if (pane === undefined)
+    if (Object.isUndefined(pane))
       return false;
     FlowController.stopStallTimer(pane);
     this.panes.delete(paneId);
@@ -111,7 +113,7 @@ export class FlowController {
   }
 
   private static stopStallTimer(pane: PaneProgress): void {
-    if (pane.stallTimer === null)
+    if (Object.isNull(pane.stallTimer))
       return;
     clearTimeout(pane.stallTimer);
     pane.stallTimer = null;

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { EventChannel } from "@noldova/desktop.runtime";
 import type { JsonValue } from "@noldova/context.json";
 
@@ -20,18 +22,18 @@ export class TerminalAudience {
 
   public see(client: RequestClient): void {
     let windows: Set<number> | undefined = this.windows.get(client.connection);
-    if (windows === undefined) {
+    if (Object.isUndefined(windows)) {
       windows = new Set<number>();
       this.windows.set(client.connection, windows);
       if (client.isApp)
         this.apps.add(client.connection);
     }
-    if (client.window !== null)
+    if (!Object.isNull(client.window))
       windows.add(client.window);
   }
 
   public forget(connection: number, window: number | null): boolean {
-    if (window !== null) {
+    if (!Object.isNull(window)) {
       this.windows.get(connection)?.delete(window);
       this.shownOwners.get(connection)?.delete(window);
       this.hiddenWindows.get(connection)?.delete(window);
@@ -44,10 +46,10 @@ export class TerminalAudience {
   }
 
   public show(client: RequestClient, owner: string | null, isHidden: boolean): void {
-    if (client.window === null)
+    if (Object.isNull(client.window))
       return;
     let hidden: Set<number> | undefined = this.hiddenWindows.get(client.connection);
-    if (hidden === undefined) {
+    if (Object.isUndefined(hidden)) {
       hidden = new Set<number>();
       this.hiddenWindows.set(client.connection, hidden);
     }
@@ -56,11 +58,11 @@ export class TerminalAudience {
     else
       hidden.delete(client.window);
     let owners: Map<number, string> | undefined = this.shownOwners.get(client.connection);
-    if (owners === undefined) {
+    if (Object.isUndefined(owners)) {
       owners = new Map<number, string>();
       this.shownOwners.set(client.connection, owners);
     }
-    if (owner === null)
+    if (Object.isNull(owner))
       owners.delete(client.window);
     else
       owners.set(client.window, owner);
@@ -74,11 +76,11 @@ export class TerminalAudience {
   }
 
   public isOpen(client: RequestClient): boolean {
-    return client.window === null ? this.windows.has(client.connection) : this.windows.get(client.connection)?.has(client.window) === true;
+    return Object.isNull(client.window) ? this.windows.has(client.connection) : this.windows.get(client.connection)?.has(client.window) === true;
   }
 
   public isHidden(client: RequestClient): boolean {
-    return client.window !== null && this.hiddenWindows.get(client.connection)?.has(client.window) === true;
+    return !Object.isNull(client.window) && this.hiddenWindows.get(client.connection)?.has(client.window) === true;
   }
 
   public isApp(connection: number): boolean {

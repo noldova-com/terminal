@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ArgumentException, ExceptionOptions } from "@noldova/context.exceptions";
 import { JsonException, JsonReader } from "@noldova/context.json";
 
@@ -33,7 +35,7 @@ export class ProtocolReader {
     catch (error) {
       if (!(error instanceof ArgumentException))
         throw error;
-      const path: string = error.parameterName === undefined ? this.path : this.fieldPath(error.parameterName);
+      const path: string = Object.isUndefined(error.parameterName) ? this.path : this.fieldPath(error.parameterName);
       throw new JsonException(error.message, path, new ExceptionOptions(error));
     }
   }
@@ -54,7 +56,7 @@ export class ProtocolReader {
   }
 
   public readNullableNonBlankString(name: string, maximumLength: number): string | null {
-    return this.reader.readNullableString(name) === null ? null : this.readNonBlankString(name, maximumLength);
+    return Object.isNull(this.reader.readNullableString(name)) ? null : this.readNonBlankString(name, maximumLength);
   }
 
   public readBoolean(name: string): boolean {
@@ -67,7 +69,7 @@ export class ProtocolReader {
 
   public readNullableInteger(name: string, minimum: number, maximum: number): number | null {
     const value: number | null = this.reader.readNullableInteger(name);
-    return value === null ? null : this.requireRange(name, value, minimum, maximum);
+    return Object.isNull(value) ? null : this.requireRange(name, value, minimum, maximum);
   }
 
   public readOptionalString(name: string, maximumLength: number): string | undefined {
@@ -78,7 +80,7 @@ export class ProtocolReader {
     if (!this.reader.hasField(name))
       return null;
     const value: string | null = this.reader.readNullableString(name);
-    return value === null ? null : this.requireMaximumLength(name, value, maximumLength);
+    return Object.isNull(value) ? null : this.requireMaximumLength(name, value, maximumLength);
   }
 
   public readOptionalInteger(name: string, minimum: number, maximum: number): number | undefined {
@@ -96,7 +98,7 @@ export class ProtocolReader {
   public readOneOfArray<T extends string>(name: string, values: readonly T[]): readonly T[] {
     return this.reader.readStringArray(name).map((item, index) => {
       const match: T | undefined = values.find(t => t === item);
-      if (match === undefined)
+      if (Object.isUndefined(match))
         throw new JsonException(Resources.formatExpectedOneOf(values), this.itemPath(name, index));
       return match;
     });
@@ -129,7 +131,7 @@ export class ProtocolReader {
   }
 
   public readNullableObject(name: string): ProtocolReader | null {
-    return this.reader.readNullableObject(name) === null ? null : this.readObject(name);
+    return Object.isNull(this.reader.readNullableObject(name)) ? null : this.readObject(name);
   }
 
   public readObjectArray(name: string): readonly ProtocolReader[] {

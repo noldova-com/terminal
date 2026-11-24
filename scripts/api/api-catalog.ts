@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ScriptException } from "../exceptions/script.exception.ts";
 import { PackageLayout } from "../services/package-layout.ts";
 import { ApiEntry } from "./api-entry.ts";
@@ -30,7 +32,7 @@ export class ApiCatalog {
 
   public async inspectEachAsync(verdict: string, inspectAsync: (apiPackage: ApiPackage, apiPackages: readonly ApiPackage[]) => Promise<readonly string[]>): Promise<readonly string[]> {
     const apiPackages = await this.listOrReportAsync();
-    if (typeof apiPackages === "string")
+    if (Object.isString(apiPackages))
       return [apiPackages];
     const found: string[] = [];
     for (const apiPackage of apiPackages) {

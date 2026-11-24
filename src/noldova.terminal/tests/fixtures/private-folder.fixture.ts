@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { statSync } from "node:fs";
@@ -57,7 +59,7 @@ export class PrivateFolder {
   }
 
   private static has(program: string): boolean {
-    return spawnSync(program, ["--version"], { encoding: "utf8", timeout: PrivateFolder.waitMilliseconds }).error === undefined;
+    return Object.isUndefined(spawnSync(program, ["--version"], { encoding: "utf8", timeout: PrivateFolder.waitMilliseconds }).error);
   }
 
   private static assertWindowsReaders(paths: readonly string[]): void {

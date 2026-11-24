@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { JsonException, JsonReader } from "@noldova/context.json";
@@ -81,7 +83,7 @@ describe("VisualStudioReader", () => {
   it("keeps why the output could not be read as the cause", async () => {
     await assert.rejects(readAsync("not json"), (error: unknown) => error instanceof VisualStudioUnreadableException && error.cause instanceof SyntaxError);
     await assert.rejects(readAsync("[1]"), (error: unknown) => error instanceof VisualStudioUnreadableException && error.cause instanceof JsonException);
-    await assert.rejects(readAsync("{}"), (error: unknown) => error instanceof VisualStudioUnreadableException && error.cause === undefined);
+    await assert.rejects(readAsync("{}"), (error: unknown) => error instanceof VisualStudioUnreadableException && Object.isUndefined(error.cause));
   });
 
   it("reports vswhere's failure, keeping it as the cause", async () => {

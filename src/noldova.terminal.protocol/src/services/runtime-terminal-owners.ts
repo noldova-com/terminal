@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { PackageCopiesException } from "../exceptions/package-copies.exception.ts";
 import { Resources } from "../resources.ts";
 
@@ -21,7 +23,7 @@ export abstract class RuntimeTerminalOwners {
       return true;
     if (Function.prototype[Symbol.hasInstance].call(RuntimeTerminalOwners, value))
       return false;
-    if (typeof value === "object" && value !== null && BRAND in value)
+    if (Object.isObject(value) && BRAND in value)
       throw new PackageCopiesException();
     return false;
   }

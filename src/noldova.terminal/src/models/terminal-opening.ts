@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 export class TerminalOpening {
   public readonly owner: string | null;
   public readonly connection: number | null;
@@ -16,6 +18,6 @@ export class TerminalOpening {
   }
 
   public isReachedBy(connection: number, isApp: boolean): boolean {
-    return this.connection === null ? this.owner !== null && isApp : this.connection === connection;
+    return Object.isNull(this.connection) ? !Object.isNull(this.owner) && isApp : this.connection === connection;
   }
 }

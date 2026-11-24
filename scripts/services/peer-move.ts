@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -40,7 +42,7 @@ export class PeerMove {
       const chosen = new Map<string, string>();
       for (const [name, ranges] of await this.readRangesAsync()) {
         const version = await this.newestAsync(name, ranges);
-        if (version === undefined)
+        if (Object.isUndefined(version))
           return 1;
         chosen.set(name, version);
       }
@@ -79,11 +81,11 @@ export class PeerMove {
   }
 
   private static isNewer(version: string, than: string): boolean {
-    return VersionRange.parse(Resources.formatRange(than, version)) !== null;
+    return !Object.isNull(VersionRange.parse(Resources.formatRange(than, version)));
   }
 
   private static fieldsOf(json: unknown): ReadonlyMap<string, unknown> {
-    return typeof json === "object" && json !== null && !Array.isArray(json) ? new Map<string, unknown>(Object.entries(json)) : new Map<string, unknown>();
+    return Object.isObject(json) && !Array.isArray(json) ? new Map<string, unknown>(Object.entries(json)) : new Map<string, unknown>();
   }
 
   private static parseVersions(name: string, output: string): unknown {
@@ -106,7 +108,7 @@ export class PeerMove {
     for (const part of await this.layout.readPackagesAsync()) {
       const manifest: unknown = JSON.parse(await readFile(path.join(this.root, part.folder, Resources.manifestFile), Resources.textEncoding));
       for (const [name, range] of PeerMove.fieldsOf(PeerMove.fieldsOf(manifest).get(Resources.peersField)))
-        if (name.startsWith(Resources.contextPrefix) && typeof range === "string")
+        if (name.startsWith(Resources.contextPrefix) && Object.isString(range))
           ranges.set(name, [...ranges.get(name) ?? [], range]);
     }
     return ranges;
@@ -114,9 +116,9 @@ export class PeerMove {
 
   private async newestAsync(name: string, ranges: readonly string[]): Promise<string | undefined> {
     const parsed = ranges.map(t => VersionRange.parse(t));
-    const holding = parsed.filter(t => t !== null);
+    const holding = parsed.filter(t => !Object.isNull(t));
     if (holding.length !== parsed.length) {
-      for (const range of ranges.filter(t => VersionRange.parse(t) === null))
+      for (const range of ranges.filter(t => Object.isNull(VersionRange.parse(t))))
         this.report(Resources.formatPeerRangeInvalid(Resources.manifestFile, name, range));
       return undefined;
     }
@@ -127,9 +129,9 @@ export class PeerMove {
     }
     const published = PeerMove.parseVersions(name, result.output);
     const versions = (Array.isArray(published) ? published : [published])
-      .filter((t: unknown): t is string => typeof t === "string" && Resources.versionPattern.test(t) && holding.every(u => u.includes(t)));
-    const newest = versions.reduce<string | undefined>((found, t) => found === undefined || PeerMove.isNewer(t, found) ? t : found, undefined);
-    if (newest === undefined)
+      .filter((t: unknown): t is string => Object.isString(t) && Resources.versionPattern.test(t) && holding.every(u => u.includes(t)));
+    const newest = versions.reduce<string | undefined>((found, t) => Object.isUndefined(found) || PeerMove.isNewer(t, found) ? t : found, undefined);
+    if (Object.isUndefined(newest))
       this.report(Resources.formatPeerNoVersion(name, [...new Set(ranges)]));
     return newest;
   }
@@ -149,10 +151,10 @@ export class PeerMove {
       if (!existsSync(file))
         continue;
       const installed: unknown = JSON.parse(await readFile(file, Resources.textEncoding));
-      if (typeof installed !== "object" || installed === null || Array.isArray(installed))
+      if (!Object.isObject(installed) || Array.isArray(installed))
         throw new JsonObjectRequiredException(file);
       const version = PeerMove.fieldsOf(installed).get(Resources.versionField);
-      if (typeof version !== "string")
+      if (!Object.isString(version))
         throw new VersionMissingException(file);
       kept.push(Resources.formatPackageSpec(name, version));
     }
