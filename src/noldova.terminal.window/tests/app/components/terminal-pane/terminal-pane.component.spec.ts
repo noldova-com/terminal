@@ -574,7 +574,6 @@ describe("TerminalPaneComponent", () => {
     expect([host.text, host.runtime.attachCount]).toEqual([expect.stringContaining("last words"), 1]);
   });
 
-  /** Ends the pane's shell, focuses the strip's Restart or the given field, restarts the shell, and tells where the focus is then. */
   async function focusAfterRestartAsync(field: HTMLElement | null): Promise<string> {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.runtime.exit = new TerminalExit(0, EndedBy.Exit);
