@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { ArgumentException } from "@noldova/context.exceptions";
 import { describe, it } from "vitest";
 
+import { OutputChunk } from "../../../src/tools/models/output-chunk.ts";
 import { OutputExcerpt } from "../../../src/tools/models/output-excerpt.ts";
 
 function marker(count: number): string {
@@ -47,8 +48,17 @@ describe("OutputExcerpt", () => {
     assert.equal(excerpt.omittedCharacters, 8);
   });
 
-  it("refuses a limit out of range", () => {
+  it("says at its head how much the log trimmed from the start, and counts it with what it leaves out", () => {
+    const whole: OutputExcerpt = OutputExcerpt.of(new OutputChunk("abcdef", 26, 20), 6);
+    const cut: OutputExcerpt = OutputExcerpt.of(new OutputChunk("abcdefghij", 30, 20), 6);
+
+    assert.deepEqual([whole.text, whole.omittedCharacters, cut.text, cut.omittedCharacters], [`${marker(20)}abcdef`, 20, `${marker(20)}abc${marker(4)}hij`, 24]);
+  });
+
+  it("refuses a limit out of range, and a negative or fractional trimmed count", () => {
     assert.throws(() => new OutputExcerpt("a", 0), ArgumentException);
     assert.throws(() => new OutputExcerpt("a", 30_001), ArgumentException);
+    assert.throws(() => new OutputExcerpt("a", 1, -1), ArgumentException);
+    assert.throws(() => new OutputExcerpt("a", 1, 1.5), ArgumentException);
   });
 });

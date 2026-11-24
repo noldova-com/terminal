@@ -36,7 +36,7 @@ describe("OutputLog", () => {
     log.append("ef");
 
     assert.equal(log.endOffset, 6);
-    assert.deepEqual(log.readSince(0), new OutputChunk("ef", 6));
+    assert.deepEqual([log.readSince(0), log.readSince(3), log.readChunk(1, 3)], [new OutputChunk("ef", 6, 4), new OutputChunk("ef", 6, 1), new OutputChunk("", 3, 2)]);
     assert.equal(log.readRange(0, 1), "");
   });
 

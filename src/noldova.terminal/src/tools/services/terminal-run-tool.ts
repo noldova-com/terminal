@@ -71,7 +71,7 @@ export class TerminalRunTool extends TerminalTool<TerminalRunInput> {
     await command.waitForEndAsync(input.yieldMilliseconds, context.signal);
     const chunk: OutputChunk = command.readSince(0);
     this.cursors.set(context.agentSessionId, input.terminalId, ReadCursor.forCommand(command, context.signal.aborted ? 0 : chunk.endOffset));
-    const report: TerminalOutputReport = new TerminalOutputReport(access, command, new OutputExcerpt(chunk.text, input.maximumCharacters), command.cwd);
+    const report: TerminalOutputReport = new TerminalOutputReport(access, command, OutputExcerpt.of(chunk, input.maximumCharacters), command.cwd);
     if (context.signal.aborted)
       throw TerminalTool.failEndedCall(Resources.runToolName, command, report, context.signal);
     return report.toResult();

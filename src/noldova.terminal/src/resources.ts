@@ -1851,10 +1851,12 @@ fi
   public static readonly agentTerminalOpeningShellIdField: string = "shellId";
 
   public static readonly outputChunkEndOffsetField: string = "endOffset";
+  public static readonly outputChunkTrimmedCharactersField: string = "trimmedCharacters";
 
   public static readonly outputExcerptHighSurrogates: RegExp = /[\ud800-\udbff]$/;
   public static readonly outputExcerptLowSurrogates: RegExp = /^[\udc00-\udfff]/;
   public static readonly outputExcerptMaximumCharactersField: string = "maximumCharacters";
+  public static readonly outputExcerptTrimmedCharactersField: string = "trimmedCharacters";
 
 
   public static formatPermissionAskAction(action: string): string {

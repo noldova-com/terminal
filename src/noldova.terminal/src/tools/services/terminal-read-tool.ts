@@ -60,7 +60,7 @@ export class TerminalReadTool extends TerminalTool<TerminalReadInput> {
     await cursor.source.waitForOutputAsync(cursor.offset, input.waitMilliseconds, context.signal);
     const chunk: OutputChunk = cursor.source.readSince(cursor.offset);
     const cwd: string | null = cursor.command === null ? access.terminal.readPrompt().cwd : cursor.command.cwd;
-    const report: TerminalOutputReport = new TerminalOutputReport(access, cursor.command, new OutputExcerpt(chunk.text, input.maximumCharacters), cwd);
+    const report: TerminalOutputReport = new TerminalOutputReport(access, cursor.command, OutputExcerpt.of(chunk, input.maximumCharacters), cwd);
     if (context.signal.aborted)
       throw TerminalTool.failEndedCall(Resources.readToolName, cursor.command, report, context.signal);
     this.cursors.set(context.agentSessionId, input.terminalId, cursor.advancedTo(chunk.endOffset));

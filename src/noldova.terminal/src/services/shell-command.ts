@@ -12,7 +12,7 @@ import { Resources } from "../resources.ts";
 import { CommandStatus } from "../tools/enums/command-status.ts";
 import { RunMethod } from "../tools/enums/run-method.ts";
 import type { IAgentCommand } from "../tools/interfaces/i-agent-command.ts";
-import { OutputChunk } from "../tools/models/output-chunk.ts";
+import type { OutputChunk } from "../tools/models/output-chunk.ts";
 import type { TerminalSession } from "./terminal-session.ts";
 
 export class ShellCommand implements IAgentCommand {
@@ -87,13 +87,11 @@ export class ShellCommand implements IAgentCommand {
   }
 
   public readSince(offset: number): OutputChunk {
-    const start: number = this.outputStart;
-    const end: number = this.outputEnd;
-    return new OutputChunk(this.session.text.readRange(start + offset, end), end - start);
+    return this.session.text.readChunk(Math.max(offset, this.outputStart), this.outputEnd);
   }
 
   public waitForOutputAsync(offset: number, timeoutMilliseconds: number, signal: AbortSignal): Promise<void> {
-    return this.session.changes.waitUntilAsync(() => this.hasEnded || this.outputEnd > this.outputStart + offset, timeoutMilliseconds, signal);
+    return this.session.changes.waitUntilAsync(() => this.hasEnded || this.outputEnd > Math.max(offset, this.outputStart), timeoutMilliseconds, signal);
   }
 
   public waitForEndAsync(timeoutMilliseconds: number, signal: AbortSignal): Promise<void> {
