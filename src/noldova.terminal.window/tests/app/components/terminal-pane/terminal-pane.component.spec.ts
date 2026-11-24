@@ -441,6 +441,36 @@ describe("TerminalPaneComponent", () => {
     expect(host.inputs).toEqual([]);
   });
 
+  it("answers a color query once for a session in two panes, from the pane that sizes it, as the sizing moves", async () => {
+    const wide: PaneHost<TerminalPaneComponent> = createPane(true);
+    PaneHost.fill(wide.element);
+    await wide.startAsync();
+    const narrow: ComponentFixture<TerminalPaneComponent> = TestBed.createComponent(TerminalPaneComponent);
+    document.body.append(wide.element);
+    const element: HTMLElement = PaneHost.hostOf(narrow);
+    narrow.componentRef.setInput("sessionId", "s1");
+    narrow.detectChanges();
+    PaneHost.fill(element);
+    await narrow.whenStable();
+    await vi.waitFor(() => expect(element.querySelector("textarea")).not.toBeNull(), { timeout: SpecWait.milliseconds });
+    const answers = (): number => wide.inputs.filter(t => t.startsWith("\u001b]11;rgb:")).length;
+    const shown = (text: string): string[] => [wide.text, element.querySelector(".xterm-rows")?.textContent ?? ""].filter(t => t.includes(text));
+
+    wide.runtime.output("s1", 0, "\u001b]11;?\u0007one");
+    await vi.waitFor(() => expect([shown("one").length, answers() >= 1]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
+    const first: number = answers();
+    PaneHost.find(element, "textarea", HTMLTextAreaElement).focus();
+    wide.runtime.output("s1", 10, "\u001b]11;?\u0007two");
+    await vi.waitFor(() => expect([shown("two").length, answers() >= 2]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
+    const second: number = answers();
+    wide.textarea.focus();
+    wide.runtime.output("s1", 20, "\u001b]11;?\u0007three");
+    await vi.waitFor(() => expect([shown("three").length, answers() >= 3]).toEqual([2, true]), { timeout: SpecWait.milliseconds });
+
+    expect([first, second, answers()]).toEqual([1, 2, 3]);
+    narrow.destroy();
+  });
+
   it("shows a web link's target on hover and opens it on the open click only, as a Ctrl+click, never on a middle or right button with Ctrl", async () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     host.runtime.context.inAppBrowser = IN_APP_BROWSER;
