@@ -21,8 +21,14 @@ describe("OutputChunk", () => {
     assert.equal(chunk.endOffset, 12);
   });
 
-  it("refuses a negative or fractional offset", () => {
+  it("counts no trimmed text unless told, and keeps the count it's given", () => {
+    assert.deepEqual([new OutputChunk("ok\n", 12).trimmedCharacters, new OutputChunk("ok\n", 12, 5).trimmedCharacters], [0, 5]);
+  });
+
+  it("refuses a negative or fractional offset or trimmed count", () => {
     assert.throws(() => new OutputChunk("", -1), ArgumentException);
     assert.throws(() => new OutputChunk("", 1.5), ArgumentException);
+    assert.throws(() => new OutputChunk("", 1, -1), ArgumentException);
+    assert.throws(() => new OutputChunk("", 1, 1.5), ArgumentException);
   });
 });

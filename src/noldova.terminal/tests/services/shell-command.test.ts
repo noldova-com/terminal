@@ -59,8 +59,8 @@ describe("ShellCommand", () => {
 
     assert.deepEqual(fixture.process.writes, ["make\r"]);
     assert.deepEqual([command.status, command.exitCode, command.cwd, command.logFile], ["Exited", 0, "/w", "/logs/s1.log"]);
-    assert.deepEqual(command.readSince(0), new OutputChunk("built\n", 6));
-    assert.deepEqual(command.readSince(3), new OutputChunk("lt\n", 6));
+    assert.deepEqual(command.readSince(0), new OutputChunk("built\n", 13));
+    assert.deepEqual(command.readSince(10), new OutputChunk("lt\n", 13));
   });
 
   it("reports a running command's output so far, and its wait for a password", async () => {
@@ -72,9 +72,31 @@ describe("ShellCommand", () => {
     await command.waitForOutputAsync(0, 1_000, SIGNAL);
 
     assert.deepEqual([command.status, command.exitCode, command.cwd], ["Running", null, null]);
-    assert.deepEqual(command.readSince(0), new OutputChunk("step 1\n", 7));
+    assert.deepEqual(command.readSince(0), new OutputChunk("step 1\n", 15));
     fixture.process.emitData("Password: ");
     assert.equal(command.status, "AwaitingInput");
+  });
+
+  it("gives a read from where a run answered before the output-start mark all the output after the mark", () => {
+    const fixture: CommandFixture = new CommandFixture();
+    fixture.process.emitData(`$ ${mark("B")}`);
+    const command: ShellCommand = fixture.run();
+    fixture.process.emitData("make\r\n");
+    const answered: OutputChunk = command.readSince(0);
+
+    fixture.process.emitData(`${mark("C")}abcdefghijk`);
+
+    assert.deepEqual([answered, command.readSince(answered.endOffset)], [new OutputChunk("make\n", 7), new OutputChunk("abcdefghijk", 18)]);
+  });
+
+  it("counts the start of a long command's output that the agent's text no longer keeps", () => {
+    const fixture: CommandFixture = new CommandFixture(10);
+    fixture.process.emitData(`$ ${mark("B")}`);
+    const command: ShellCommand = fixture.run();
+
+    fixture.process.emitData(`make\r\n${mark("C")}0123456789abcdefghij`);
+
+    assert.deepEqual([command.readSince(0), command.readSince(9)], [new OutputChunk("abcdefghij", 27, 10), new OutputChunk("abcdefghij", 27, 8)]);
   });
 
   it("takes its output from where it was typed when the shell marks no output start", () => {
@@ -85,7 +107,7 @@ describe("ShellCommand", () => {
     fixture.process.emitData(`make\r\nfailed\r\n${mark("D", "2")}`);
 
     assert.deepEqual([command.status, command.exitCode], ["Exited", 2]);
-    assert.deepEqual(command.readSince(0), new OutputChunk("make\nfailed\n", 12));
+    assert.deepEqual(command.readSince(0), new OutputChunk("make\nfailed\n", 14));
   });
 
   it("ends as killed when its shell ends", async () => {
@@ -148,7 +170,7 @@ describe("ShellCommand", () => {
 
     assert.deepEqual(fixture.process.writes, ["make\r", "\u0003"]);
     assert.deepEqual([interrupted, command.status, command.exitCode, command.cwd], ["Running", "Killed", null, null]);
-    assert.deepEqual(command.readSince(0), new OutputChunk("step 1\n", 7));
+    assert.deepEqual(command.readSince(0), new OutputChunk("step 1\n", 14));
     assert.equal(command.interrupt(), false);
   });
 
@@ -164,7 +186,7 @@ describe("ShellCommand", () => {
     await ending;
 
     assert.deepEqual([redrawn, command.status, command.exitCode, command.cwd], ["Running", "Exited", null, null]);
-    assert.deepEqual(command.readSince(0), new OutputChunk("(cd app && make)\n$ (cd app && make)\nbuilt\n", 42));
+    assert.deepEqual(command.readSince(0), new OutputChunk("(cd app && make)\n$ (cd app && make)\nbuilt\n", 44));
   });
 
   it("ends a command its shell marks nothing for at the first prompt after the shell's echo of it, not at an earlier or a later one", () => {
@@ -179,7 +201,7 @@ describe("ShellCommand", () => {
     fixture.process.emitData(`ls\r\n${mark("C")}notes.txt\r\n${mark("D", "0")}${mark("A")}$ ${mark("B")}`);
 
     assert.deepEqual([early, ended, command.status, command.exitCode], ["Running", ["Exited", null], "Exited", null]);
-    assert.deepEqual(command.readSince(0), new OutputChunk("\n[1]+  Done                    sleep 1\n$ (cd app && make)\nbuilt\n", 64));
+    assert.deepEqual(command.readSince(0), new OutputChunk("\n[1]+  Done                    sleep 1\n$ (cd app && make)\nbuilt\n", 66));
   });
 
   it("ends a command its shell marks nothing for at its prompt after it printed more than the agent's text keeps", () => {
@@ -262,7 +284,7 @@ describe("ShellCommand", () => {
     fixture.process.emitData(`${mark("D", "0")}${mark("A")}$ ${mark("B")}ls\r\n${mark("C")}`);
 
     assert.deepEqual([nested, command.status, command.exitCode], ["Running", "Exited", 0]);
-    assert.deepEqual(command.readSince(0), new OutputChunk("nested$ exit\n", 13));
+    assert.deepEqual(command.readSince(0), new OutputChunk("nested$ exit\n", 20));
   });
 
   it("ends killed without a code at the next prompt when interrupted and its shell marks no start or end for it", () => {
@@ -276,6 +298,6 @@ describe("ShellCommand", () => {
 
     assert.equal(interrupted, true);
     assert.deepEqual([command.status, command.exitCode, command.cwd], ["Killed", null, null]);
-    assert.deepEqual(command.readSince(0), new OutputChunk("(sleep 100)\n^C\n", 15));
+    assert.deepEqual(command.readSince(0), new OutputChunk("(sleep 100)\n^C\n", 17));
   });
 });

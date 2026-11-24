@@ -50,7 +50,11 @@ export class OutputLog {
   }
 
   public readSince(offset: number): OutputChunk {
-    return new OutputChunk(this.readRange(offset, this.endOffset), this.endOffset);
+    return this.readChunk(offset, this.endOffset);
+  }
+
+  public readChunk(start: number, end: number): OutputChunk {
+    return new OutputChunk(this.readRange(start, end), end, Math.max(Math.min(this.startOffset, end) - start, 0));
   }
 
   public subscribe(listener: (text: string) => void): Registration {
