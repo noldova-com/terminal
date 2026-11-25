@@ -49,10 +49,12 @@ export class PeerMove {
       if (chosen.size === 0)
         return 0;
       const manifest = RootManifest.parse(await readFile(path.join(this.root, Resources.manifestFile), Resources.textEncoding));
-      const together = [...chosen.values()].reduce((found, t) => PeerMove.isNewer(t, found) ? t : found);
-      for (const name of new Set([...manifest.pins.keys(), ...await this.readInstalledContextAsync()]))
-        if (name.startsWith(Resources.contextPrefix) && !chosen.has(name))
-          chosen.set(name, together);
+      const context = [...chosen].filter(([name]) => name.startsWith(Resources.contextPrefix)).map(([, version]) => version);
+      const together = context.reduce<string | undefined>((found, t) => Object.isUndefined(found) || PeerMove.isNewer(t, found) ? t : found, undefined);
+      if (!Object.isUndefined(together))
+        for (const name of new Set([...manifest.pins.keys(), ...await this.readInstalledContextAsync()]))
+          if (name.startsWith(Resources.contextPrefix) && !chosen.has(name))
+            chosen.set(name, together);
       const kept = await this.readInstalledPinsAsync(new Map([...manifest.pins].filter(([name]) => !chosen.has(name))));
       const moved = [...chosen].map(([name, version]) => Resources.formatPackageSpec(name, version));
       const result = await this.npm.runAsync([...Resources.peerInstallArguments, ...moved, ...kept], this.root);
@@ -108,7 +110,7 @@ export class PeerMove {
     for (const part of await this.layout.readPackagesAsync()) {
       const manifest: unknown = JSON.parse(await readFile(path.join(this.root, part.folder, Resources.manifestFile), Resources.textEncoding));
       for (const [name, range] of PeerMove.fieldsOf(PeerMove.fieldsOf(manifest).get(Resources.peersField)))
-        if (name.startsWith(Resources.contextPrefix) && Object.isString(range))
+        if (VersionRange.isRanged(name) && !VersionRange.isCore(name) && Object.isString(range))
           ranges.set(name, [...ranges.get(name) ?? [], range]);
     }
     return ranges;
