@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources } from "../../resources.ts";
 
 export class TerminalTextEscaper {
@@ -36,7 +38,7 @@ export class TerminalTextEscaper {
 
   private static escapeCharacter(character: string): string {
     const name: string | undefined = Resources.terminalTextEscaperNamed.get(character);
-    if (name !== undefined)
+    if (!Object.isUndefined(name))
       return name;
     if (TerminalTextEscaper.hasControls(character) || TerminalTextEscaper.hasHiddenCharacters(character))
       return TerminalTextEscaper.formatCodePoint(character);

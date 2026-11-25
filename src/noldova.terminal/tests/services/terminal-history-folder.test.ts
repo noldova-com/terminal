@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { join } from "node:path";
 
@@ -91,7 +93,7 @@ describe("TerminalHistoryFolder", () => {
 
     const paths: (TerminalHistoryPaths | null)[] = await Promise.all([fixture.folder.pathsAsync("s1"), fixture.folder.pathsAsync("s2")]);
 
-    assert.equal(paths.filter(t => t !== null).length, 2);
+    assert.equal(paths.filter(t => !Object.isNull(t)).length, 2);
     assert.deepEqual(fixture.access.restricted, [[join(TEMP, "noldova-terminal-lines-400-1"), 0]]);
   });
 

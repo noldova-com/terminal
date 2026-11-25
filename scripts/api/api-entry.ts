@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -49,16 +51,16 @@ export class ApiEntry {
   }
 
   private static isObject(value: unknown): value is JsonObject {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
+    return Object.isObject(value) && !Array.isArray(value);
   }
 
   private static isAsset(target: unknown): boolean {
-    return typeof target === "string" && !target.endsWith(Resources.sourceExtension);
+    return Object.isString(target) && !target.endsWith(Resources.sourceExtension);
   }
 
   private static parse(file: string, subpath: string, target: unknown): ApiEntry {
-    const name = typeof target === "string" ? ApiResources.entrySourcePattern.exec(target)?.[1] : undefined;
-    if (name === undefined)
+    const name = Object.isString(target) ? ApiResources.entrySourcePattern.exec(target)?.[1] : undefined;
+    if (Object.isUndefined(name))
       throw new ApiEntryNotDeclarationsException(file, subpath, JSON.stringify(target));
     return new ApiEntry(subpath, name);
   }

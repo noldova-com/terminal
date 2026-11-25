@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { type IToolDescriptor, ToolFailureCode, type ToolResult, ToolRisk } from "@noldova/desktop.runtime";
 
 import { Resources } from "../../resources.ts";
@@ -96,7 +98,7 @@ export class TerminalWriteTool extends TerminalTool<TerminalWriteInput> {
       [
         ...PermissionDetails.forTerminal(access),
         ...PermissionDetails.forShell(access),
-        ...PermissionDetails.forFolder(prompt.cwd, prompt.cwd !== null && context.isInsideWorkingFolder(prompt.cwd)),
+        ...PermissionDetails.forFolder(prompt.cwd, !Object.isNull(prompt.cwd) && context.isInsideWorkingFolder(prompt.cwd)),
         PermissionDetails.yesNo(Resources.atPromptLabel, prompt.isIdle),
         PermissionDetails.code(Resources.keysLabel, input.keys.display),
         PermissionDetails.yesNo(Resources.hiddenCharactersLabel, input.keys.hasHiddenCharacters),

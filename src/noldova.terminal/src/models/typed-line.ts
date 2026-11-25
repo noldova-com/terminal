@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources } from "../resources.ts";
 import type { TrackedCommand } from "./tracked-command.ts";
 
@@ -24,7 +26,7 @@ export class TypedLine {
   }
 
   public get isOpen(): boolean {
-    return this.command === null && this.endOffset === null;
+    return Object.isNull(this.command) && Object.isNull(this.endOffset);
   }
 
   public read(text: string): void {

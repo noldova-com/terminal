@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ArgumentException, ArgumentOutOfRangeException } from "@noldova/context.exceptions";
 
 import { ArgumentProblem } from "../models/argument-problem.ts";
@@ -13,7 +15,7 @@ import { Resources } from "../resources.ts";
 
 export class ArgumentValidator {
   public static throwIfProblem(problem: ArgumentProblem | null): void {
-    if (problem !== null)
+    if (!Object.isNull(problem))
       throw new ArgumentException(problem.message, problem.parameterName);
   }
 
@@ -31,7 +33,7 @@ export class ArgumentValidator {
 
   public static findNonBlankProblem(name: string, value: string, maximumLength: number): ArgumentProblem | null {
     const problem: ArgumentProblem | null = ArgumentValidator.findMaximumLengthProblem(name, value, maximumLength);
-    if (problem !== null)
+    if (!Object.isNull(problem))
       return problem;
     return value.trim().length === 0 ? ArgumentValidator.createProblem(name, t => Resources.formatBlankString(t)) : null;
   }
@@ -42,7 +44,7 @@ export class ArgumentValidator {
 
   public static findAbsolutePathProblem(name: string, value: string): ArgumentProblem | null {
     const problem: ArgumentProblem | null = ArgumentValidator.findNonBlankProblem(name, value, Resources.maximumPathLength);
-    if (problem !== null)
+    if (!Object.isNull(problem))
       return problem;
     return Resources.absolutePathPattern.test(value) ? null : ArgumentValidator.createProblem(name, t => Resources.formatNotAbsolutePath(t));
   }
@@ -73,14 +75,14 @@ export class ArgumentValidator {
       if (Resources.refusedVariables.includes(upper) || upper.startsWith(Resources.refusedVariablePrefix))
         return ArgumentValidator.createProblem(path, t => Resources.formatRefusedVariable(t));
       const other: string | undefined = seen.get(upper);
-      if (other !== undefined)
+      if (!Object.isUndefined(other))
         return ArgumentValidator.createProblem(path, t => Resources.formatSameVariable(t, Resources.formatFieldPath(name, other)));
       seen.set(upper, variable);
       const text: unknown = value[variable];
-      if (typeof text !== "string")
+      if (!Object.isString(text))
         return ArgumentValidator.createProblem(path, t => Resources.formatNotString(t));
       const tooLong: ArgumentProblem | null = ArgumentValidator.findMaximumLengthProblem(path, text, Resources.maximumVariableValueLength);
-      if (tooLong !== null)
+      if (!Object.isNull(tooLong))
         return tooLong;
       if (text.includes(Resources.nullCharacter))
         return ArgumentValidator.createProblem(path, t => Resources.formatNullCharacter(t));
@@ -100,7 +102,7 @@ export class ArgumentValidator {
       return ArgumentValidator.createProblem(name, t => Resources.formatTooManyNames(t, Resources.maximumLookedUpCommands));
     for (const item of value) {
       const problem: ArgumentProblem | null = ArgumentValidator.findNonBlankProblem(name, item, Resources.maximumSuggestionLength);
-      if (problem !== null)
+      if (!Object.isNull(problem))
         return problem;
     }
     return null;
@@ -112,7 +114,7 @@ export class ArgumentValidator {
 
   public static findCommandProblem(name: string, value: string): ArgumentProblem | null {
     const problem: ArgumentProblem | null = ArgumentValidator.findNonBlankProblem(name, value, Resources.maximumCommandLength);
-    if (problem !== null)
+    if (!Object.isNull(problem))
       return problem;
     return Resources.controlCharacters.test(value) ? ArgumentValidator.createProblem(name, t => Resources.formatControlCharacter(t)) : null;
   }
@@ -123,17 +125,17 @@ export class ArgumentValidator {
 
   public static findScriptProblem(name: string, value: string): ArgumentProblem | null {
     const problem: ArgumentProblem | null = ArgumentValidator.findNonBlankProblem(name, value, Resources.maximumCommandLength);
-    if (problem !== null)
+    if (!Object.isNull(problem))
       return problem;
     if (Resources.scriptControlCharacters.test(value))
       return ArgumentValidator.createProblem(name, t => Resources.formatScriptControlCharacter(t));
     const hidden: RegExpExecArray | null = Resources.scriptHiddenCharacters.exec(value.replace(Resources.scriptEmoji, ""));
-    return hidden === null ? null : ArgumentValidator.createProblem(name, t => Resources.formatScriptHiddenCharacter(t, hidden[0]));
+    return Object.isNull(hidden) ? null : ArgumentValidator.createProblem(name, t => Resources.formatScriptHiddenCharacter(t, hidden[0]));
   }
 
   public static requireIntegerInRange(name: string, value: number, minimum: number, maximum: number): void {
     const problem: ArgumentProblem | null = ArgumentValidator.findIntegerInRangeProblem(name, value, minimum, maximum);
-    if (problem !== null)
+    if (!Object.isNull(problem))
       throw new ArgumentOutOfRangeException(problem.parameterName, value, problem.message);
   }
 

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import path from "node:path";
 
@@ -52,7 +54,7 @@ describe("AgentTerminal", () => {
     const fixture: AgentTerminalFixture = new AgentTerminalFixture();
     const opened: AgentTerminal = await fixture.openAsync(null);
     const found: HostedTerminal | undefined = fixture.host.findTerminal(opened.id);
-    assert.ok(found !== undefined);
+    assert.ok(!Object.isUndefined(found));
     const shell: Shell = new Shell("pwsh", "PowerShell", TerminalShellKind.PowerShell, "/usr/bin/pwsh", [], false);
     const hosted: HostedTerminal = new HostedTerminal(found.session, shell, "/work", "session-1", false, "example.chat/42", null);
     const terminal: AgentTerminal = new AgentTerminal(hosted, fixture.host, fixture.writer, LOGS, fixture.log);

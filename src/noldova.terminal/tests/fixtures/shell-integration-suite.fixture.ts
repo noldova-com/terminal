@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess, type SpawnSyncReturns } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -145,7 +147,7 @@ class RuntimeFixture {
 
   public async callAsync(method: string, payload: JsonValue): Promise<JsonValue> {
     const handler: IMethodHandler | undefined = this.context.methods.get(method);
-    assert.ok(handler !== undefined, `The part has no method ${method}.`);
+    assert.ok(!Object.isUndefined(handler), `The part has no method ${method}.`);
     return handler.handleAsync(new RequestContext(ShellClients.mainProcess, payload, new AbortController().signal, 1, 1));
   }
 
@@ -173,10 +175,10 @@ class RuntimeFixture {
       if (check(text))
         return null;
       const ended: TerminalExit | null = this.exitOf(sessionId);
-      assert.ok(ended !== null, `${description} Marks: ${this.kinds(sessionId)}. Output ends with: ${JSON.stringify(text.slice(-OUTPUT_TAIL))}`);
+      assert.ok(!Object.isNull(ended), `${description} Marks: ${this.kinds(sessionId)}. Output ends with: ${JSON.stringify(text.slice(-OUTPUT_TAIL))}`);
       return ended;
     }, { timeout: timeoutMilliseconds, interval: TEXT_POLL_MS });
-    if (exit !== null)
+    if (!Object.isNull(exit))
       assert.fail(`${description} The shell ended first, by ${exit.endedBy} with exit code ${String(exit.exitCode)}. Marks: ${this.kinds(sessionId)}. ` +
         `Output ends with: ${JSON.stringify(this.text(sessionId).slice(-OUTPUT_TAIL))}`);
   }
@@ -781,7 +783,7 @@ function defineRealShellTests(covered: readonly string[]): void {
         const after: string = await screen("p2");
         const answeredMarks: string = fixture.kinds(sessionId).slice(marked.length);
         const answer: string = `The completion answered in ${returnedIn} ms, and the options mark `
-          + `${optionsIn === null ? `didn't come within ${OPTIONS_WAIT_MS} ms of the ask` : `came ${optionsIn} ms after the ask`}. It answered ${JSON.stringify(completion.toJson())}, with marks ${answeredMarks === "" ? "none" : answeredMarks} after `
+          + `${Object.isNull(optionsIn) ? `didn't come within ${OPTIONS_WAIT_MS} ms of the ask` : `came ${optionsIn} ms after the ask`}. It answered ${JSON.stringify(completion.toJson())}, with marks ${answeredMarks === "" ? "none" : answeredMarks} after `
           + `it asked and the last options mark ${JSON.stringify(fixture.marks(sessionId).findLast(t => t.kind === "O")?.value ?? null)}. `
           + `Marks: ${fixture.kinds(sessionId)}. Output ends with: ${JSON.stringify(fixture.text(sessionId).slice(-OUTPUT_TAIL))}`;
         await fixture.typeAsync(sessionId, "\u007f".repeat(14));
@@ -1267,7 +1269,7 @@ function defineReadProfileTests(): void {
     await mkdir(dirname(profile), { recursive: true });
     const isNew: boolean = await writeFile(profile, `if ($env:${PROFILE_RUN_VARIABLE} -ne '${ended.pid}-${randomUUID()}') { return }\n${POLICY_PROFILE}`,
       { encoding: "utf8", flag: "wx" }).then(() => true, () => false);
-    assert.ok(isNew || process.env["CI"] === undefined, `powershell already has ${profile}; move it aside.`);
+    assert.ok(isNew || Object.isUndefined(process.env["CI"]), `powershell already has ${profile}; move it aside.`);
     context.skip(!isNew, `powershell already has ${profile}.`);
     await holdAsync(profile);
     let replaced: string = "";
@@ -1338,7 +1340,7 @@ function describeProgramLookups(lookups: readonly ProcessRequest[]): string {
         : "its PATH and PATHEXT held them, so its program search ended early";
     return `Lookup ${index + 1} of ${lookups.length}: ${cause}. The same search run again with its PATH and PATHEXT found `
       + `${JSON.stringify((again.stdout ?? "").trim())}, status ${again.status}, errors ${JSON.stringify((again.stderr ?? "").trim().slice(0, OUTPUT_TAIL))}`
-      + `${again.error === undefined ? "" : `, and it could not run: ${again.error.message}`}.`;
+      + `${Object.isUndefined(again.error) ? "" : `, and it could not run: ${again.error.message}`}.`;
   }).join(" ");
 }
 
@@ -1360,7 +1362,7 @@ async function withProfilesAsync(context: TestContext, shellId: string, texts: r
       });
       if (!isNew) {
         const isEnded: boolean = isEndedRunProfile(await readFile(profile, "utf8").catch(() => ""));
-        assert.ok(isEnded || process.env["CI"] === undefined, `${shellId} already has ${profile}; move it aside.`);
+        assert.ok(isEnded || Object.isUndefined(process.env["CI"]), `${shellId} already has ${profile}; move it aside.`);
         context.skip(!isEnded, `${shellId} already has ${profile}.`);
         await vi.waitFor(() => writeFile(profile, content, "utf8"), { timeout: WAIT_MS, interval: TEXT_POLL_MS });
       }
@@ -1392,7 +1394,7 @@ async function holdAsync(file: string): Promise<void> {
 
 function isEndedRunProfile(content: string): boolean {
   const guard: RegExpExecArray | null = PROFILE_GUARD.exec(content);
-  if (guard === null || ![...PROFILES, POLICY_PROFILE, BOUND_PROFILE].includes(content.slice(guard[0].length)))
+  if (Object.isNull(guard) || ![...PROFILES, POLICY_PROFILE, BOUND_PROFILE].includes(content.slice(guard[0].length)))
     return false;
   try {
     process.kill(Number(guard[1]), 0);

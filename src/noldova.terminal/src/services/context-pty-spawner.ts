@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { type IPseudoTerminalLibrary, type IRuntimePartContext, type PseudoTerminal, PseudoTerminalRequest } from "@noldova/desktop.runtime";
 
 import type { IPtyProcess } from "../interfaces/i-pty-process.ts";
@@ -31,7 +33,7 @@ export class ContextPtySpawner implements IPtySpawner {
     inheritCursor: boolean): Promise<IPtyProcess> {
     this.library ??= import("node-pty");
     const library: IPseudoTerminalLibrary = await this.library;
-    const request: PseudoTerminalRequest = typeof args === "string"
+    const request: PseudoTerminalRequest = Object.isString(args)
       ? new PseudoTerminalRequest(library, file, [], folder, columns, rows, environment, { inheritCursor, commandLine: args })
       : new PseudoTerminalRequest(library, file, args, folder, columns, rows, environment, { inheritCursor });
     const terminal: PseudoTerminal = await this.context.startPseudoTerminalAsync(request);

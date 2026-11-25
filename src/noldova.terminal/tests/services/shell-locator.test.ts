@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import type { UserInfo } from "node:os";
 
@@ -29,7 +31,7 @@ vi.mock("node:os", async importOriginal => {
     ...actual,
     userInfo: (): UserInfo<string> => {
       const read: (() => string | null) | null = user.shell;
-      return read === null ? actual.userInfo() : { ...actual.userInfo(), shell: read() };
+      return Object.isNull(read) ? actual.userInfo() : { ...actual.userInfo(), shell: read() };
     }
   };
 });
@@ -194,7 +196,7 @@ describe("ShellLocator", () => {
           "vs-b2-cmd|Developer Command Prompt (Visual Studio Build Tools 2022)|CommandPrompt|C:\\Windows\\System32\\cmd.exe|" +
             "/k D:\\Build Tools\\Common7\\Tools\\VsDevCmd.bat -startdir=none -arch=amd64 -host_arch=amd64|"
         ]);
-        assert.deepEqual(shells.map(t => t.startCommand).filter(t => t !== null), [
+        assert.deepEqual(shells.map(t => t.startCommand).filter(t => !Object.isNull(t)), [
           "& { Microsoft.PowerShell.Core\\Import-Module 'C:\\VS\\Community\\Common7\\Tools\\Microsoft.VisualStudio.DevShell.dll'; " +
             "Microsoft.VisualStudio.DevShell\\Enter-VsDevShell -VsInstallPath 'C:\\VS\\Community' -SkipAutomaticLocation -DevCmdArguments '-arch=amd64 -host_arch=amd64' }"
         ]);

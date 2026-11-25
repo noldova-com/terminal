@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { EscapeState } from "../enums/escape-state.ts";
 import { Resources } from "../resources.ts";
 
@@ -39,7 +41,7 @@ export class EscapeSequenceTracker {
 
   private findNext(data: string, start: number): number {
     const search: RegExp | null = EscapeSequenceTracker.searchOf(this.state);
-    if (search === null)
+    if (Object.isNull(search))
       return start;
     search.lastIndex = start;
     return search.exec(data)?.index ?? data.length;

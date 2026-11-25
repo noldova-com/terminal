@@ -18,6 +18,7 @@
     "test:timing": "node scripts/timing/timing-check.ts"
   },
   "devDependencies": {
+    "@noldova/context.core": "0.0.12",
     "@noldova/context.exceptions": "0.0.12",
     "@noldova/context.json": "0.0.12",
     "@noldova/desktop.protocol": "0.0.16",

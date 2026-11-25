@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -43,7 +45,7 @@ function waitForOutputAsync(terminal: PseudoTerminal, pattern: RegExp, output: (
 
     function check(): void {
       const match: RegExpMatchArray | null = pattern.exec(output());
-      if (match !== null)
+      if (!Object.isNull(match))
         finish(match);
     }
 
@@ -120,7 +122,7 @@ describe("pseudo-terminal", () => {
     let childPid: number | null = null;
     const hostsBefore: readonly number[] = consoleHostPids();
     const environment: Record<string, string> = {
-      ...Object.fromEntries(Object.entries(process.env).filter((t): t is [string, string] => t[1] !== undefined)),
+      ...Object.fromEntries(Object.entries(process.env).filter((t): t is [string, string] => !Object.isUndefined(t[1]))),
       HOME: home,
       PS1: "$ ",
       TERM: "xterm-256color"
@@ -148,7 +150,7 @@ describe("pseudo-terminal", () => {
       expect(terminals.processes.programs).toEqual([]);
     }
     finally {
-      if (childPid !== null && ProcessState.isRunning(childPid))
+      if (!Object.isNull(childPid) && ProcessState.isRunning(childPid))
         process.kill(childPid, "SIGKILL");
     }
   });

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources } from "../resources.ts";
 
 export class ResizeWakeup {
@@ -23,7 +25,7 @@ export class ResizeWakeup {
   }
 
   public receive(data: string): void {
-    if (this.output === null)
+    if (Object.isNull(this.output))
       return;
     this.output += data;
     if (Resources.escapesOnly.test(this.output))

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources } from "../resources.ts";
 
 export class ChangeSignal {
@@ -17,9 +19,9 @@ export class ChangeSignal {
   }
 
   public async waitUntilAsync(condition: () => boolean, timeoutMilliseconds: number | null, signal: AbortSignal): Promise<void> {
-    const deadline: number | null = timeoutMilliseconds === null ? null : Date.now() + timeoutMilliseconds;
-    while (!condition() && !signal.aborted && (deadline === null || Date.now() < deadline))
-      await this.waitAsync(deadline === null ? null : deadline - Date.now(), signal);
+    const deadline: number | null = Object.isNull(timeoutMilliseconds) ? null : Date.now() + timeoutMilliseconds;
+    while (!condition() && !signal.aborted && (Object.isNull(deadline) || Date.now() < deadline))
+      await this.waitAsync(Object.isNull(deadline) ? null : deadline - Date.now(), signal);
   }
 
   private waitAsync(timeoutMilliseconds: number | null, signal: AbortSignal): Promise<void> {
@@ -30,7 +32,7 @@ export class ChangeSignal {
         this.waiters = this.waiters.filter(t => t !== done);
         resolve();
       };
-      const timer: NodeJS.Timeout | undefined = timeoutMilliseconds === null ? undefined : setTimeout(done, timeoutMilliseconds);
+      const timer: NodeJS.Timeout | undefined = Object.isNull(timeoutMilliseconds) ? undefined : setTimeout(done, timeoutMilliseconds);
       signal.addEventListener(Resources.abortEvent, done);
       this.waiters.push(done);
     });

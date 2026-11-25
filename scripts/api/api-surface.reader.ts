@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import ts from "typescript";
 
 import type { ApiProgram } from "./api-program.ts";
@@ -65,7 +67,7 @@ export class ApiSurfaceReader {
       return ApiSurfaceReaderResources.formatValueDetail(this.print(checker.getTypeOfSymbol(symbol)));
     if ((symbol.flags & ts.SymbolFlags.EnumMember) !== 0) {
       const member = declarations.find(ts.isEnumMember);
-      return ApiSurfaceReaderResources.formatEnumDetail(member === undefined ? undefined : checker.getConstantValue(member));
+      return ApiSurfaceReaderResources.formatEnumDetail(Object.isUndefined(member) ? undefined : checker.getConstantValue(member));
     }
     if ((symbol.flags & ApiSurfaceReaderResources.callableKinds) !== 0)
       return "";
@@ -87,14 +89,14 @@ export class ApiSurfaceReader {
 
   private describeSignature(signature: ts.Signature, prefix: string): string {
     const declaration = signature.declaration;
-    if (declaration === undefined || ts.isJSDocSignature(declaration))
+    if (Object.isUndefined(declaration) || ts.isJSDocSignature(declaration))
       return ApiSurfaceReaderResources.formatImplicitConstructor(prefix);
     const flags = ApiValue.readModifierFlags(declaration);
     if ((flags & ts.ModifierFlags.Private) !== 0)
       return ApiSurfaceReaderResources.formatPrivateConstructor(prefix);
     const visibility = (flags & ts.ModifierFlags.Protected) === 0 ? "" : ApiSurfaceReaderResources.protectedPrefix;
     const parameters = declaration.parameters.map(t => this.describeParameter(t));
-    const returned = declaration.type !== undefined && ts.isTypePredicateNode(declaration.type)
+    const returned = !Object.isUndefined(declaration.type) && ts.isTypePredicateNode(declaration.type)
       ? this.api.print(declaration.type)
       : this.print(this.api.checker.getReturnTypeOfSignature(signature));
     return ApiSurfaceReaderResources.formatSignature(visibility, prefix, this.describeTypeParameters(declaration.typeParameters ?? []), parameters, returned);
@@ -102,10 +104,10 @@ export class ApiSurfaceReader {
 
   private describeParameter(parameter: ts.ParameterDeclaration): string {
     const checker = this.api.checker;
-    const type = parameter.type === undefined ? checker.getTypeAtLocation(parameter) : checker.getTypeFromTypeNode(parameter.type);
-    const isOptional = parameter.questionToken !== undefined || parameter.initializer !== undefined;
+    const type = Object.isUndefined(parameter.type) ? checker.getTypeAtLocation(parameter) : checker.getTypeFromTypeNode(parameter.type);
+    const isOptional = !Object.isUndefined(parameter.questionToken) || !Object.isUndefined(parameter.initializer);
     return [
-      parameter.dotDotDotToken === undefined ? "" : ApiSurfaceReaderResources.restPrefix,
+      Object.isUndefined(parameter.dotDotDotToken) ? "" : ApiSurfaceReaderResources.restPrefix,
       this.api.print(parameter.name),
       isOptional ? ApiSurfaceReaderResources.optionalMark : "",
       ApiSurfaceReaderResources.formatValueDetail(this.print(type))
@@ -114,8 +116,8 @@ export class ApiSurfaceReader {
 
   private describeTypeParameters(parameters: readonly ts.TypeParameterDeclaration[]): string {
     const descriptions = parameters.map(t => {
-      const constraint = t.constraint === undefined ? "" : ApiSurfaceReaderResources.formatTypeParameterConstraint(this.printNodeType(t.constraint));
-      const fallback = t.default === undefined ? "" : ApiSurfaceReaderResources.formatTypeParameterDefault(this.printNodeType(t.default));
+      const constraint = Object.isUndefined(t.constraint) ? "" : ApiSurfaceReaderResources.formatTypeParameterConstraint(this.printNodeType(t.constraint));
+      const fallback = Object.isUndefined(t.default) ? "" : ApiSurfaceReaderResources.formatTypeParameterDefault(this.printNodeType(t.default));
       return `${t.name.text}${constraint}${fallback}`;
     });
     return descriptions.length === 0 ? "" : ApiSurfaceReaderResources.formatTypeParameters(descriptions);

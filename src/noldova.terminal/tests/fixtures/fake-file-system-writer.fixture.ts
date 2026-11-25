@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IFileSystemWriter } from "../../src/interfaces/i-file-system-writer.ts";
 
 export class FakeFileSystemWriter implements IFileSystemWriter {
@@ -27,7 +29,7 @@ export class FakeFileSystemWriter implements IFileSystemWriter {
   }
 
   public createPrivateFolderAsync(prefix: string): Promise<string> {
-    if (this.failure !== null)
+    if (!Object.isNull(this.failure))
       return Promise.reject(this.failure);
     this.folders++;
     return Promise.resolve(`${prefix}${this.folders}`);
@@ -35,31 +37,31 @@ export class FakeFileSystemWriter implements IFileSystemWriter {
 
   public createMissingFolderAsync(path: string, mode: number): Promise<void> {
     this.missingFolders.push([path, mode]);
-    return this.missingFolderFailure === null ? Promise.resolve() : Promise.reject(this.missingFolderFailure);
+    return Object.isNull(this.missingFolderFailure) ? Promise.resolve() : Promise.reject(this.missingFolderFailure);
   }
 
   public async writeTextAsync(path: string, text: string): Promise<void> {
-    if (this.writeFailure !== null && path.includes(this.writeFailurePath))
+    if (!Object.isNull(this.writeFailure) && path.includes(this.writeFailurePath))
       throw this.writeFailure;
     this.files.set(path, text);
   }
 
   public appendTextAsync(path: string, text: string): Promise<void> {
-    if (this.failure !== null)
+    if (!Object.isNull(this.failure))
       return Promise.reject(this.failure);
     this.files.set(path, (this.files.get(path) ?? "") + text);
     return Promise.resolve();
   }
 
   public removeFileAsync(path: string): Promise<void> {
-    if (this.fileRemovalFailure !== null)
+    if (!Object.isNull(this.fileRemovalFailure))
       return Promise.reject(this.fileRemovalFailure);
     this.removedFiles.push(path);
     return Promise.resolve();
   }
 
   public removeFolderAsync(path: string): Promise<void> {
-    if (this.removalFailure !== null)
+    if (!Object.isNull(this.removalFailure))
       return Promise.reject(this.removalFailure);
     this.removed.push(path);
     return Promise.resolve();

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonObject } from "@noldova/context.json";
 
 import { EndedBy } from "../enums/ended-by.ts";
@@ -18,7 +20,7 @@ export class TerminalExit {
   public readonly endedBy: EndedBy;
 
   public constructor(exitCode: number | null, endedBy: EndedBy) {
-    if (exitCode !== null)
+    if (!Object.isNull(exitCode))
       ArgumentValidator.requireIntegerInRange(Resources.exitCodeField, exitCode, Resources.minimumExitCode, Resources.maximumExitCode);
 
     this.exitCode = exitCode;

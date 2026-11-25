@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import path from "node:path";
 
@@ -58,7 +60,7 @@ class IntegrationFixture {
 }
 
 function changed(value: boolean | null): SettingChange {
-  return new SettingChange(new SettingKey(QualifiedName.parse(ProtocolResources.suggestionsSetting)), value, value !== null);
+  return new SettingChange(new SettingKey(QualifiedName.parse(ProtocolResources.suggestionsSetting)), value, !Object.isNull(value));
 }
 
 function decode(encoded: string | undefined): string {
@@ -480,7 +482,7 @@ describe("ShellIntegration", () => {
   });
 
   for (const failure of [new Error("busy"), "busy"])
-    it(`logs a nonce file that cannot be removed, with ${typeof failure === "string" ? "a reason" : "an error"}`, async () => {
+    it(`logs a nonce file that cannot be removed, with ${Object.isString(failure) ? "a reason" : "an error"}`, async () => {
       const fixture: IntegrationFixture = new IntegrationFixture();
       const launch: ShellLaunch = await fixture.prepareAsync("/bin/bash");
       fixture.writer.fileRemovalFailure = failure;

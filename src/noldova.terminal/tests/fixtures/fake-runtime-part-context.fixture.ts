@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { addAbortListener, once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -35,7 +37,7 @@ export class FakeEventChannel extends EventChannel {
     const listeners: Set<(payload: JsonValue) => void> = new Set<(payload: JsonValue) => void>();
     super((payload, connection, window) => {
       published.push(payload);
-      targets.push(connection === undefined ? "all" : `${connection}/${window ?? null}`);
+      targets.push(Object.isUndefined(connection) ? "all" : `${connection}/${window ?? null}`);
       for (const listener of [...listeners])
         listener(payload);
     }, () => undefined);
@@ -90,7 +92,7 @@ export class FakeModuleSettings extends DesktopModuleSettings {
   public constructor() {
     super();
     this.answer("read", name => {
-      if (this.failure !== null)
+      if (!Object.isNull(this.failure))
         throw this.failure;
       return this.values.get(name) ?? null;
     });
@@ -140,7 +142,7 @@ export class FakeRuntimePartContext extends DesktopRuntimePartContext {
     await this.endProgramsAsync();
     const folder: Promise<string> | null = this.workFolder;
     this.workFolder = null;
-    if (folder !== null)
+    if (!Object.isNull(folder))
       await rm(await folder, { force: true, recursive: true });
   }
 
@@ -148,7 +150,7 @@ export class FakeRuntimePartContext extends DesktopRuntimePartContext {
     this.requests.push(request);
     if (request.signal?.aborted === true)
       return Promise.reject(request.signal.reason);
-    if (this.failure !== null) {
+    if (!Object.isNull(this.failure)) {
       const failure: Error | string = this.failure;
       this.failure = null;
       return Promise.reject(failure);
@@ -164,7 +166,7 @@ export class FakeRuntimePartContext extends DesktopRuntimePartContext {
           child.kill();
           await exited;
         });
-        if (request.signal !== undefined)
+        if (!Object.isUndefined(request.signal))
           addAbortListener(request.signal, () => void owned.stopAsync());
         this.programs.push(owned);
         resolve(owned);

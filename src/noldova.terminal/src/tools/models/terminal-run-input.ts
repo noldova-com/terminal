@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonObject } from "@noldova/context.json";
 import { ArgumentValidator, ProtocolReader, Resources as ProtocolResources } from "@noldova/terminal.protocol";
 
@@ -36,7 +38,7 @@ export class TerminalRunInput {
 
   public constructor(terminalId: string, command: CommandLine, explanation: string | null, yieldMilliseconds: number, timeoutMilliseconds: number, maximumCharacters: number) {
     ArgumentValidator.requireIdentifier(Resources.terminalIdField, terminalId);
-    if (explanation !== null)
+    if (!Object.isNull(explanation))
       ArgumentValidator.requireMaximumLength(Resources.explanationField, explanation, Resources.maximumExplanationLength);
     ArgumentValidator.requireIntegerInRange(Resources.terminalRunInputYieldMsField, yieldMilliseconds, Resources.minimumYieldMilliseconds, Resources.maximumCallMilliseconds);
     ArgumentValidator.requireIntegerInRange(Resources.terminalRunInputTimeoutMsField, timeoutMilliseconds, 0, ProtocolResources.maximumOffset);

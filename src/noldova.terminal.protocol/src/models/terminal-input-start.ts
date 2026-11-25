@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonObject } from "@noldova/context.json";
 
 import { Resources } from "../resources.ts";
@@ -20,7 +22,7 @@ export class TerminalInputStart {
   public constructor(rowsAbove: number, column: number, rightPrompt: number | null = null) {
     ArgumentValidator.requireIntegerInRange(Resources.rowsAboveField, rowsAbove, 0, Resources.maximumOffset);
     ArgumentValidator.requireIntegerInRange(Resources.columnField, column, 0, Resources.maximumColumns);
-    if (rightPrompt !== null)
+    if (!Object.isNull(rightPrompt))
       ArgumentValidator.requireIntegerInRange(Resources.rightPromptField, rightPrompt, 0, Resources.maximumColumns);
 
     this.rowsAbove = rowsAbove;

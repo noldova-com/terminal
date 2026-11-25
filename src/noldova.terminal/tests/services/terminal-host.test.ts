@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -165,7 +167,7 @@ class HostFixture {
 
   public get process(): FakePtyProcess {
     const process: FakePtyProcess | undefined = this.spawner.spawned.at(-1);
-    assert.ok(process !== undefined, "No shell was spawned.");
+    assert.ok(!Object.isUndefined(process), "No shell was spawned.");
     return process;
   }
 
@@ -180,11 +182,11 @@ class HostFixture {
 
   public reportPath(process: FakePtyProcess, path: string | null): void {
     const nonce: string = this.writer.nonceFor(this.spawner.environments[this.spawner.spawned.indexOf(process)]);
-    process.emitData(`\u001b]6973;P;${nonce};${path === null ? "Path" : `Path=${path}`}\u0007$ `);
+    process.emitData(`\u001b]6973;P;${nonce};${Object.isNull(path) ? "Path" : `Path=${path}`}\u0007$ `);
   }
 
   public reportNames(process: FakePtyProcess, names: string | null): void {
-    this.reportProperty(process, names === null ? "Names" : `Names=${names}`);
+    this.reportProperty(process, Object.isNull(names) ? "Names" : `Names=${names}`);
   }
 
   public reportProperty(process: FakePtyProcess, value: string): void {
@@ -789,7 +791,7 @@ describe("TerminalHost", () => {
     };
     const giveThread = (): void => {
       const next: (() => void) | undefined = threads.waiting.shift();
-      if (next === undefined)
+      if (Object.isUndefined(next))
         threads.free++;
       else
         next();
@@ -2157,7 +2159,7 @@ describe("TerminalHost", () => {
     });
 
     for (const failure of [new Error("no pseudo-terminal"), "no pseudo-terminal"])
-      it(`forgets and logs a terminal whose shell can't start again, failing with ${typeof failure === "string" ? "a message" : "an error"}, and opens the rest`, async () => {
+      it(`forgets and logs a terminal whose shell can't start again, failing with ${Object.isString(failure) ? "a message" : "an error"}, and opens the rest`, async () => {
         const fixture: HostFixture = await HostFixture.createAsync();
         fixture.fileSystem.folders.add("/work/src");
         fixture.saved.save(new SavedTerminal("s1", "bash", "/work/src", false));
@@ -2920,7 +2922,7 @@ describe("TerminalHost", () => {
       await Promise.race([vi.waitFor(async () => assert.equal((await fixture.listAsync()).length, listed + 1)),
         answered.then(t => assert.fail(`The run answered ${t} without opening a terminal.`))]);
       const opened: TerminalSummary | undefined = (await fixture.listAsync()).at(-1);
-      assert.ok(opened !== undefined);
+      assert.ok(!Object.isUndefined(opened));
       return new OpeningRun(result, opened.sessionId, spawning);
     }
 
@@ -2967,7 +2969,7 @@ describe("TerminalHost", () => {
     async function watchPasteReadAsync(fixture: HostFixture, sessionId: string): Promise<PromiseWithResolvers<void>> {
       await vi.waitFor(() => assert.equal(fixture.host.findTerminal(sessionId)?.isFree, true));
       const session: TerminalSession | undefined = fixture.host.findTerminal(sessionId)?.session;
-      assert.ok(session !== undefined);
+      assert.ok(!Object.isUndefined(session));
       const reading: PromiseWithResolvers<void> = Promise.withResolvers<void>();
       const isBracketedPasteAsync: () => Promise<boolean> = session.isBracketedPasteAsync.bind(session);
       vi.spyOn(session, "isBracketedPasteAsync").mockImplementation(() => {
@@ -3191,7 +3193,7 @@ describe("TerminalHost", () => {
       stall.resolve();
       await vi.waitFor(async () => assert.equal((await fixture.listAsync()).length, 2));
       const openedSummary: TerminalSummary | undefined = (await fixture.listAsync()).at(-1);
-      assert.ok(openedSummary !== undefined);
+      assert.ok(!Object.isUndefined(openedSummary));
       await fixture.host.handleAsync("terminal.resize", { sessionId: openedSummary.sessionId, size: PANE_SIZE }, APP);
       const opened: FakePtyProcess = await readAsync(spawning);
       showPrompt(fixture, opened, false);
@@ -3347,7 +3349,7 @@ describe("TerminalHost", () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       const { result, process } = await startNewAsync(fixture);
       const [summary] = await fixture.listAsync();
-      assert.ok(summary !== undefined, "The run opened no terminal.");
+      assert.ok(!Object.isUndefined(summary), "The run opened no terminal.");
 
       await fixture.host.handleAsync("terminal.input", { sessionId: summary.sessionId, data: "rm -rf " }, APP);
       showPrompt(fixture, process);
@@ -3687,7 +3689,7 @@ describe("TerminalHost", () => {
     });
 
     for (const failure of [new Error("spawn failed"), "spawn failed"])
-      it(`answers Ended, logging why, once a new terminal's shell can't start at its pane's first fit, throwing ${typeof failure === "string" ? "a string" : "an error"}`, async () => {
+      it(`answers Ended, logging why, once a new terminal's shell can't start at its pane's first fit, throwing ${Object.isString(failure) ? "a string" : "an error"}`, async () => {
         const fixture: HostFixture = await HostFixture.createAsync();
         const { result, sessionId } = await openNewAsync(fixture);
         fixture.spawner.failure = failure;
@@ -3907,7 +3909,7 @@ describe("TerminalHost", () => {
       const PASTE: string = "\u001b[200~npm test\u001b[201~\r";
 
       function mark(fixture: HostFixture, process: FakePtyProcess, kind: string, value: string | null = null): string {
-        return `\u001b]6973;${kind};${nonceOf(fixture, process)}${value === null ? "" : `;${value}`}\u0007`;
+        return `\u001b]6973;${kind};${nonceOf(fixture, process)}${Object.isNull(value) ? "" : `;${value}`}\u0007`;
       }
 
       function prompt(fixture: HostFixture, process: FakePtyProcess): string {
@@ -4175,8 +4177,8 @@ describe("TerminalHost", () => {
         await closing;
         vi.useRealTimers();
 
-        assert.deepEqual([waiting, opened === null ? "no terminal within 2 s" : openedAt - closedAt, fixture.spawner.spawned.length,
-          fixture.host.findTerminal(sessionId) === undefined, process.writes], [true, 0, 2, true, [PASTE]]);
+        assert.deepEqual([waiting, Object.isNull(opened) ? "no terminal within 2 s" : openedAt - closedAt, fixture.spawner.spawned.length,
+          Object.isUndefined(fixture.host.findTerminal(sessionId)), process.writes], [true, 0, 2, true, [PASTE]]);
         await fixture.endAllAsync();
         await next.catch(() => null);
       });
@@ -4197,7 +4199,7 @@ describe("TerminalHost", () => {
         await closing;
 
         const seen: readonly unknown[] = [named?.outcome ?? "no answer within 2 s", unnamed?.outcome ?? "no answer within 2 s",
-          unnamed?.sessionId === sessionId, process.writes, fixture.spawner.spawned.length, fixture.host.findTerminal(sessionId) === undefined];
+          unnamed?.sessionId === sessionId, process.writes, fixture.spawner.spawned.length, Object.isUndefined(fixture.host.findTerminal(sessionId))];
         await fixture.endAllAsync();
         return seen;
       }
@@ -4273,11 +4275,11 @@ describe("TerminalHost", () => {
         const closing: Promise<JsonValue> = fixture.host.handleAsync("terminal.closeOwner", { owner: OWNER }, APP);
         found.resolve();
         const closed: string | null = await withinAsync(closing.then(() => "closed"), 2_000);
-        if (closed !== null)
+        if (!Object.isNull(closed))
           await vi.waitFor(() => assert.equal(fixture.spawner.spawned.length, 1));
         const opened: FakePtyProcess | undefined = fixture.spawner.spawned.at(0);
         const openedId: string | undefined = (await fixture.listAsync()).at(-1)?.sessionId;
-        if (opened !== undefined && openedId !== undefined) {
+        if (!Object.isUndefined(opened) && !Object.isUndefined(openedId)) {
           await fixture.host.handleAsync("terminal.resize", { sessionId: openedId, size: PANE_SIZE }, APP);
           await vi.waitFor(() => assert.ok(opened.isRead));
           showPrompt(fixture, opened);
@@ -4345,7 +4347,7 @@ describe("TerminalHost", () => {
         await vi.waitFor(() => assert.equal(fixture.spawner.spawned.length, 2));
         const opened: FakePtyProcess | undefined = fixture.spawner.spawned.at(1);
         const openedId: string | undefined = (await fixture.listAsync()).at(-1)?.sessionId;
-        if (opened !== undefined && openedId !== undefined) {
+        if (!Object.isUndefined(opened) && !Object.isUndefined(openedId)) {
           await fixture.host.handleAsync("terminal.resize", { sessionId: openedId, size: PANE_SIZE }, APP);
           await vi.waitFor(() => assert.ok(opened.isRead));
           showPrompt(fixture, opened);

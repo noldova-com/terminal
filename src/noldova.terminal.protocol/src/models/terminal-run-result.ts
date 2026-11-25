@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonObject } from "@noldova/context.json";
 
@@ -22,13 +24,13 @@ export class TerminalRunResult {
   public readonly endedRuns: readonly TerminalRunEnded[];
 
   public constructor(sessionId: string | null, outcome: TerminalRunOutcome, runId: string | null = null, endedRuns: readonly TerminalRunEnded[] = []) {
-    if (sessionId !== null)
+    if (!Object.isNull(sessionId))
       ArgumentValidator.requireIdentifier(Resources.sessionIdField, sessionId);
-    if ((sessionId === null) !== (outcome === TerminalRunOutcome.NoShell))
+    if ((Object.isNull(sessionId)) !== (outcome === TerminalRunOutcome.NoShell))
       throw new ArgumentException(Resources.formatNotOneRunAnswer(Resources.valueSubject), Resources.sessionIdField);
-    if (runId !== null)
+    if (!Object.isNull(runId))
       ArgumentValidator.requireIdentifier(Resources.runIdField, runId);
-    if ((runId === null) === (outcome === TerminalRunOutcome.Typed))
+    if ((Object.isNull(runId)) === (outcome === TerminalRunOutcome.Typed))
       throw new ArgumentException(Resources.formatNotOneRunId(Resources.valueSubject), Resources.runIdField);
     if (endedRuns.length > 0 && outcome !== TerminalRunOutcome.Typed)
       throw new ArgumentException(Resources.formatRunEndsUntyped(Resources.valueSubject), Resources.endedRunsField);

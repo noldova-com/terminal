@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import type { ForegroundProcess } from "@noldova/desktop.runtime";
@@ -24,7 +26,7 @@ class Starter {
 
   public readonly startAsync = (columns: number, rows: number): Promise<IPtyProcess> => {
     this.sizes.push(`${columns}x${rows}`);
-    return this.failure !== null ? Promise.reject(this.failure) : this.held?.promise ?? Promise.resolve(this.process);
+    return !Object.isNull(this.failure) ? Promise.reject(this.failure) : this.held?.promise ?? Promise.resolve(this.process);
   };
 
   public startedAsync(): Promise<void> {

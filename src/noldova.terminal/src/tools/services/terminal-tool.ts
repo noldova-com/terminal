@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ArgumentException } from "@noldova/context.exceptions";
 import { JsonException } from "@noldova/context.json";
 import { type IToolDescriptor, type IToolHandler, type ToolCall, ToolFailureCode, type ToolFailureException, type ToolResult } from "@noldova/desktop.runtime";
@@ -43,7 +45,7 @@ export abstract class TerminalTool<TInput> implements IToolHandler {
   }
 
   protected static failEndedCall(action: string, command: IAgentCommand | null, report: TerminalOutputReport, signal: AbortSignal): ToolFailureException {
-    if (command !== null && AbortReasonReader.interruptsCommand(signal) && command.interrupt())
+    if (!Object.isNull(command) && AbortReasonReader.interruptsCommand(signal) && command.interrupt())
       return ToolFailures.forEndedCall(signal, Resources.formatInterruptedWithOutput(action), report.toResult(Resources.interruptedNote));
     return ToolFailures.forEndedCall(signal, Resources.formatEndedWithOutput(action), report.toResult());
   }

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ReadDroppedException } from "../exceptions/read-dropped.exception.ts";
 import type { IFileSystemReader } from "../interfaces/i-file-system-reader.ts";
 import type { IQueuedRead } from "../interfaces/i-queued-read.ts";
@@ -50,7 +52,7 @@ export class SharedReads {
     if (signal.aborted)
       return Promise.reject(new ReadDroppedException());
     let shared: SharedRead<T> | undefined = running.get(path);
-    if (shared === undefined) {
+    if (Object.isUndefined(shared)) {
       const created: SharedRead<T> = new SharedRead<T>(read);
       const settled = (): void => void running.delete(path);
       void created.promise.then(settled, settled);
@@ -67,7 +69,7 @@ export class SharedReads {
   private startWaiting(): void {
     while (this.running < Resources.completionConcurrentReads) {
       const next: IQueuedRead | undefined = this.waiting.values().next().value;
-      if (next === undefined)
+      if (Object.isUndefined(next))
         return;
       this.waiting.delete(next);
       this.running++;

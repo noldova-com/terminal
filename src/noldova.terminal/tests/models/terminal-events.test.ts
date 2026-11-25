@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { describe, it } from "vitest";
@@ -20,9 +22,9 @@ describe("TerminalEvents", () => {
       new FakeEventChannel(), new FakeEventChannel(), new FakeEventChannel(), new FakeEventChannel(), new FakeEventChannel(), new FakeEventChannel(),
       new FakeEventChannel()];
     const [output, exited, restarted, titleChanged, cwdChanged, detached, closed, opened, launchCommandEnded, runOpened, runEnded, renamed, commandAdded] = channels;
-    assert.ok(output !== undefined && exited !== undefined && restarted !== undefined && titleChanged !== undefined && cwdChanged !== undefined
-      && detached !== undefined && closed !== undefined && opened !== undefined && launchCommandEnded !== undefined && runOpened !== undefined
-      && runEnded !== undefined && renamed !== undefined && commandAdded !== undefined);
+    assert.ok(!Object.isUndefined(output) && !Object.isUndefined(exited) && !Object.isUndefined(restarted) && !Object.isUndefined(titleChanged) && !Object.isUndefined(cwdChanged)
+      && !Object.isUndefined(detached) && !Object.isUndefined(closed) && !Object.isUndefined(opened) && !Object.isUndefined(launchCommandEnded) && !Object.isUndefined(runOpened)
+      && !Object.isUndefined(runEnded) && !Object.isUndefined(renamed) && !Object.isUndefined(commandAdded));
 
     const events: TerminalEvents = new TerminalEvents(output, exited, restarted, titleChanged, cwdChanged, detached, closed, opened, launchCommandEnded,
       runOpened, runEnded, renamed, commandAdded);

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { type IModuleDatabase, type IModuleLog, Migration } from "@noldova/desktop.runtime";
 
 import { SavedTerminal } from "../models/saved-terminal.ts";
@@ -32,9 +34,9 @@ export class SavedTerminals {
     return this.database.readAll(Resources.savedTerminalsListQuery)
       .map(t => new SavedTerminal(String(t[Resources.savedTerminalsSessionIdColumn]), String(t[Resources.savedTerminalsShellIdColumn]),
         String(t[Resources.savedTerminalsFolderColumn]), Number(t[Resources.savedTerminalsIsPanelTerminalColumn]) === 1,
-        t[Resources.savedTerminalsOwnerColumn] === null ? null : String(t[Resources.savedTerminalsOwnerColumn]),
+        Object.isNull(t[Resources.savedTerminalsOwnerColumn]) ? null : String(t[Resources.savedTerminalsOwnerColumn]),
         Number(t[Resources.savedTerminalsOpensTabColumn]) === 1,
-        t[Resources.savedTerminalsNameColumn] === null ? null : String(t[Resources.savedTerminalsNameColumn])));
+        Object.isNull(t[Resources.savedTerminalsNameColumn]) ? null : String(t[Resources.savedTerminalsNameColumn])));
   }
 
   public save(terminal: SavedTerminal): void {

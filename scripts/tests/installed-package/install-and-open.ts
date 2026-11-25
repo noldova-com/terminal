@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -35,16 +37,16 @@ class InstalledPackage {
     const manifest: unknown = JSON.parse(await readFile(path.join(InstalledPackage.root, Resources.manifestFile), Resources.textEncoding));
     const tools: unknown = InstalledPackage.field(manifest, Resources.devDependenciesField);
     const version: unknown = InstalledPackage.field(tools, Resources.nodeTypesPackage);
-    return typeof version === "string" ? version : null;
+    return Object.isString(version) ? version : null;
   }
 
   private static field(value: unknown, name: string): unknown {
-    return typeof value === "object" && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value))[name] : undefined;
+    return Object.isObject(value) && !Array.isArray(value) ? Object.fromEntries(Object.entries(value))[name] : undefined;
   }
 
   public async runAsync(): Promise<number> {
     const npmPath: string | undefined = process.env[Resources.npmPathVariable];
-    if (npmPath === undefined || npmPath.length === 0) {
+    if (Object.isUndefined(npmPath) || npmPath.length === 0) {
       console.error(Resources.npmUnavailable);
       return 1;
     }
@@ -54,12 +56,12 @@ class InstalledPackage {
       return 1;
     }
     const typesVersion: string | null = await InstalledPackage.readTypesVersionAsync();
-    if (typesVersion === null) {
+    if (Object.isNull(typesVersion)) {
       console.error(Resources.installedNodeTypesMissing);
       return 1;
     }
     const variable: string | undefined = process.env[Resources.runnerTempVariable];
-    const work: string = variable === undefined || variable.length === 0 ? await mkdtemp(path.join(tmpdir(), Resources.installedWorkPrefix)) : variable;
+    const work: string = Object.isUndefined(variable) || variable.length === 0 ? await mkdtemp(path.join(tmpdir(), Resources.installedWorkPrefix)) : variable;
     const isOwnFolder: boolean = work !== variable;
     try {
       return await this.installAndOpenAsync(work, npmPath, archives, typesVersion);

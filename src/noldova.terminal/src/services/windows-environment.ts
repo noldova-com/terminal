@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import path from "node:path";
 
 import type { IModuleLog } from "@noldova/desktop.runtime";
@@ -38,7 +40,7 @@ export class WindowsEnvironment implements IEnvironmentSource {
     this.environment = environment;
     this.tools = tools;
     this.log = log;
-    this.reg = systemRoot === undefined || systemRoot.length === 0 ? null : path.win32.join(systemRoot, ...Resources.regPath);
+    this.reg = Object.isUndefined(systemRoot) || systemRoot.length === 0 ? null : path.win32.join(systemRoot, ...Resources.regPath);
   }
 
   public start(): void {
@@ -48,7 +50,7 @@ export class WindowsEnvironment implements IEnvironmentSource {
   public readAsync(): Promise<Readonly<Record<string, string | undefined>> | null> {
     if (this.ended)
       return Promise.resolve(this.environment);
-    if (this.reading === null) {
+    if (Object.isNull(this.reading)) {
       const reading: Promise<Readonly<Record<string, string | undefined>> | null> = Promise.race([this.readNowAsync(), this.ending.promise.then(() => this.environment)]);
       this.reading = reading;
       void reading.then(() => {
@@ -69,10 +71,10 @@ export class WindowsEnvironment implements IEnvironmentSource {
   private async readNowAsync(): Promise<Readonly<Record<string, string | undefined>> | null> {
     try {
       const reg: string | null = this.reg;
-      if (reg === null)
+      if (Object.isNull(reg))
         throw new SystemRootMissingException();
       const folder: string | null = await this.prepareFolderAsync();
-      if (folder === null || this.ended)
+      if (Object.isNull(folder) || this.ended)
         return this.environment;
       const read: number = ++this.readCount;
       try {
@@ -97,7 +99,7 @@ export class WindowsEnvironment implements IEnvironmentSource {
 
   private async prepareFolderAsync(): Promise<string | null> {
     const folder: string | null = await this.ensureFolderAsync();
-    if (folder === null || await this.tools.reader.isFolderAsync(folder))
+    if (Object.isNull(folder) || await this.tools.reader.isFolderAsync(folder))
       return folder;
     this.folder = null;
     return await this.ensureFolderAsync();
@@ -136,7 +138,7 @@ export class WindowsEnvironment implements IEnvironmentSource {
         await this.exportAsync(reg, key, file);
       }
       catch (error: unknown) {
-        if (!(error instanceof CommandExitedException) || error.exitCode === null)
+        if (!(error instanceof CommandExitedException) || Object.isNull(error.exitCode))
           throw new EnvironmentKeyUnreadableException(key, error);
         const isPresent: boolean = await this.isPresentAsync(reg, key).catch((): never => {
           throw new EnvironmentKeyUnreadableException(key, error);
@@ -156,7 +158,7 @@ export class WindowsEnvironment implements IEnvironmentSource {
         });
       }
       const bytes: Uint8Array | null = await this.tools.reader.readBytesOrNullAsync(file);
-      if (bytes === null)
+      if (Object.isNull(bytes))
         throw new EnvironmentExportInvalidException();
       return RegistryExport.parse(new TextDecoder(Resources.registryExportUtf16Label).decode(bytes));
     }
@@ -176,7 +178,7 @@ export class WindowsEnvironment implements IEnvironmentSource {
       return true;
     }
     catch (error: unknown) {
-      if (error instanceof CommandExitedException && error.exitCode !== null)
+      if (error instanceof CommandExitedException && !Object.isNull(error.exitCode))
         return false;
       throw error;
     }
@@ -198,12 +200,12 @@ export class WindowsEnvironment implements IEnvironmentSource {
     user: ReadonlyMap<string, RegistryValue>): Readonly<Record<string, string>> {
     const variables: Map<string, EnvironmentVariable> = new Map<string, EnvironmentVariable>();
     for (const [name, value] of Object.entries(environment)) {
-      if (value !== undefined)
+      if (!Object.isUndefined(value))
         variables.set(name.toUpperCase(), new EnvironmentVariable(name, value));
     }
     const machinePath: EnvironmentVariable | undefined = WindowsEnvironment.apply(variables, machine);
     const userPath: EnvironmentVariable | undefined = WindowsEnvironment.apply(variables, user);
-    if (machinePath !== undefined && userPath !== undefined)
+    if (!Object.isUndefined(machinePath) && !Object.isUndefined(userPath))
       variables.set(Resources.pathVariable, new EnvironmentVariable(machinePath.name, `${machinePath.value}${path.win32.delimiter}${userPath.value}`));
     return Object.fromEntries([...variables.values()].map(t => [t.name, t.value]));
   }
@@ -232,7 +234,7 @@ export class WindowsEnvironment implements IEnvironmentSource {
       if (end === -1)
         return text + value.slice(index);
       const variable: EnvironmentVariable | undefined = variables.get(value.slice(start + 1, end).toUpperCase());
-      if (variable === undefined) {
+      if (Object.isUndefined(variable)) {
         text += value.slice(index, end);
         index = end;
       }

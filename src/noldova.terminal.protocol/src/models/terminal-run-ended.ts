@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonObject } from "@noldova/context.json";
 
@@ -23,7 +25,7 @@ export class TerminalRunEnded {
   public constructor(sessionId: string, runId: string, endedBy: TerminalRunEndedBy, exitCode: number | null) {
     ArgumentValidator.requireIdentifier(Resources.sessionIdField, sessionId);
     ArgumentValidator.requireIdentifier(Resources.runIdField, runId);
-    if (exitCode !== null) {
+    if (!Object.isNull(exitCode)) {
       ArgumentValidator.requireIntegerInRange(Resources.exitCodeField, exitCode, Resources.minimumExitCode, Resources.maximumExitCode);
       if (endedBy !== TerminalRunEndedBy.Command)
         throw new ArgumentException(Resources.formatRunEndWithCode(Resources.valueSubject), Resources.exitCodeField);

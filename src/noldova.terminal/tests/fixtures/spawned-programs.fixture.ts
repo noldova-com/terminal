@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { addAbortListener, once } from "node:events";
@@ -41,7 +43,7 @@ export class SpawnedPrograms {
             child.kill();
             await ended;
           });
-        if (request.signal !== undefined)
+        if (!Object.isUndefined(request.signal))
           addAbortListener(request.signal, () => void owned.stopAsync().catch((error: unknown) => void this.stopFailures.push(error)));
         this.ends.set(owned, ended);
         for (const waiter of this.waiters.splice(0))

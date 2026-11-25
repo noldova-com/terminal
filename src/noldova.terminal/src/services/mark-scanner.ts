@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { MarkKind } from "../enums/mark-kind.ts";
 import { ShellMark } from "../models/shell-mark.ts";
 import { Resources } from "../resources.ts";
@@ -50,7 +52,7 @@ export class MarkScanner {
         continue;
       }
       const mark: ShellMark | null = this.parse(text.slice(payloadStart, payloadEnd), textOffset + end);
-      if (mark !== null)
+      if (!Object.isNull(mark))
         marks.push(mark);
       index = end;
     }
@@ -60,7 +62,7 @@ export class MarkScanner {
   private parse(payload: string, offset: number): ShellMark | null {
     const [kindText, nonce, ...values] = payload.replace(Resources.markScannerIgnoredControl, "").split(Resources.markScannerFieldSeparator);
     const kind: MarkKind | undefined = Resources.markKindLetters.get(String(kindText));
-    if (kind === undefined || nonce !== this.nonce)
+    if (Object.isUndefined(kind) || nonce !== this.nonce)
       return null;
     const fields: readonly string[] = values.map(t => t.replace(Resources.markScannerEscapedCharacter,
       (_, code: string) => String.fromCharCode(Number.parseInt(code, Resources.hexadecimalRadix))));
@@ -70,7 +72,7 @@ export class MarkScanner {
   private static findTerminator(text: string, from: number): readonly [number, number] {
     for (let index: number = from; index < text.length; index++) {
       const terminator: string | undefined = TERMINATORS.find(t => text.startsWith(t, index));
-      if (terminator !== undefined)
+      if (!Object.isUndefined(terminator))
         return [index, index + terminator.length];
       if (CANCELS.some(t => text.startsWith(t, index)))
         return [index, -1];

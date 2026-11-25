@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ReadDroppedException } from "../exceptions/read-dropped.exception.ts";
 import type { FolderEntry } from "../models/folder-entry.ts";
 import type { SharedReads } from "./shared-reads.ts";
@@ -70,7 +72,7 @@ export class BoundedReads {
         return null;
       throw error;
     }), this.expiry.promise.then(() => null)]);
-    if (answer !== null)
+    if (!Object.isNull(answer))
       return answer.value;
     this.hasCutShort = true;
     return late;

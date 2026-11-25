@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { describe, it } from "vitest";
@@ -29,7 +31,7 @@ function eightBitMark(payload: string, terminator: string = BELL): string {
 
 function letterOf(kind: MarkKind): string {
   const letter: string | undefined = [...Resources.markKindLetters].find(([, t]) => t === kind)?.[0];
-  assert.ok(letter !== undefined, `No mark letter names ${kind}.`);
+  assert.ok(!Object.isUndefined(letter), `No mark letter names ${kind}.`);
   return letter;
 }
 
@@ -113,7 +115,7 @@ describe("MarkScanner", () => {
       const long: string = mark(`${head}${"x".repeat(length - mark(head).length)}`);
       const next: string = mark(`A;${NONCE}`);
       const text: string = `${long}${next}`;
-      const parts: readonly string[] = split === null ? [text] : [text.slice(0, split), text.slice(split)];
+      const parts: readonly string[] = Object.isNull(split) ? [text] : [text.slice(0, split), text.slice(split)];
 
       const marks: readonly ShellMark[] = parts.flatMap((part, index) => scanner.scan(part, index === 0 ? 0 : split ?? 0));
 

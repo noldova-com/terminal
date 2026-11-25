@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { ForegroundProcess } from "@noldova/desktop.runtime";
 import { EndedBy, Resources as ProtocolResources, TerminalAttachment, TerminalCommandEnded, TerminalCwd, TerminalExit, TerminalExited, TerminalInputEdge, TerminalInputMark, TerminalOutput, TerminalPaneReference, TerminalReference, TerminalShellKind, TerminalSize, TerminalSummary, TerminalTitle, type TerminalLinePage, type TerminalRunOutput, type WindowsPty } from "@noldova/terminal.protocol";
 
@@ -84,8 +86,8 @@ export class TerminalSession {
     this.shellId = shellId;
     this.size = size;
     this.windowsPty = windowsPty;
-    this.scanner = nonce === null ? null : new MarkScanner(nonce);
-    this.hasIntegration = nonce !== null;
+    this.scanner = Object.isNull(nonce) ? null : new MarkScanner(nonce);
+    this.hasIntegration = !Object.isNull(nonce);
     this.listener = listener;
     this.text = new OutputLog(textLimit);
     this.text.subscribe(t => {
@@ -106,7 +108,7 @@ export class TerminalSession {
       onResume: () => this.terminal.resume(),
       onStalled: t => this.listener.onDetached(new TerminalPaneReference(this.sessionId, t))
     });
-    this.wakeup = windowsPty !== null && shellKind === TerminalShellKind.Bash ? new ResizeWakeup(t => this.terminal.write(t)) : null;
+    this.wakeup = !Object.isNull(windowsPty) && shellKind === TerminalShellKind.Bash ? new ResizeWakeup(t => this.terminal.write(t)) : null;
     this.terminal = this.startTerminal(process);
   }
 
@@ -167,7 +169,7 @@ export class TerminalSession {
   }
 
   public get hasExited(): boolean {
-    return this.exit !== null;
+    return !Object.isNull(this.exit);
   }
 
   public get receivedLength(): number {
@@ -201,8 +203,8 @@ export class TerminalSession {
   }
 
   public async askOptionsAsync(keys: string): Promise<ShellOptionsReply> {
-    if (!this.hasIntegration || !this.commands.hasOptionsBinding || !this.commands.isWaitingAtPrompt || this.commands.runningCommand !== null
-      || this.exit !== null)
+    if (!this.hasIntegration || !this.commands.hasOptionsBinding || !this.commands.isWaitingAtPrompt || !Object.isNull(this.commands.runningCommand)
+      || !Object.isNull(this.exit))
       return ShellOptionsReply.none;
     const reply: Promise<ShellOptionsReply> = this.options.askAsync(this.hasAnsweredOptions ? Resources.optionsMilliseconds
       : Resources.firstOptionsMilliseconds);
@@ -220,7 +222,7 @@ export class TerminalSession {
 
   public readPromptLine(): string | null {
     const promptEnd: number | null = this.commands.promptEndOffset;
-    if (promptEnd === null || this.commands.runningCommand !== null)
+    if (Object.isNull(promptEnd) || !Object.isNull(this.commands.runningCommand))
       return null;
     return this.text.readSince(promptEnd).text.trim();
   }
@@ -238,7 +240,7 @@ export class TerminalSession {
   public async attachAsync(paneId: string, commands: readonly string[]): Promise<TerminalAttachment> {
     const snapshot: MirrorSnapshot = await this.mirror.snapshotAsync();
     this.flow.attach(paneId, snapshot.offset);
-    if (this.exit === null)
+    if (Object.isNull(this.exit))
       this.redraw();
     return new TerminalAttachment(this.sessionId, snapshot.snapshot, snapshot.pending, snapshot.offset, this.size, this.mirror.title, this.cwd, this.exit, this.windowsPty,
       this.history.stored, snapshot.input, this.marksInput ? commands : [], this.shellKind);
@@ -246,7 +248,7 @@ export class TerminalSession {
 
   public anchorRunAsync(): Promise<MirrorLine> {
     const prompt: Promise<MirrorLine> | null = this.promptLine;
-    return prompt === null ? this.mirror.anchorAsync(null) : prompt.then(t => this.mirror.anchorAsync(t));
+    return Object.isNull(prompt) ? this.mirror.anchorAsync(null) : prompt.then(t => this.mirror.anchorAsync(t));
   }
 
   public readRunLinesAsync(start: MirrorLine, end: MirrorLine | null, maximum: number): Promise<TerminalRunOutput> {
@@ -282,8 +284,8 @@ export class TerminalSession {
     this.terminal = this.startTerminal(process);
     if (this.flow.isPaused)
       this.terminal.pause();
-    this.scanner = nonce === null ? null : new MarkScanner(nonce);
-    this.hasIntegration = nonce !== null;
+    this.scanner = Object.isNull(nonce) ? null : new MarkScanner(nonce);
+    this.hasIntegration = !Object.isNull(nonce);
     this.commands = this.trackCommands();
     this.options.reset();
     this.hasAnsweredOptions = false;
@@ -325,7 +327,7 @@ export class TerminalSession {
     const marks: readonly ShellMark[] = this.scanner?.scan(data, this.receivedOffset) ?? [];
     this.batcher.append(data, marks.flatMap(t => {
       const edge: TerminalInputEdge | null = this.readInputEdge(t);
-      return edge === null ? [] : [new TerminalInputMark(t.offset - this.receivedOffset, edge)];
+      return Object.isNull(edge) ? [] : [new TerminalInputMark(t.offset - this.receivedOffset, edge)];
     }));
     this.flow.produce(data.length);
     let position: number = 0;
@@ -335,7 +337,7 @@ export class TerminalSession {
       this.text.append(data.slice(position, end));
       position = end;
       const edge: TerminalInputEdge | null = this.readInputEdge(mark);
-      if (mark.kind === MarkKind.PromptStart || edge !== null) {
+      if (mark.kind === MarkKind.PromptStart || !Object.isNull(edge)) {
         this.mirror.write(data.slice(mirrored, end));
         mirrored = end;
       }
@@ -392,12 +394,12 @@ export class TerminalSession {
     if (mark.kind === MarkKind.CommandEnd) {
       const exitCode: number | null = this.commands.lastCommand?.exitCode ?? null;
       this.listener.onCommandEnded(new TerminalCommandEnded(this.sessionId,
-        exitCode !== null && exitCode >= ProtocolResources.minimumExitCode && exitCode <= ProtocolResources.maximumExitCode ? exitCode : null));
+        !Object.isNull(exitCode) && exitCode >= ProtocolResources.minimumExitCode && exitCode <= ProtocolResources.maximumExitCode ? exitCode : null));
     }
     else if (mark.kind === MarkKind.PromptStart)
       this.listener.onPromptStarted(new TerminalReference(this.sessionId));
     const cwd: string | null = this.commands.cwd;
-    if (cwd === null || cwd === this.reportedCwd || cwd.trim().length === 0 || cwd.length > ProtocolResources.maximumPathLength)
+    if (Object.isNull(cwd) || cwd === this.reportedCwd || cwd.trim().length === 0 || cwd.length > ProtocolResources.maximumPathLength)
       return;
     this.reportedCwd = cwd;
     this.listener.onCwdChanged(new TerminalCwd(this.sessionId, cwd));
@@ -407,7 +409,7 @@ export class TerminalSession {
     const command: TrackedCommand | null = mark.kind === MarkKind.OutputStart ? this.commands.runningCommand
       : mark.kind === MarkKind.CommandEnd ? this.commands.lastCommand : null;
     for (const line of this.typedLines) {
-      if (command !== null)
+      if (!Object.isNull(command))
         line.command = command;
       else if (mark.kind === MarkKind.PromptStart)
         line.prompt(mark.offset);
@@ -431,7 +433,7 @@ export class TerminalSession {
         if (this.terminal === terminal)
           this.wakeup?.beforeInput();
       }
-    }, this.windowsPty !== null);
+    }, !Object.isNull(this.windowsPty));
     return terminal;
   }
 
@@ -466,7 +468,7 @@ export class TerminalSession {
 
   private endInput(startsCommand: boolean, command: string | null): void {
     void this.mirror.endInput().then(t => {
-      if (startsCommand && t !== null)
+      if (startsCommand && !Object.isNull(t))
         this.listener.onCommandStarted(TerminalSession.toCommand(command) ?? t);
     }).catch((error: unknown) => this.listener.onFailed(this.sessionId, FailureText.read(error)));
   }

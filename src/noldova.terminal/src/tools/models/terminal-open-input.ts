@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonObject } from "@noldova/context.json";
 import { ArgumentValidator, ProtocolReader, Resources as ProtocolResources } from "@noldova/terminal.protocol";
 
@@ -25,9 +27,9 @@ export class TerminalOpenInput {
   public readonly explanation: string | null;
 
   public constructor(shellId: string | null, explanation: string | null) {
-    if (shellId !== null)
+    if (!Object.isNull(shellId))
       ArgumentValidator.requireIdentifier(Resources.shellField, shellId);
-    if (explanation !== null)
+    if (!Object.isNull(explanation))
       ArgumentValidator.requireMaximumLength(Resources.explanationField, explanation, Resources.maximumExplanationLength);
 
     this.shellId = shellId;

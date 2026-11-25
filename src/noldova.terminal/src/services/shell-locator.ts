@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { userInfo } from "node:os";
 import path from "node:path";
 
@@ -42,7 +44,7 @@ export class ShellLocator {
     this.userShell = userShell;
     this.fileSystem = fileSystem;
     this.log = log;
-    this.wsl = systemRoot === undefined || systemRoot.length === 0
+    this.wsl = Object.isUndefined(systemRoot) || systemRoot.length === 0
       ? null
       : { file: path.win32.join(systemRoot, ...Resources.wslPath), reader: new WslDistributionReader(runner, systemRoot) };
     this.visualStudioReader = new VisualStudioReader(runner, fileSystem, environment[Resources.programFilesX86Variable]);
@@ -51,7 +53,7 @@ export class ShellLocator {
   public static readUserShell(): string | null {
     try {
       const shell: string | null = userInfo().shell;
-      return shell === null || shell.trim().length === 0 ? null : shell;
+      return Object.isNull(shell) || shell.trim().length === 0 ? null : shell;
     }
     catch (error: unknown) {
       if (error instanceof Error && "code" in error && error.code === Resources.systemErrorCode)
@@ -68,11 +70,11 @@ export class ShellLocator {
   }
 
   public async findAsync(shellId: string | null): Promise<Shell | undefined> {
-    const isMatch = (shell: Shell): boolean => shellId === null ? shell.isDefault : shell.id === shellId;
+    const isMatch = (shell: Shell): boolean => Object.isNull(shellId) ? shell.isDefault : shell.id === shellId;
     if (this.platform !== Resources.windowsPlatform)
       return (await this.locateOnUnixAsync()).find(isMatch);
     const installed: readonly Shell[] = await this.locateOnWindowsAsync();
-    return installed.find(isMatch) ?? (shellId === null ? undefined : (await this.locateListedAsync(installed)).find(isMatch));
+    return installed.find(isMatch) ?? (Object.isNull(shellId) ? undefined : (await this.locateListedAsync(installed)).find(isMatch));
   }
 
   public async findKindAsync(kinds: readonly TerminalShellKind[]): Promise<Shell | undefined> {
@@ -107,7 +109,7 @@ export class ShellLocator {
     const shells: Shell[] = [];
     for (const [id, name, kind, files, args] of candidates) {
       const file: string | null = await this.findFileAsync(files);
-      if (file !== null)
+      if (!Object.isNull(file))
         shells.push(new Shell(id, name, kind, file, args, shells.length === 0));
     }
     return shells;
@@ -119,7 +121,7 @@ export class ShellLocator {
       .map(t => t.trim())
       .filter(t => t.startsWith(Resources.posixRoot) && !Resources.nonShellNames.includes(path.posix.basename(t)));
     const preferred: string | undefined = this.userShell ?? this.environment[Resources.shellVariable];
-    const files: readonly string[] = preferred === undefined ? listed : [preferred, ...listed];
+    const files: readonly string[] = Object.isUndefined(preferred) ? listed : [preferred, ...listed];
     const args: readonly string[] = [Resources.loginArgument];
     const shells: Shell[] = [];
     for (const file of files) {
@@ -149,11 +151,11 @@ export class ShellLocator {
     const architecture: string = Resources.developerArchitectures.get(this.architecture) ?? this.architecture;
     const id: string = Resources.developerIdPrefix + installation.instanceId;
     const shells: Shell[] = [];
-    if (commandPrompt !== undefined && await this.fileSystem.isFileAsync(script))
+    if (!Object.isUndefined(commandPrompt) && await this.fileSystem.isFileAsync(script))
       shells.push(new Shell(id + Resources.developerCommandSuffix, Resources.formatDeveloperCommandPromptName(installation.name), TerminalShellKind.CommandPrompt,
         commandPrompt.file, [Resources.keepOpenArgument, script, Resources.noStartFolderArgument, ...Resources.formatDeveloperArchitectureArguments(architecture)],
         false));
-    if (powerShell !== undefined && await this.fileSystem.isFileAsync(module))
+    if (!Object.isUndefined(powerShell) && await this.fileSystem.isFileAsync(module))
       shells.push(new Shell(id + Resources.developerPowerShellSuffix, Resources.formatDeveloperPowerShellName(installation.name), TerminalShellKind.PowerShell,
         powerShell.file, [], false, Resources.formatDeveloperPowerShellCommand(module, installation.path, architecture)));
     return shells;
@@ -161,7 +163,7 @@ export class ShellLocator {
 
   private async locateWslShellsAsync(): Promise<readonly Shell[]> {
     const wsl: { readonly file: string; readonly reader: WslDistributionReader } | null = this.wsl;
-    if (wsl === null)
+    if (Object.isNull(wsl))
       return [];
     this.distributions ??= wsl.reader.readAsync().catch((error: unknown) => {
       this.distributions = null;
@@ -200,6 +202,6 @@ export class ShellLocator {
   }
 
   private static joinIfSet(folder: string | undefined, names: readonly string[]): readonly string[] {
-    return folder === undefined || folder.length === 0 ? [] : [path.win32.join(folder, ...names)];
+    return Object.isUndefined(folder) || folder.length === 0 ? [] : [path.win32.join(folder, ...names)];
   }
 }

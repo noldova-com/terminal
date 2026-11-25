@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonObject } from "@noldova/context.json";
 
@@ -18,11 +20,11 @@ export class TerminalLaunched {
   public readonly missingFolder: string | null;
 
   public constructor(sessionId: string | null, missingFolder: string | null) {
-    if (sessionId !== null)
+    if (!Object.isNull(sessionId))
       ArgumentValidator.requireIdentifier(Resources.sessionIdField, sessionId);
-    if (missingFolder !== null)
+    if (!Object.isNull(missingFolder))
       ArgumentValidator.requireAbsolutePath(Resources.missingFolderField, missingFolder);
-    if ((sessionId === null) === (missingFolder === null))
+    if ((Object.isNull(sessionId)) === (Object.isNull(missingFolder)))
       throw new ArgumentException(Resources.formatNotOneLaunchAnswer(Resources.valueSubject), Resources.sessionIdField);
 
     this.sessionId = sessionId;

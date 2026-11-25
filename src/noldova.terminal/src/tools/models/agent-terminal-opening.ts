@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { isAbsolute } from "node:path";
 
 import { ArgumentException } from "@noldova/context.exceptions";
@@ -21,7 +23,7 @@ export class AgentTerminalOpening {
 
   public constructor(ownerSessionId: string, shellId: string | null, cwd: string, owner: string | null = null) {
     ArgumentValidator.requireIdentifier(Resources.agentTerminalOpeningOwnerSessionIdField, ownerSessionId);
-    if (shellId !== null)
+    if (!Object.isNull(shellId))
       ArgumentValidator.requireIdentifier(Resources.agentTerminalOpeningShellIdField, shellId);
     ArgumentValidator.requireNonBlank(Resources.cwdField, cwd, ProtocolResources.maximumPathLength);
     if (!isAbsolute(cwd))

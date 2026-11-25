@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { PowerShellCmdlet } from "../models/powershell-cmdlet.ts";
 import type { PowerShellParameter } from "../models/powershell-parameter.ts";
 import { Resources } from "../resources.ts";
@@ -19,11 +21,11 @@ export class PowerShellBinding {
 
   public bindsWildcardPath(words: readonly string[]): boolean {
     const [command, ...rest] = words.map(t => t.toLowerCase());
-    if (command === undefined)
+    if (Object.isUndefined(command))
       return false;
     const cmdlet: PowerShellCmdlet | undefined = Resources.powerShellPathCmdlets
       .find(t => t.names.includes(command) || (this.isWindows && t.windowsAliases.includes(command)));
-    if (cmdlet === undefined)
+    if (Object.isUndefined(cmdlet))
       return false;
     const parameters: readonly PowerShellParameter[] = [...cmdlet.parameters, ...Resources.powerShellCommonParameters];
     const named: string[] = [];
@@ -31,7 +33,7 @@ export class PowerShellBinding {
     let positional: number = 0;
     let ended: boolean = false;
     for (const word of rest) {
-      if (pending !== null) {
+      if (!Object.isNull(pending)) {
         named.push(pending.slot);
         pending = null;
         continue;
@@ -49,20 +51,20 @@ export class PowerShellBinding {
       const fixed: readonly PowerShellParameter[] = this.matches(parameters, name);
       const found: readonly PowerShellParameter[] = fixed.length > 0 ? fixed : this.matches(cmdlet.dynamicParameters, name);
       const parameter: PowerShellParameter | undefined = found.length === 1 ? found.at(0) : undefined;
-      if (parameter === undefined)
+      if (Object.isUndefined(parameter))
         return false;
       if (separator >= 0 || parameter.isSwitch)
         named.push(parameter.slot);
       else
         pending = parameter;
     }
-    if (pending !== null)
+    if (!Object.isNull(pending))
       return pending.name === Resources.powerShellPathParameter;
     return cmdlet.positions.filter(t => !named.includes(t)).at(positional) === Resources.powerShellPathParameter;
   }
 
   private matches(parameters: readonly PowerShellParameter[], name: string): readonly PowerShellParameter[] {
     const exact: PowerShellParameter | undefined = parameters.find(t => t.name === name || t.aliases.includes(name));
-    return exact !== undefined ? [exact] : parameters.filter(t => [t.name, ...t.aliases].some(n => n.startsWith(name)));
+    return !Object.isUndefined(exact) ? [exact] : parameters.filter(t => [t.name, ...t.aliases].some(n => n.startsWith(name)));
   }
 }

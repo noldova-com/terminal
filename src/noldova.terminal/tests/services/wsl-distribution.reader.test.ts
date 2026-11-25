@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { ProcessExit } from "@noldova/desktop.runtime";
@@ -54,7 +56,7 @@ describe("WslDistributionReader", () => {
 
     for (const output of outputs)
       await assert.rejects(readAsync(output), (error: unknown) => error instanceof WslDistributionsUnreadableException && error.message === UNREADABLE
-        && error.cause === undefined);
+        && Object.isUndefined(error.cause));
   });
 
   it("reports Windows PowerShell's failure, keeping it as the cause", async () => {

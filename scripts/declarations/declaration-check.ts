@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -30,15 +32,15 @@ class DeclarationCheck {
     const packageManifest: JsonObject | null = manifests.get(Resources.moduleFolder) ?? null;
     const windowManifest: JsonObject | null = manifests.get(Resources.windowFolder) ?? null;
     const rootManifest: JsonObject | null = this.readObject(join(this.root, Resources.manifestFile));
-    if (declaration !== null)
+    if (!Object.isNull(declaration))
       this.checkDeclaration(declaration);
-    if (packageManifest !== null)
+    if (!Object.isNull(packageManifest))
       this.checkPackageManifest(packageManifest);
-    const desktopCore: VersionRange | null = declaration === null ? null : this.readDesktopCore(declaration);
-    if (packageManifest !== null && windowManifest !== null && rootManifest !== null)
+    const desktopCore: VersionRange | null = Object.isNull(declaration) ? null : this.readDesktopCore(declaration);
+    if (!Object.isNull(packageManifest) && !Object.isNull(windowManifest) && !Object.isNull(rootManifest))
       this.checkPins(packageManifest, windowManifest, rootManifest, desktopCore);
     for (const [folder, manifest] of manifests)
-      if (manifest !== null)
+      if (!Object.isNull(manifest))
         this.checkPartPins(manifest, folder);
     return this.problems;
   }
@@ -48,23 +50,23 @@ class DeclarationCheck {
     if (fields.length !== Resources.moduleFields.length || Resources.moduleFields.some(t => !fields.includes(t)))
       this.problems.push(Resources.moduleFieldsInvalid);
     const id: unknown = declaration[Resources.idField];
-    if (typeof id !== "string" || !Resources.idPattern.test(id) || id === Resources.reservedModuleId) {
+    if (!Object.isString(id) || !Resources.idPattern.test(id) || id === Resources.reservedModuleId) {
       this.problems.push(Resources.moduleIdInvalid);
       return;
     }
     const version: unknown = declaration[Resources.versionField];
-    if (typeof version !== "string" || !Resources.versionPattern.test(version))
+    if (!Object.isString(version) || !Resources.versionPattern.test(version))
       this.problems.push(Resources.moduleVersionInvalid);
     if (declaration[Resources.pseudoTerminalsField] !== true)
       this.problems.push(Resources.pseudoTerminalsRequired);
     for (const field of Resources.textFields) {
       const value: unknown = declaration[field];
-      if (typeof value !== "string" || value.trim() === "")
+      if (!Object.isString(value) || value.trim() === "")
         this.problems.push(Resources.formatModuleTextBlank(field));
     }
     for (const part of this.readTexts(declaration, Resources.partsField)) {
       const folder: string | undefined = Resources.partFolders.get(part);
-      if (folder === undefined)
+      if (Object.isUndefined(folder))
         this.problems.push(Resources.formatModulePartUnknown(part));
       else if (!existsSync(join(this.root, folder)))
         this.problems.push(Resources.formatModulePartFolderMissing(part, folder));
@@ -81,7 +83,7 @@ class DeclarationCheck {
     for (const [dependency, version] of Object.entries(dependencies)) {
       if (!Resources.idPattern.test(dependency) || dependency === id)
         this.problems.push(Resources.formatModuleDependencyInvalid(dependency));
-      else if (typeof version !== "string" || !Resources.versionPattern.test(version))
+      else if (!Object.isString(version) || !Resources.versionPattern.test(version))
         this.problems.push(Resources.formatModuleDependencyVersionInvalid(dependency));
     }
   }
@@ -102,7 +104,7 @@ class DeclarationCheck {
           continue;
         }
         const [owner, local, ...rest] = name.split(Resources.versionSeparator);
-        if (owner !== id || local === undefined || !Resources.namePattern.test(local) || rest.length > 0)
+        if (owner !== id || Object.isUndefined(local) || !Resources.namePattern.test(local) || rest.length > 0)
           this.problems.push(Resources.formatModuleContributionInvalid(kind, name, id));
       }
     }
@@ -119,14 +121,14 @@ class DeclarationCheck {
       this.problems.push(Resources.packageNameRequired);
     if (packageManifest[Resources.versionField] !== Resources.versionPlaceholder)
       this.problems.push(Resources.packageVersionRequired);
-    if (packageManifest[Resources.privateField] !== undefined)
+    if (!Object.isUndefined(packageManifest[Resources.privateField]))
       this.problems.push(Resources.packagePrivate);
   }
 
   private readDesktopCore(declaration: JsonObject): VersionRange | null {
     const text: unknown = declaration[Resources.desktopCoreField];
-    const range: VersionRange | null = typeof text === "string" ? VersionRange.parse(text) : null;
-    if (range === null || range.toString() !== VersionRange.from(range.lowest).toString()) {
+    const range: VersionRange | null = Object.isString(text) ? VersionRange.parse(text) : null;
+    if (Object.isNull(range) || range.toString() !== VersionRange.from(range.lowest).toString()) {
       this.problems.push(Resources.desktopCoreInvalid);
       return null;
     }
@@ -147,7 +149,7 @@ class DeclarationCheck {
     this.readPins(windowManifest, Resources.dependenciesField, Resources.windowPackageManifest);
     const windowPins: JsonObject = this.readPins(windowManifest, Resources.devDependenciesField, Resources.windowPackageManifest);
     for (const [name, pin] of [...builtAgainst, windowPins].flatMap(t => Object.entries(t)))
-      if (VersionRange.isCore(name) && desktopCore !== null && typeof pin === "string" && !desktopCore.includes(pin))
+      if (VersionRange.isCore(name) && !Object.isNull(desktopCore) && Object.isString(pin) && !desktopCore.includes(pin))
         this.problems.push(Resources.formatCoreBuildOutsideRange(name, pin, desktopCore.toString()));
     for (const name of Object.keys(this.readPins(rootManifest, Resources.dependenciesField, Resources.rootManifest)))
       this.problems.push(Resources.formatRootDependencyPinned(name));
@@ -170,9 +172,9 @@ class DeclarationCheck {
       return;
     }
     for (const [name, needed] of Object.entries(peers)) {
-      const text: string = typeof needed === "string" ? needed : "";
+      const text: string = Object.isString(needed) ? needed : "";
       if (VersionRange.isCore(name)) {
-        if (desktopCore !== null && text !== desktopCore.toString())
+        if (!Object.isNull(desktopCore) && text !== desktopCore.toString())
           this.problems.push(Resources.formatPackageCorePeerDiffers(name, desktopCore.toString()));
       }
       else if (!Resources.declarationPinPattern.test(text) && !(VersionRange.isRanged(name) && VersionRange.parse(text)?.isStandard === true))
@@ -187,7 +189,7 @@ class DeclarationCheck {
       return {};
     }
     for (const [name, version] of Object.entries(dependencies)) {
-      if (name.startsWith(Resources.ownPackagePrefix) ? version !== Resources.ownPin : typeof version !== "string" || !Resources.declarationPinPattern.test(version))
+      if (name.startsWith(Resources.ownPackagePrefix) ? version !== Resources.ownPin : !Object.isString(version) || !Resources.declarationPinPattern.test(version))
         this.problems.push(name.startsWith(Resources.ownPackagePrefix)
           ? Resources.formatManifestOwnPinInvalid(description, name, field)
           : Resources.formatManifestPinInvalid(description, name, field));
@@ -197,7 +199,7 @@ class DeclarationCheck {
 
   private readTexts(owner: JsonObject, field: string): readonly string[] {
     const values: unknown = owner[field];
-    if (!Array.isArray(values) || values.some(t => typeof t !== "string")) {
+    if (!Array.isArray(values) || values.some(t => !Object.isString(t))) {
       this.problems.push(Resources.formatModuleListInvalid(field));
       return [];
     }
@@ -222,7 +224,7 @@ class DeclarationCheck {
   }
 
   private static isObject(value: unknown): value is JsonObject {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
+    return Object.isObject(value) && !Array.isArray(value);
   }
 }
 
