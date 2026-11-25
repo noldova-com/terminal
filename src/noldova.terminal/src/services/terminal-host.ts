@@ -38,6 +38,7 @@ import type { ShellLaunch } from "../models/shell-launch.ts";
 import { ShellOptionsReply } from "../models/shell-options-reply.ts";
 import { StartedShell } from "../models/started-shell.ts";
 import type { TerminalEvents } from "../models/terminal-events.ts";
+import { TerminalFolderKey } from "../models/terminal-folder-key.ts";
 import type { TerminalHistoryPaths } from "../models/terminal-history-paths.ts";
 import { TerminalOpening } from "../models/terminal-opening.ts";
 import { WaitingRun } from "../models/waiting-run.ts";
@@ -69,7 +70,7 @@ export class TerminalHost {
   private readonly events: TerminalEvents;
   private readonly saved: SavedTerminals;
   private readonly completions: CompletionSource;
-  private readonly folderKeys: WeakMap<HostedTerminal, readonly [string, string]> = new WeakMap<HostedTerminal, readonly [string, string]>();
+  private readonly folderKeys: WeakMap<HostedTerminal, TerminalFolderKey> = new WeakMap<HostedTerminal, TerminalFolderKey>();
   private readonly realFolderReads: Map<string, Promise<string | null>> = new Map<string, Promise<string | null>>();
   private readonly sessions: Map<string, HostedTerminal> = new Map<string, HostedTerminal>();
   private readonly commandHistory: CommandHistory = new CommandHistory();
@@ -736,14 +737,15 @@ export class TerminalHost {
 
   private async readRunOutputAsync(params: TerminalRunOutputParams, client: RequestClient): Promise<TerminalRunOutput | null> {
     const terminal: HostedTerminal | undefined = this.sessions.get(params.sessionId);
-    const runs: readonly (readonly [string, Promise<MirrorLine>])[] = Object.isUndefined(terminal) ? [] : [...terminal.runs];
-    const index: number = runs.findIndex(([runId]) => runId === params.runId);
-    const run: readonly [string, Promise<MirrorLine>] | undefined = runs[index];
+    const runIds: readonly string[] = Object.isUndefined(terminal) ? [] : [...terminal.runs.keys()];
+    const index: number = runIds.indexOf(params.runId);
+    const run: Promise<MirrorLine> | undefined = terminal?.runs.get(params.runId);
     if (Object.isUndefined(terminal) || Object.isUndefined(run) || !client.isApp || !terminal.isReachedBy(client.connection, true) || !Object.isNull(terminal.ownerSessionId)
       || terminal.session.hasExited || terminal.isRestarting)
       return null;
-    const next: readonly [string, Promise<MirrorLine>] | undefined = runs[index + 1];
-    return terminal.session.readRunLinesAsync(await run[1], Object.isUndefined(next) ? null : await next[1], params.maximumLines);
+    const nextId: string | undefined = runIds[index + 1];
+    const next: Promise<MirrorLine> | undefined = Object.isUndefined(nextId) ? undefined : terminal.runs.get(nextId);
+    return terminal.session.readRunLinesAsync(await run, Object.isUndefined(next) ? null : await next, params.maximumLines);
   }
 
   private async findFallbackShellAsync(shellId: string | null): Promise<Shell | undefined> {
@@ -877,13 +879,13 @@ export class TerminalHost {
   private async findInFolderAsync(wanted: string | null, isOwned: (terminal: HostedTerminal) => boolean): Promise<ReadonlySet<HostedTerminal> | null> {
     if (Object.isNull(wanted))
       return null;
-    const matched: (readonly [HostedTerminal, string])[] = [];
+    const matched: Map<HostedTerminal, string> = new Map<HostedTerminal, string>();
     await Promise.all(this.terminals.filter(isOwned).map(async t => {
-      const known: readonly [string, string] | null = await this.toTerminalFolderKeyAsync(t);
-      if (!Object.isNull(known) && known[1] === wanted)
-        matched.push([t, known[0]]);
+      const known: TerminalFolderKey | null = await this.toTerminalFolderKeyAsync(t);
+      if (!Object.isNull(known) && known.key === wanted)
+        matched.set(t, known.folder);
     }));
-    return new Set(matched.filter(([t, folder]) => folder === this.currentFolderOf(t)).map(([t]) => t));
+    return new Set([...matched.keys()].filter(t => matched.get(t) === this.currentFolderOf(t)));
   }
 
   private async toRunFolderKeyAsync(folder: string): Promise<string> {
@@ -893,20 +895,20 @@ export class TerminalHost {
     return this.toFolderKey(await this.readRealFolderAsync(this.homeFolder) ?? this.homeFolder);
   }
 
-  private async toTerminalFolderKeyAsync(terminal: HostedTerminal): Promise<readonly [string, string] | null> {
+  private async toTerminalFolderKeyAsync(terminal: HostedTerminal): Promise<TerminalFolderKey | null> {
     const folder: string | null = this.currentFolderOf(terminal);
     if (Object.isNull(folder))
       return null;
-    const known: readonly [string, string] | undefined = this.folderKeys.get(terminal);
-    if (!Object.isUndefined(known) && known[0] === folder)
+    const known: TerminalFolderKey | undefined = this.folderKeys.get(terminal);
+    if (!Object.isUndefined(known) && known.folder === folder)
       return known;
     const reading: Promise<string | null> = this.joinRealFolderRead(folder);
     void reading.then(real => {
       if (this.currentFolderOf(terminal) === folder)
-        this.folderKeys.set(terminal, [folder, this.toFolderKey(real ?? folder)]);
+        this.folderKeys.set(terminal, new TerminalFolderKey(folder, this.toFolderKey(real ?? folder)));
     }, () => undefined);
     const real: string | null | undefined = await this.readBoundedAsync(() => reading);
-    return [folder, this.toFolderKey(real ?? folder)];
+    return new TerminalFolderKey(folder, this.toFolderKey(real ?? folder));
   }
 
   private currentFolderOf(terminal: HostedTerminal): string | null {

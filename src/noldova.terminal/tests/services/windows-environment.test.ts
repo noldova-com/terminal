@@ -21,6 +21,7 @@ import { CommandTimedOutException } from "../../src/exceptions/command-timed-out
 import type { ICommandRunner } from "../../src/interfaces/i-command-runner.ts";
 import { CommandRun } from "../../src/models/command-run.ts";
 import { EnvironmentTools } from "../../src/models/environment-tools.ts";
+import { RegistryValue } from "../../src/models/registry-value.ts";
 import { LatestEnvironment } from "../../src/services/latest-environment.ts";
 import { WindowsEnvironment } from "../../src/services/windows-environment.ts";
 import { FakeFileSystemReader } from "../fixtures/fake-file-system-reader.fixture.ts";
@@ -30,7 +31,33 @@ import { FakeLineProcessStarter } from "../fixtures/fake-line-process.fixture.ts
 import { RecordedRun } from "../fixtures/recorded-run.fixture.ts";
 import { RestrictedFolder } from "../fixtures/restricted-folder.fixture.ts";
 
-type Scope = Readonly<Record<string, readonly [string, boolean]>>;
+type Scope = Readonly<Record<string, RegistryValue>>;
+
+class ReadEndCase {
+  public readonly name: string;
+  public readonly isGone: boolean;
+
+  public constructor(name: string, isGone: boolean) {
+    this.name = name;
+    this.isGone = isGone;
+  }
+}
+
+class RemovalCase {
+  public readonly name: string;
+  public readonly failure: Error | null;
+  public readonly atEnd: readonly string[];
+  public readonly settled: readonly string[];
+  public readonly logged: readonly string[];
+
+  public constructor(name: string, failure: Error | null, atEnd: readonly string[], settled: readonly string[], logged: readonly string[]) {
+    this.name = name;
+    this.failure = failure;
+    this.atEnd = atEnd;
+    this.settled = settled;
+    this.logged = logged;
+  }
+}
 
 const MACHINE_KEY: string = "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment";
 const USER_KEY: string = "HKCU\\Environment";
@@ -64,7 +91,7 @@ function exportsOf(runner: ExportRunner): readonly string[] {
 }
 
 function plain(variables: Readonly<Record<string, string>>): Scope {
-  return Object.fromEntries(Object.entries(variables).map(([name, value]) => [name, [value, false] as const]));
+  return Object.fromEntries(Object.entries(variables).map(([name, value]) => [name, new RegistryValue(value, false)]));
 }
 
 function quoted(text: string): string {
@@ -73,7 +100,7 @@ function quoted(text: string): string {
 
 function exported(key: string, scope: Scope): Uint8Array {
   const lines: string[] = ["Windows Registry Editor Version 5.00", "", `[${key}]`];
-  for (const [name, [value, isExpandable]] of Object.entries(scope)) {
+  for (const [name, { text: value, isExpandable }] of Object.entries(scope)) {
     if (!isExpandable) {
       lines.push(`${quoted(name)}=${quoted(value)}`);
       continue;
@@ -231,14 +258,14 @@ describe("WindowsEnvironment", () => {
     const fixture: EnvironmentFixture = new EnvironmentFixture();
 
     const environment: Readonly<Record<string, string | undefined>> | null = await fixture.readAsync({
-      Path: ["%SystemRoot%\\system32;%JAVA_HOME%\\bin", true],
-      JAVA_HOME: ["C:\\jdk", false],
-      EARLY: ["%USER_ONLY%", true]
+      Path: new RegistryValue("%SystemRoot%\\system32;%JAVA_HOME%\\bin", true),
+      JAVA_HOME: new RegistryValue("C:\\jdk", false),
+      EARLY: new RegistryValue("%USER_ONLY%", true)
     }, {
-      Path: ["%java_home%\\tools;%TOOLS%", true],
-      USER_ONLY: ["u", false],
-      TOOLS: ["C:\\tools", false],
-      RAW: ["%JAVA_HOME%", false]
+      Path: new RegistryValue("%java_home%\\tools;%TOOLS%", true),
+      USER_ONLY: new RegistryValue("u", false),
+      TOOLS: new RegistryValue("C:\\tools", false),
+      RAW: new RegistryValue("%JAVA_HOME%", false)
     });
 
     assert.equal(environment?.["JAVA_HOME"], "C:\\jdk");
@@ -251,10 +278,10 @@ describe("WindowsEnvironment", () => {
     const fixture: EnvironmentFixture = new EnvironmentFixture();
 
     const environment: Readonly<Record<string, string | undefined>> | null = await fixture.readAsync({
-      B: ["b", false],
-      UNKNOWN: ["%NOPE%x%B%", true],
-      PERCENT: ["50% and %%", true],
-      UNCLOSED: ["%TEMP", true]
+      B: new RegistryValue("b", false),
+      UNKNOWN: new RegistryValue("%NOPE%x%B%", true),
+      PERCENT: new RegistryValue("50% and %%", true),
+      UNCLOSED: new RegistryValue("%TEMP", true)
     }, {});
 
     assert.deepEqual([environment?.["UNKNOWN"], environment?.["PERCENT"], environment?.["UNCLOSED"]], ["%NOPE%xb", "50% and %%", "%TEMP"]);
@@ -273,7 +300,7 @@ describe("WindowsEnvironment", () => {
     const fixture: EnvironmentFixture = new EnvironmentFixture();
 
     const environment: Readonly<Record<string, string | undefined>> | null = await fixture.readAsync(
-      { ÖFFNEN: ["C:\\Öl\\%GRÜSSE%", true] },
+      { ÖFFNEN: new RegistryValue("C:\\Öl\\%GRÜSSE%", true) },
       plain({ GRÜSSE: "Привет, 世界 😀", "QUOTE \"Ж\"": "a \\ \"b\"" }));
 
     assert.deepEqual([environment?.["GRÜSSE"], environment?.["ÖFFNEN"], environment?.["QUOTE \"Ж\""]],
@@ -518,7 +545,7 @@ describe("WindowsEnvironment", () => {
     assert.equal(fixture.runner.runs.length, 0);
   });
 
-  it.each([["gone", true], ["still there", false]])("makes no folder again and exports nothing for a read that was checking its folder when it ended, the folder %s", async (_name, isGone) => {
+  it.each([new ReadEndCase("gone", true), new ReadEndCase("still there", false)])("makes no folder again and exports nothing for a read that was checking its folder when it ended, the folder $name", async ({ isGone }) => {
     const fixture: EnvironmentFixture = new EnvironmentFixture();
     await fixture.readAsync({}, {});
     const hold: PromiseWithResolvers<void> = Promise.withResolvers<void>();
@@ -539,9 +566,9 @@ describe("WindowsEnvironment", () => {
     assert.deepEqual([fixture.writer.folders, fixture.runner.runs.length, fixture.log.callsOf("write").map(t => t[0])], [1, 2, []]);
   });
 
-  it.each([["", null, [FOLDER], [FOLDER, FOLDER], []],
-    [", and reads on and logs each time when it can't", new Error("The folder is in use."), [], [], [`${CLEANUP}The folder is in use.`, `${CLEANUP}The folder is in use.`]]] as const)(
-    "removes its folder again once an export under way when it ended settles, as Windows refuses while reg.exe holds a file%s", async (_name, failure, atEnd, settled, logged) => {
+  it.each([new RemovalCase("", null, [FOLDER], [FOLDER, FOLDER], []),
+    new RemovalCase(", and reads on and logs each time when it can't", new Error("The folder is in use."), [], [], [`${CLEANUP}The folder is in use.`, `${CLEANUP}The folder is in use.`])])(
+    "removes its folder again once an export under way when it ended settles, as Windows refuses while reg.exe holds a file$name", async ({ failure, atEnd, settled, logged }) => {
       const fixture: EnvironmentFixture = new EnvironmentFixture();
       await fixture.readAsync({}, {});
       fixture.runner.held = Promise.withResolvers<void>();
