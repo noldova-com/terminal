@@ -20,6 +20,7 @@ import { FakeFileSystemReader } from "../fixtures/fake-file-system-reader.fixtur
 import { FakeFileSystemWriter } from "../fixtures/fake-file-system-writer.fixture.ts";
 import { FakeFolderAccess } from "../fixtures/fake-folder-access.fixture.ts";
 import { FakeProcessSignaller } from "../fixtures/fake-process-signaller.fixture.ts";
+import { RestrictedFolder } from "../fixtures/restricted-folder.fixture.ts";
 
 const TEMP: string = join("/", "tmp");
 
@@ -94,7 +95,7 @@ describe("TerminalHistoryFolder", () => {
     const paths: (TerminalHistoryPaths | null)[] = await Promise.all([fixture.folder.pathsAsync("s1"), fixture.folder.pathsAsync("s2")]);
 
     assert.equal(paths.filter(t => !Object.isNull(t)).length, 2);
-    assert.deepEqual(fixture.access.restricted, [[join(TEMP, "noldova-terminal-lines-400-1"), 0]]);
+    assert.deepEqual(fixture.access.restricted, [new RestrictedFolder(join(TEMP, "noldova-terminal-lines-400-1"), 0)]);
   });
 
   it("gives the open no files, logs why and removes the folder, when the folder can't be made private, and tries again at the next",

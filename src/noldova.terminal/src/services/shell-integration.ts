@@ -19,6 +19,7 @@ import type { IDisposable } from "../interfaces/i-disposable.ts";
 import type { IFileSystemWriter } from "../interfaces/i-file-system-writer.ts";
 import type { IFolderAccess } from "../interfaces/i-folder-access.ts";
 import type { IPtyProcess } from "../interfaces/i-pty-process.ts";
+import { IntegrationScript } from "../models/integration-script.ts";
 import type { Shell } from "../models/shell.ts";
 import { ShellLaunch } from "../models/shell-launch.ts";
 import { Resources } from "../resources.ts";
@@ -192,14 +193,14 @@ export class ShellIntegration {
     const folder: string = await this.writer.createPrivateFolderAsync(path.join(this.temporaryFolder, Resources.integrationFolderPrefix));
     try {
       await this.access?.restrictAsync(folder);
-      for (const [name, text] of [
-        [Resources.bashScriptFile, Resources.shellIntegrationBashScript],
-        [Resources.zshEnvironmentFile, Resources.shellIntegrationZshEnvironment],
-        [Resources.zshProfileFile, Resources.shellIntegrationZshProfile],
-        [Resources.zshInteractiveFile, Resources.shellIntegrationZshInteractive],
-        [Resources.zshLoginFile, Resources.shellIntegrationZshLogin]
-      ] as const)
-        await this.writer.writeTextAsync(path.join(folder, name), text);
+      for (const script of [
+        new IntegrationScript(Resources.bashScriptFile, Resources.shellIntegrationBashScript),
+        new IntegrationScript(Resources.zshEnvironmentFile, Resources.shellIntegrationZshEnvironment),
+        new IntegrationScript(Resources.zshProfileFile, Resources.shellIntegrationZshProfile),
+        new IntegrationScript(Resources.zshInteractiveFile, Resources.shellIntegrationZshInteractive),
+        new IntegrationScript(Resources.zshLoginFile, Resources.shellIntegrationZshLogin)
+      ])
+        await this.writer.writeTextAsync(path.join(folder, script.fileName), script.text);
     }
     catch (error: unknown) {
       await this.writer.removeFolderAsync(folder)

@@ -985,7 +985,7 @@ describe("TerminalHost", () => {
     const environment: Readonly<Record<string, string>> = fixture.runner.environments.at(-1) ?? {};
 
     assert.deepEqual([before, found, await findAsync(), fixture.runner.runs.length], [[], ["gti"], ["gti"], runs]);
-    assert.deepEqual([fixture.runner.runs.at(-1)?.[0], environment["PATH"], environment["PATHEXT"], environment["PSModulePath"]],
+    assert.deepEqual([fixture.runner.runs.at(-1)?.file, environment["PATH"], environment["PATHEXT"], environment["PSModulePath"]],
       [powerShell, "C:\\tools", ".EXE", "C:\\Mine"]);
   });
 

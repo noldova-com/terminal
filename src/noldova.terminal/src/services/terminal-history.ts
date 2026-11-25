@@ -11,6 +11,7 @@ import "@noldova/context.core";
 import { TerminalLinePage, TerminalLineRange, type TerminalLine } from "@noldova/terminal.protocol";
 
 import { StoredLinesUnwritableException } from "../exceptions/stored-lines-unwritable.exception.ts";
+import { TakenSegment } from "../models/taken-segment.ts";
 import type { TerminalHistoryPaths } from "../models/terminal-history-paths.ts";
 import { Resources } from "../resources.ts";
 import { TerminalHistorySegment } from "./terminal-history-segment.ts";
@@ -136,9 +137,9 @@ export class TerminalHistory {
   private async readPageAsync(start: number, limit: number): Promise<TerminalLinePage> {
     const stored: TerminalLineRange = this.stored;
     const segments: readonly TerminalHistorySegment[] = this.segments;
-    const pending: [TerminalHistorySegment, Buffer][] = segments.map(t => [t, t.take()]);
-    for (const [segment, buffer] of pending)
-      await this.storeAsync(segment, buffer);
+    const pending: readonly TakenSegment[] = segments.map(t => new TakenSegment(t, t.take()));
+    for (const taken of pending)
+      await this.storeAsync(taken.segment, taken.buffer);
     if (!Object.isNull(this.failure))
       throw this.failure;
 

@@ -51,6 +51,20 @@ function failureOf(answer: ToolResult | ToolFailure): ToolFailure {
   return answer;
 }
 
+class UnrunCase {
+  public readonly name: string;
+  public readonly decisions: readonly PermissionDecision[];
+  public readonly endsCall: boolean;
+  public readonly code: ToolFailureCode;
+
+  public constructor(name: string, decisions: readonly PermissionDecision[], endsCall: boolean, code: ToolFailureCode) {
+    this.name = name;
+    this.decisions = decisions;
+    this.endsCall = endsCall;
+    this.code = code;
+  }
+}
+
 describe("TerminalTools", () => {
   it("registers the seven tools module.json declares, each with its risk, hints, resource and next tool, as Noldova Desktop reads them", () => {
     const fixture: ToolsFixture = new ToolsFixture();
@@ -98,12 +112,12 @@ describe("TerminalTools", () => {
     assert.deepEqual(terminal.runs.map(t => t.command), ["make test"]);
   });
 
-  for (const [name, decisions, endsCall, code] of [
-    ["a denied request", [PermissionDecision.Denied], false, ToolFailureCode.Denied],
-    ["an always denied request", [PermissionDecision.DeniedAlways], false, ToolFailureCode.Denied],
-    ["a request cancelled while it waits", [], true, ToolFailureCode.Withdrawn],
-    ["a grant that comes after its call ended", [PermissionDecision.AllowedOnce], true, ToolFailureCode.Withdrawn]
-  ] as const)
+  for (const { name, decisions, endsCall, code } of [
+    new UnrunCase("a denied request", [PermissionDecision.Denied], false, ToolFailureCode.Denied),
+    new UnrunCase("an always denied request", [PermissionDecision.DeniedAlways], false, ToolFailureCode.Denied),
+    new UnrunCase("a request cancelled while it waits", [], true, ToolFailureCode.Withdrawn),
+    new UnrunCase("a grant that comes after its call ended", [PermissionDecision.AllowedOnce], true, ToolFailureCode.Withdrawn)
+  ])
     it(`runs nothing on ${name}, through Noldova Desktop's center`, async () => {
       const fixture: ToolsFixture = new ToolsFixture();
       const terminal: FakeAgentTerminal = fixture.terminals.add("t1", "session-1");

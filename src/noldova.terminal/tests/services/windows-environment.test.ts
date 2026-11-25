@@ -27,6 +27,8 @@ import { FakeFileSystemReader } from "../fixtures/fake-file-system-reader.fixtur
 import { FakeFileSystemWriter } from "../fixtures/fake-file-system-writer.fixture.ts";
 import { FakeFolderAccess } from "../fixtures/fake-folder-access.fixture.ts";
 import { FakeLineProcessStarter } from "../fixtures/fake-line-process.fixture.ts";
+import { RecordedRun } from "../fixtures/recorded-run.fixture.ts";
+import { RestrictedFolder } from "../fixtures/restricted-folder.fixture.ts";
 
 type Scope = Readonly<Record<string, readonly [string, boolean]>>;
 
@@ -58,7 +60,7 @@ function unwritten(text: string = WRITE_FAILURE): CommandExitedException {
 }
 
 function exportsOf(runner: ExportRunner): readonly string[] {
-  return runner.runs.filter(t => t[1][0] === "export").map(t => t[1][2] ?? "");
+  return runner.runs.filter(t => t.args[0] === "export").map(t => t.args[2] ?? "");
 }
 
 function plain(variables: Readonly<Record<string, string>>): Scope {
@@ -189,10 +191,10 @@ describe("WindowsEnvironment", () => {
     await fixture.readAsync({}, {});
 
     assert.deepEqual(fixture.runner.runs, [
-      [REG, ["export", MACHINE_KEY, path.win32.join(FOLDER, "machine-1.reg"), "/y"], 5_000],
-      [REG, ["export", USER_KEY, path.win32.join(FOLDER, "user-1.reg"), "/y"], 5_000]
+      new RecordedRun(REG, ["export", MACHINE_KEY, path.win32.join(FOLDER, "machine-1.reg"), "/y"], 5_000),
+      new RecordedRun(REG, ["export", USER_KEY, path.win32.join(FOLDER, "user-1.reg"), "/y"], 5_000)
     ]);
-    assert.deepEqual(fixture.access.restricted, [[FOLDER, 0]]);
+    assert.deepEqual(fixture.access.restricted, [new RestrictedFolder(FOLDER, 0)]);
     assert.deepEqual(fixture.writer.removedFiles, [path.win32.join(FOLDER, "machine-1.reg"), path.win32.join(FOLDER, "user-1.reg")]);
     assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), []);
   });
@@ -285,7 +287,7 @@ describe("WindowsEnvironment", () => {
     const second: Readonly<Record<string, string | undefined>> | null = await fixture.readAsync({}, plain({ STEP: "2" }));
 
     assert.deepEqual([first?.["STEP"], second?.["STEP"]], ["1", "2"]);
-    assert.deepEqual(fixture.runner.runs.map(t => t[1][2]), [
+    assert.deepEqual(fixture.runner.runs.map(t => t.args[2]), [
       path.win32.join(FOLDER, "machine-1.reg"), path.win32.join(FOLDER, "user-1.reg"),
       path.win32.join(FOLDER, "machine-2.reg"), path.win32.join(FOLDER, "user-2.reg")
     ]);
@@ -302,11 +304,11 @@ describe("WindowsEnvironment", () => {
     const remade: string = `${path.join(TEMPORARY, "noldova-terminal-environment-")}2`;
 
     assert.deepEqual([second?.["STEP"], third?.["STEP"], fixture.writer.folders], ["2", "3", 2]);
-    assert.deepEqual(fixture.runner.runs.slice(2).map(t => t[1][2]), [
+    assert.deepEqual(fixture.runner.runs.slice(2).map(t => t.args[2]), [
       path.win32.join(remade, "machine-2.reg"), path.win32.join(remade, "user-2.reg"),
       path.win32.join(remade, "machine-3.reg"), path.win32.join(remade, "user-3.reg")
     ]);
-    assert.deepEqual(fixture.access.restricted.map(t => t[0]), [FOLDER, remade]);
+    assert.deepEqual(fixture.access.restricted.map(t => t.folder), [FOLDER, remade]);
   });
 
   it("makes a shell that opens before the first export ends wait for it, and gives shells that open together that one read", async () => {
@@ -370,7 +372,7 @@ describe("WindowsEnvironment", () => {
     assert.equal(read?.["Path"], INHERITED["Path"]);
     assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), []);
     assert.equal(fixture.writer.removedFiles.length, 2);
-    assert.deepEqual(fixture.runner.runs.slice(1).map(t => t[1]), [["export", USER_KEY, path.win32.join(FOLDER, "user-1.reg"), "/y"], ["query", USER_KEY]]);
+    assert.deepEqual(fixture.runner.runs.slice(1).map(t => t.args), [["export", USER_KEY, path.win32.join(FOLDER, "user-1.reg"), "/y"], ["query", USER_KEY]]);
   });
 
   it("gives no read, and logs the key and what reg.exe said, when reg.exe refuses the machine's key, which every Windows has", async () => {
@@ -380,7 +382,7 @@ describe("WindowsEnvironment", () => {
 
     assert.equal(await fixture.source.readAsync(), null);
     assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [`${UNREAD}${MACHINE_UNREAD}reg.exe exited with 1: ERROR: Access is denied.`]);
-    assert.deepEqual(fixture.runner.runs.map(t => t[1]), [["export", MACHINE_KEY, path.win32.join(FOLDER, "machine-1.reg"), "/y"], ["query", MACHINE_KEY]]);
+    assert.deepEqual(fixture.runner.runs.map(t => t.args), [["export", MACHINE_KEY, path.win32.join(FOLDER, "machine-1.reg"), "/y"], ["query", MACHINE_KEY]]);
   });
 
   it("exports the person's key only once the machine's export ended, so two reg.exe never write at once", async () => {
@@ -391,11 +393,11 @@ describe("WindowsEnvironment", () => {
     await fixture.runner.entered.promise;
     await new Promise<void>(resolve => setImmediate(resolve));
 
-    const whileMachine: readonly string[] = fixture.runner.runs.map(t => t[1][1] ?? "");
+    const whileMachine: readonly string[] = fixture.runner.runs.map(t => t.args[1] ?? "");
     fixture.runner.held.resolve();
 
     assert.equal((await reading)?.["USER"], "yes");
-    assert.deepEqual([whileMachine, fixture.runner.runs.map(t => t[1][1])], [[MACHINE_KEY], [MACHINE_KEY, USER_KEY]]);
+    assert.deepEqual([whileMachine, fixture.runner.runs.map(t => t.args[1])], [[MACHINE_KEY], [MACHINE_KEY, USER_KEY]]);
   });
 
   it.each([["machine's", WRITE_FAILURE, MACHINE_KEY, "machine-1"], ["person's", WRITE_FAILURE, USER_KEY, "user-1"],
@@ -414,7 +416,7 @@ describe("WindowsEnvironment", () => {
       assert.ok(waited >= 240, `${waited}`);
       const files: readonly string[] = exportsOf(fixture.runner);
       assert.deepEqual(files.filter(t => path.win32.basename(t).startsWith(file)), [path.win32.join(FOLDER, `${file}.reg`), path.win32.join(FOLDER, `${file}-2.reg`)]);
-      assert.deepEqual(fixture.runner.runs.filter(t => t[1][0] === "query").map(t => t[1]), [["query", key]]);
+      assert.deepEqual(fixture.runner.runs.filter(t => t.args[0] === "query").map(t => t.args), [["query", key]]);
       assert.deepEqual([...fixture.writer.removedFiles].sort(), [...files].sort());
       assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [retried(key, text)]);
     });
@@ -427,7 +429,7 @@ describe("WindowsEnvironment", () => {
 
       assert.equal(await fixture.source.readAsync(), null);
       assert.deepEqual(fixture.log.callsOf("write").map(t => t[0]), [retried(key), `${UNREAD}${unread}reg.exe exited with 1: ${WRITE_FAILURE}`]);
-      assert.equal(fixture.runner.runs.filter(t => t[1][0] === "export" && t[1][1] === key).length, 2);
+      assert.equal(fixture.runner.runs.filter(t => t.args[0] === "export" && t.args[1] === key).length, 2);
     });
 
   it("gives no read, logs what the export said, and exports no more, when reg.exe can't tell whether the person's key is there", async () => {
@@ -534,7 +536,7 @@ describe("WindowsEnvironment", () => {
     await new Promise<void>(resolve => setImmediate(resolve));
 
     assert.equal(ended, INHERITED);
-    assert.deepEqual([fixture.writer.folders, fixture.runner.runs.length, fixture.log.callsOf("write").map(t => t[0])], [1, 2, []]);
+    assert.deepEqual([fixture.writer.folders, fixture.runner.runs.length, fixture.log.callsOf("write").map(t => t.file)], [1, 2, []]);
   });
 
   it.each([["", null, [FOLDER], [FOLDER, FOLDER], []],
@@ -556,7 +558,7 @@ describe("WindowsEnvironment", () => {
 
       assert.equal(ended, INHERITED);
       assert.deepEqual([removedAtEnd, fixture.writer.removed, fixture.log.callsOf("write").map(t => t[0])], [atEnd, settled, logged]);
-      assert.deepEqual(fixture.runner.runs.slice(2).map(t => t[1][1]), [MACHINE_KEY]);
+      assert.deepEqual(fixture.runner.runs.slice(2).map(t => t.args[1]), [MACHINE_KEY]);
     });
 
   it("reads on and logs when an export, a refused folder or its folder at the end can't be removed, and logs a folder that couldn't be made", async () => {

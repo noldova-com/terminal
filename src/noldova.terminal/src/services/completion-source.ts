@@ -205,10 +205,13 @@ export class CompletionSource {
       .filter(t => (ignoresCase ? t.value.toLowerCase() : t.value).startsWith(prefix));
     const items: TerminalCompletionItem[] = [...new Map(candidates.map(t => [t.value, t])).values()]
       .sort((a, b) => a.label.localeCompare(b.label, Resources.sortLocale))
-      .map((t): [string, CompletionCandidate] => [ShellWords.write(t.value, shellLine.quote, isPowerShell, t.closesQuote,
-        escapesWildcards && (t.kind === TerminalCompletionKind.File || t.kind === TerminalCompletionKind.Folder), keepsHome), t])
-      .filter(([t]) => t.length <= ProtocolResources.maximumPathLength && !ProtocolResources.controlCharacters.test(t))
-      .map(([text, t]) => new TerminalCompletionItem(text, t.label, t.kind));
+      .flatMap(t => {
+        const text: string = ShellWords.write(t.value, shellLine.quote, isPowerShell, t.closesQuote,
+          escapesWildcards && (t.kind === TerminalCompletionKind.File || t.kind === TerminalCompletionKind.Folder), keepsHome);
+        return text.length <= ProtocolResources.maximumPathLength && !ProtocolResources.controlCharacters.test(text)
+          ? [new TerminalCompletionItem(text, t.label, t.kind)]
+          : [];
+      });
     return new TerminalCompletion(shellLine.start, items.slice(0, ProtocolResources.maximumCompletionItems));
   }
 

@@ -12,6 +12,8 @@ import { ReadDroppedException } from "../exceptions/read-dropped.exception.ts";
 import type { FolderEntry } from "../models/folder-entry.ts";
 import type { SharedReads } from "./shared-reads.ts";
 
+const CUT_SHORT: unique symbol = Symbol();
+
 export class BoundedReads {
   private readonly reader: SharedReads;
   private readonly expiry: PromiseWithResolvers<void> = Promise.withResolvers<void>();
@@ -67,13 +69,13 @@ export class BoundedReads {
     const shared: Promise<T> = read(this.stopping.signal);
     this.pending.add(shared);
     const tracked: Promise<T> = shared.finally(() => this.pending.delete(shared));
-    const answer: { value: T } | null = await Promise.race([tracked.then(t => ({ value: t }), (error: unknown) => {
+    const answer: Awaited<T> | typeof CUT_SHORT = await Promise.race([tracked.catch((error: unknown): typeof CUT_SHORT => {
       if (error instanceof ReadDroppedException)
-        return null;
+        return CUT_SHORT;
       throw error;
-    }), this.expiry.promise.then(() => null)]);
-    if (!Object.isNull(answer))
-      return answer.value;
+    }), this.expiry.promise.then((): typeof CUT_SHORT => CUT_SHORT)]);
+    if (answer !== CUT_SHORT)
+      return answer;
     this.hasCutShort = true;
     return late;
   }

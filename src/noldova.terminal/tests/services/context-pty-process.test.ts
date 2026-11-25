@@ -38,6 +38,18 @@ class ForegroundTerminal extends PseudoTerminal {
   }
 }
 
+class ExitCase {
+  public readonly exitCode: number | undefined;
+  public readonly signal: number | undefined;
+  public readonly expected: IPtyExitEvent;
+
+  public constructor(exitCode: number | undefined, signal: number | undefined, expected: IPtyExitEvent) {
+    this.exitCode = exitCode;
+    this.signal = signal;
+    this.expected = expected;
+  }
+}
+
 describe("ContextPtyProcess", () => {
   it("hands on the program's id, output, input, size and flow", () => {
     const handle: FakePtyHandle = new FakePtyHandle(4_343);
@@ -157,11 +169,11 @@ describe("ContextPtyProcess", () => {
   });
 
   it("reports an exit code, a signal by its number, and an exit without either", async () => {
-    const cases: [number | undefined, number | undefined, IPtyExitEvent][] = [
-      [3, undefined, { exitCode: 3 }],
-      [0, constants.signals.SIGHUP, { exitCode: undefined, signal: constants.signals.SIGHUP }],
-      [undefined, undefined, { exitCode: undefined }]];
-    for (const [exitCode, signal, expected] of cases) {
+    const cases: readonly ExitCase[] = [
+      new ExitCase(3, undefined, { exitCode: 3 }),
+      new ExitCase(0, constants.signals.SIGHUP, { exitCode: undefined, signal: constants.signals.SIGHUP }),
+      new ExitCase(undefined, undefined, { exitCode: undefined })];
+    for (const { exitCode, signal, expected } of cases) {
       const handle: FakePtyHandle = new FakePtyHandle();
       const process: ContextPtyProcess = create(handle);
       const exited: Promise<IPtyExitEvent> = waitForExitAsync(process);

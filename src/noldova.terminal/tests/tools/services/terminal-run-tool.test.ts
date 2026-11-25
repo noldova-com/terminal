@@ -15,6 +15,7 @@ import { TerminalRunTool } from "../../../src/tools/services/terminal-run-tool.t
 import type { FakeAgentTerminal } from "../../fixtures/fake-agent-terminals.fixture.ts";
 import { FakeTerminalPrompt } from "../../fixtures/fake-agent-terminals.fixture.ts";
 import { ToolHarness } from "../../fixtures/tool-harness.fixture.ts";
+import { AgentRun } from "../../fixtures/agent-run.fixture.ts";
 
 function createTool(harness: ToolHarness): TerminalRunTool {
   return new TerminalRunTool(harness.accessPolicy, harness.gate, harness.cursors);
@@ -62,7 +63,7 @@ describe("TerminalRunTool", () => {
       isAsking: true,
       options: ["AllowOnce", "AllowAlways", "Deny"]
     }]);
-    assert.deepEqual(terminal.runs, [{ command: "npm test \u200B", timeoutMilliseconds: 60_000 }]);
+    assert.deepEqual(terminal.runs, [new AgentRun("npm test \u200B", 60_000)]);
     assert.equal(terminal.nextCommand.endWaits[0]?.timeoutMilliseconds, 2_000);
     assert.equal(result.structured?.["status"], "Exited");
     assert.equal(result.structured?.["exit_code"], 0);
@@ -84,7 +85,7 @@ describe("TerminalRunTool", () => {
     assert.equal(result.structured?.["status"], "Running");
     assert.equal(result.structured?.["exit_code"], null);
     assert.equal(terminal.nextCommand.endWaits[0]?.timeoutMilliseconds, 10_000);
-    assert.deepEqual(terminal.runs, [{ command: "make", timeoutMilliseconds: 0 }]);
+    assert.deepEqual(terminal.runs, [new AgentRun("make", 0)]);
   });
 
   it("cuts long output to max_chars, keeping its head and tail", async () => {

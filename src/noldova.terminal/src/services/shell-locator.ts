@@ -18,6 +18,7 @@ import type { ICommandRunner } from "../interfaces/i-command-runner.ts";
 import type { IFileSystemReader } from "../interfaces/i-file-system-reader.ts";
 import { Shell } from "../models/shell.ts";
 import type { VisualStudioInstallation } from "../models/visual-studio-installation.ts";
+import { WslLauncher } from "../models/wsl-launcher.ts";
 import { Resources } from "../resources.ts";
 import { FailureText } from "./failure-text.ts";
 import { VisualStudioReader } from "./visual-studio.reader.ts";
@@ -30,7 +31,7 @@ export class ShellLocator {
   private readonly userShell: string | null;
   private readonly fileSystem: IFileSystemReader;
   private readonly log: IModuleLog;
-  private readonly wsl: { readonly file: string; readonly reader: WslDistributionReader } | null;
+  private readonly wsl: WslLauncher | null;
   private readonly visualStudioReader: VisualStudioReader;
   private distributions: Promise<readonly string[]> | null = null;
   private installations: Promise<readonly VisualStudioInstallation[]> | null = null;
@@ -46,7 +47,7 @@ export class ShellLocator {
     this.log = log;
     this.wsl = Object.isUndefined(systemRoot) || systemRoot.length === 0
       ? null
-      : { file: path.win32.join(systemRoot, ...Resources.wslPath), reader: new WslDistributionReader(runner, systemRoot) };
+      : new WslLauncher(path.win32.join(systemRoot, ...Resources.wslPath), new WslDistributionReader(runner, systemRoot));
     this.visualStudioReader = new VisualStudioReader(runner, fileSystem, environment[Resources.programFilesX86Variable]);
   }
 
@@ -133,8 +134,7 @@ export class ShellLocator {
   }
 
   private async locateListedAsync(installed: readonly Shell[]): Promise<readonly Shell[]> {
-    const [wslShells, installations]: [readonly Shell[], readonly VisualStudioInstallation[]] =
-      await Promise.all([this.locateWslShellsAsync(), this.readInstallationsAsync()]);
+    const [wslShells, installations] = await Promise.all([this.locateWslShellsAsync(), this.readInstallationsAsync()]);
     const commandPrompt: Shell | undefined = installed.find(t => t.id === Resources.cmdId);
     const powerShell: Shell | undefined = installed.find(t => t.id === Resources.pwshId) ?? installed.find(t => t.id === Resources.windowsPowerShellId);
     const shells: Shell[] = [...wslShells];
@@ -162,7 +162,7 @@ export class ShellLocator {
   }
 
   private async locateWslShellsAsync(): Promise<readonly Shell[]> {
-    const wsl: { readonly file: string; readonly reader: WslDistributionReader } | null = this.wsl;
+    const wsl: WslLauncher | null = this.wsl;
     if (Object.isNull(wsl))
       return [];
     this.distributions ??= wsl.reader.readAsync().catch((error: unknown) => {
