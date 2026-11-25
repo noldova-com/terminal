@@ -182,8 +182,8 @@ export declare class TerminalStartFolder {
    * import type { IWindowPartContext } from "@noldova/desktop.window";
    * import { TerminalStartFolder } from "@noldova/terminal/window";
    *
-   * export function provideProjectFolder(context: IWindowPartContext, project: { readonly folder: string | null }): () => void {
-   *   const unregister: () => void = TerminalStartFolder.provide(context, () => project.folder);
+   * export function provideProjectFolder(context: IWindowPartContext, projectFolder: () => string | null): () => void {
+   *   const unregister: () => void = TerminalStartFolder.provide(context, projectFolder);
    *   return unregister;
    * }
    * ```
@@ -302,8 +302,8 @@ export declare class TerminalOwners {
    * import type { IWindowPartContext } from "@noldova/desktop.window";
    * import { TerminalOwners } from "@noldova/terminal/window";
    *
-   * export function provideChatOwners(context: IWindowPartContext, chat: { readonly id: string }): TerminalOwners {
-   *   const owners = TerminalOwners.provide(context, () => `example.chat/${chat.id}`);
+   * export function provideChatOwners(context: IWindowPartContext, chatId: string): TerminalOwners {
+   *   const owners = TerminalOwners.provide(context, () => `example.chat/${chatId}`);
    *   return owners;
    * }
    * ```
@@ -355,8 +355,8 @@ export declare class TerminalOwners {
    * ```ts
    * import type { TerminalOwners } from "@noldova/terminal/window";
    *
-   * export async function showChatAsync(owners: TerminalOwners, chat: { readonly id: string }): Promise<void> {
-   *   await owners.showAsync(`example.chat/${chat.id}`);
+   * export async function showChatAsync(owners: TerminalOwners, chatId: string): Promise<void> {
+   *   await owners.showAsync(`example.chat/${chatId}`);
    * }
    * ```
    */
@@ -374,8 +374,8 @@ export declare class TerminalOwners {
    * ```ts
    * import type { TerminalOwners } from "@noldova/terminal/window";
    *
-   * export async function closeChatAsync(owners: TerminalOwners, chat: { readonly id: string }): Promise<void> {
-   *   await owners.closeAsync(`example.chat/${chat.id}`);
+   * export async function closeChatAsync(owners: TerminalOwners, chatId: string): Promise<void> {
+   *   await owners.closeAsync(`example.chat/${chatId}`);
    * }
    * ```
    */
@@ -426,12 +426,12 @@ export declare class TerminalOwners {
    * ```ts
    * import { TerminalOwners, TerminalShellKind } from "@noldova/terminal/window";
    *
-   * export async function runBlockAsync(owners: TerminalOwners, chat: { readonly id: string; readonly folder: string | null },
-   *   block: { readonly text: string }): Promise<void> {
-   *   const owner = `example.chat/${chat.id}`;
+   * export async function runBlockAsync(owners: TerminalOwners, chatId: string, folder: string | null,
+   *   text: string): Promise<void> {
+   *   const owner = `example.chat/${chatId}`;
    *   await owners.showAsync(owner);
-   *   if (TerminalOwners.canRun(block.text))
-   *     await owners.runAsync(owner, block.text, chat.folder, [TerminalShellKind.Bash, TerminalShellKind.Zsh]);
+   *   if (TerminalOwners.canRun(text))
+   *     await owners.runAsync(owner, text, folder, [TerminalShellKind.Bash, TerminalShellKind.Zsh]);
    * }
    * ```
    */
@@ -478,9 +478,9 @@ export declare class TerminalOwners {
    * ```ts
    * import { TerminalRunBusy, TerminalRunTarget, type TerminalOwners } from "@noldova/terminal/window";
    *
-   * export async function runTestsAsync(owners: TerminalOwners, chat: { readonly id: string }, sessionId: string): Promise<void> {
+   * export async function runTestsAsync(owners: TerminalOwners, chatId: string, sessionId: string): Promise<void> {
    *   const target = new TerminalRunTarget(sessionId, TerminalRunBusy.Interrupt);
-   *   const run = await owners.startRunAsync(`example.chat/${chat.id}`, "npm test", null, [], target);
+   *   const run = await owners.startRunAsync(`example.chat/${chatId}`, "npm test", null, [], target);
    *   console.log(run.runId);
    * }
    * ```
@@ -878,9 +878,9 @@ export declare class TerminalRun {
    * ```ts
    * import type { TerminalOwners, TerminalRunTarget } from "@noldova/terminal/window";
    *
-   * export async function logTestsEndAsync(owners: TerminalOwners, chat: { readonly id: string },
+   * export async function logTestsEndAsync(owners: TerminalOwners, chatId: string,
    *   target: TerminalRunTarget | null): Promise<void> {
-   *   const run = await owners.startRunAsync(`example.chat/${chat.id}`, "npm test", null, [], target);
+   *   const run = await owners.startRunAsync(`example.chat/${chatId}`, "npm test", null, [], target);
    *   const end = await run.ended;
    *   console.log(end.endedBy === "Command" ? `exited with ${end.exitCode}` : end.endedBy);
    * }
