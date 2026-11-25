@@ -21,10 +21,10 @@ export class TerminalThemeReader {
     const forced: boolean = matchMedia(Resources.forcedColorsQuery).matches;
     const system = (value: string): string => forced ? TerminalThemeReader.compute(element, value) : value;
     const colors: Partial<Record<AnsiKey, string>> = {};
-    for (const [key, name] of Resources.ansiColors) {
-      const value: string = TerminalThemeReader.readToken(style, Resources.colorTokenPrefix + name, "");
+    for (const color of Resources.ansiColors) {
+      const value: string = TerminalThemeReader.readToken(style, Resources.colorTokenPrefix + color.name, "");
       if (value.length > 0)
-        colors[key] = system(value);
+        colors[color.key] = system(value);
     }
     const background: string = TerminalThemeReader.readBackground(element);
     const foreground: string = style.color;
