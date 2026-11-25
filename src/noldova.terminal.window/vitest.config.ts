@@ -15,22 +15,11 @@ import { defineConfig } from "vitest/config";
 import { ClassMetadataCoverage } from "./tests/coverage/class-metadata-coverage.ts";
 
 const cacheDir = fileURLToPath(new URL("../../_build/window/vite", import.meta.url));
-const workspacePackages: readonly string[] = ["@noldova/terminal.protocol"];
 
 export default defineConfig({
   plugins: [
     new ClassMetadataCoverage(),
-    { name: "noldova:cache-dir", config: { order: "pre", handler: () => ({ cacheDir }) } },
-    {
-      name: "noldova:workspace-sources",
-      config: {
-        order: "post",
-        handler: config => {
-          if (!Object.isUndefined(config.optimizeDeps?.include))
-            config.optimizeDeps.include = config.optimizeDeps.include.filter(t => !workspacePackages.includes(t));
-        }
-      }
-    }
+    { name: "noldova:cache-dir", config: { order: "pre", handler: () => ({ cacheDir }) } }
   ],
   optimizeDeps: {
     include: ["@noldova/context.core", "@noldova/context.exceptions", "@noldova/context.json"]

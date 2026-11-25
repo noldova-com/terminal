@@ -80,7 +80,7 @@ Each package's folder holds its `README.md`, its `package.json`, its source in `
 
 | Path | What it holds |
 |---|---|
-| `src/noldova.terminal/module.json`, `menus.json`, `settings.json` | The module's declaration, its id `terminal`, its parts and the names it contributes, and the menus and settings it declares, at the package's root, where Noldova Desktop reads them. |
+| `src/noldova.terminal/module.json`, `menus.json`, `settings.json` | The module's declaration, its id `terminal`, its parts and the names it contributes, and the menus and settings it declares, at the package's root, where Noldova Desktop reads them. The package also exports `menus.json` as `@noldova/terminal/menus.json`, which the window part's specs read. |
 | `src/noldova.terminal/src/` | The runtime part: the shells, their pseudo-terminals, the headless mirror of each terminal, and the agent tools; `src/api/window.ts` is the package's `./window` entry. |
 | `src/noldova.terminal.window/` | The Angular project's own files: `angular.json`, its `tsconfig.json` and `tsconfig.spec.json`, `vitest.config.ts`; in `scripts/` its compile for packing, `angular-package-builder.ts`, with its own `tsconfig.json`; and in `tests/coverage` the plugin its coverage uses. |
 | `tsconfig.json`, `tsconfig.spec.json`, `vitest.config.ts` in `src/noldova.terminal` and `src/noldova.terminal.protocol` | Each package's TypeScript build, from the `src` folder above it, so each compiles under its package's folder in `_build/compiled`; its type check with its tests; and its Vitest project, which the root's `vitest.config.ts` runs with the coverage gates of both. |

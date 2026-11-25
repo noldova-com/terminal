@@ -14,7 +14,7 @@ import { JsonException, type JsonValue } from "@noldova/context.json";
 import { EndedBy, TerminalExit, TerminalName, TerminalNames, TerminalShellKind, TerminalSummary } from "@noldova/terminal.protocol";
 import { afterEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
-import menus from "../../../../noldova.terminal/menus.json" with { type: "json" };
+import menus from "@noldova/terminal/menus.json" with { type: "json" };
 
 import { TerminalPanelComponent } from "../../../src/app/components/terminal-panel/terminal-panel.component.ts";
 import { TerminalSessionComponent } from "../../../src/app/components/terminal-session/terminal-session.component.ts";
