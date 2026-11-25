@@ -17,6 +17,7 @@ import { TerminalShellKind } from "@noldova/terminal.protocol";
 import type { ICommandRunner } from "../interfaces/i-command-runner.ts";
 import type { IFileSystemReader } from "../interfaces/i-file-system-reader.ts";
 import { Shell } from "../models/shell.ts";
+import { ShellCandidate } from "../models/shell-candidate.ts";
 import type { VisualStudioInstallation } from "../models/visual-studio-installation.ts";
 import { WslLauncher } from "../models/wsl-launcher.ts";
 import { Resources } from "../resources.ts";
@@ -97,21 +98,23 @@ export class ShellLocator {
       ...ShellLocator.joinIfSet(localAppData, Resources.gitUserFolder),
       ...await this.findGitOnSearchPathAsync(searchPath)
     ];
-    const candidates: readonly (readonly [string, string, TerminalShellKind, readonly string[], readonly string[]])[] = [
-      [Resources.pwshId, Resources.pwshName, TerminalShellKind.PowerShell, [
+    const candidates: readonly ShellCandidate[] = [
+      new ShellCandidate(Resources.pwshId, Resources.pwshName, TerminalShellKind.PowerShell, [
         ...ShellLocator.joinIfSet(programFiles, [...Resources.pwshFolder, Resources.pwshFile]),
         ...searchPath.map(t => path.win32.join(t, Resources.pwshFile)),
         ...ShellLocator.joinIfSet(localAppData, [...Resources.appAliasFolder, Resources.pwshFile])
-      ], []],
-      [Resources.windowsPowerShellId, Resources.windowsPowerShellName, TerminalShellKind.PowerShell, ShellLocator.joinIfSet(systemRoot, Resources.windowsPowerShellPath), []],
-      [Resources.cmdId, Resources.cmdName, TerminalShellKind.CommandPrompt, ShellLocator.joinIfSet(systemRoot, Resources.cmdPath), []],
-      [Resources.gitBashId, Resources.gitBashName, TerminalShellKind.Bash, gitFolders.map(t => path.win32.join(t, ...Resources.gitBashFile)), Resources.gitBashArguments]
+      ], []),
+      new ShellCandidate(Resources.windowsPowerShellId, Resources.windowsPowerShellName, TerminalShellKind.PowerShell,
+        ShellLocator.joinIfSet(systemRoot, Resources.windowsPowerShellPath), []),
+      new ShellCandidate(Resources.cmdId, Resources.cmdName, TerminalShellKind.CommandPrompt, ShellLocator.joinIfSet(systemRoot, Resources.cmdPath), []),
+      new ShellCandidate(Resources.gitBashId, Resources.gitBashName, TerminalShellKind.Bash, gitFolders.map(t => path.win32.join(t, ...Resources.gitBashFile)),
+        Resources.gitBashArguments)
     ];
     const shells: Shell[] = [];
-    for (const [id, name, kind, files, args] of candidates) {
-      const file: string | null = await this.findFileAsync(files);
+    for (const candidate of candidates) {
+      const file: string | null = await this.findFileAsync(candidate.files);
       if (!Object.isNull(file))
-        shells.push(new Shell(id, name, kind, file, args, shells.length === 0));
+        shells.push(new Shell(candidate.id, candidate.name, candidate.kind, file, candidate.args, shells.length === 0));
     }
     return shells;
   }

@@ -20,6 +20,7 @@ import { CommandExitedException } from "../../src/exceptions/command-exited.exce
 import type { Shell } from "../../src/models/shell.ts";
 import { Resources } from "../../src/resources.ts";
 import { ShellLocator } from "../../src/services/shell-locator.ts";
+import { CodedError } from "../fixtures/coded-error.fixture.ts";
 import { FakeCommandRunner } from "../fixtures/fake-command-runner.fixture.ts";
 import { FakeFileSystemReader } from "../fixtures/fake-file-system-reader.fixture.ts";
 import { RecordedRun } from "../fixtures/recorded-run.fixture.ts";
@@ -408,7 +409,7 @@ describe("ShellLocator", () => {
         read(() => null),
         read(() => " "),
         read(() => {
-          throw Object.assign(new Error("A system error occurred: uv_os_get_passwd returned ENOENT"), { code: "ERR_SYSTEM_ERROR" });
+          throw new CodedError("A system error occurred: uv_os_get_passwd returned ENOENT", "ERR_SYSTEM_ERROR");
         })
       ], ["/bin/zsh", null, null, null]);
     });
