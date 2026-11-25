@@ -240,7 +240,10 @@ describe("TerminalTools", () => {
     const ran: JsonObject = structuredOf(await next.callAsync("terminal_run", { terminal_id: terminalId, command: "pwd" }));
 
     assert.deepEqual([fixture.terminals.terminals[0]?.owner, fixture.terminals.terminals[0]?.closes], ["example.chat/42", 0]);
-    assert.deepEqual((listed["terminals"] as JsonObject[]).map(t => t["terminal_id"]), [terminalId]);
+    const terminals: unknown = listed["terminals"];
+    if (!Array.isArray(terminals))
+      throw new Error("terminal_list gave no list of terminals.");
+    assert.deepEqual(terminals.map((t: unknown) => Object.isPlainObject(t) && "terminal_id" in t ? t.terminal_id : t), [terminalId]);
     assert.equal(read["output"], "abc");
     assert.equal(ran["terminal_id"], terminalId);
     assert.deepEqual(structuredOf(await otherChat.callAsync("terminal_list", {}))["terminals"], []);
