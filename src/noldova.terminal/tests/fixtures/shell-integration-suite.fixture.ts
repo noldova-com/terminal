@@ -897,6 +897,8 @@ function defineRealShellTests(covered: readonly string[]): void {
         return TerminalMissingCommands.fromJson(await fixture.callAsync("terminal.findCommands",
           { sessionId, names: ["if", "cd", "ls", "noldovaalias", "noldovafunction", "noldovanone"] })).names;
       };
+      const findsAsync = (missing: readonly string[]): Promise<void> => vi.waitFor(async () => assert.deepEqual(await findAsync(), missing),
+        { timeout: WAIT_MS, interval: TEXT_POLL_MS });
       if (shellId === "git-bash" && !fixture.marks(sessionId).some(t => t.value?.startsWith("Names=") === true)) {
         assert.deepEqual(await findAsync(), []);
         await fixture.waitForCompletionsAsync(sessionId, false);
@@ -906,7 +908,7 @@ function defineRealShellTests(covered: readonly string[]): void {
         await fixture.callAsync("terminal.close", { sessionId });
         context.skip("Git Bash before bash 5.3 sends no names, since its subshell at each prompt would be slow.");
       }
-      const before: readonly string[] = await findAsync();
+      await findsAsync(["noldovaalias", "noldovafunction", "noldovanone"]);
 
       const marked: number = fixture.kinds(sessionId).length;
       await fixture.typeAsync(sessionId, "alias noldovaalias=ls; noldovafunction() { :; }; _noldovahelper() { :; }\r");
@@ -914,7 +916,7 @@ function defineRealShellTests(covered: readonly string[]): void {
         `${shellId} did not prompt again after the names changed.`);
 
       const names: readonly string[] = (fixture.marks(sessionId).findLast(t => t.value?.startsWith("Names=") === true)?.value ?? "").split(" ");
-      assert.deepEqual([before, await findAsync()], [["noldovaalias", "noldovafunction", "noldovanone"], ["noldovanone"]]);
+      await findsAsync(["noldovanone"]);
       assert.deepEqual([names.includes("noldovafunction"), names.includes("_noldovahelper")], [true, false]);
       await fixture.waitForCompletionsAsync(sessionId, false);
       const completion: TerminalCompletion = TerminalCompletion.fromJson(await fixture.callAsync("terminal.complete", { sessionId, line: "noldovaf", cursor: 8 }));
@@ -985,7 +987,9 @@ function defineRealShellTests(covered: readonly string[]): void {
         return TerminalMissingCommands.fromJson(await fixture.callAsync("terminal.findCommands",
           { sessionId, names: ["noldovafolder", "notes.noldovasuffix", "noldovanone"] })).names;
       };
-      const before: readonly string[] = await findAsync();
+      const findsAsync = (missing: readonly string[]): Promise<void> => vi.waitFor(async () => assert.deepEqual(await findAsync(), missing),
+        { timeout: WAIT_MS, interval: TEXT_POLL_MS });
+      await findsAsync(["noldovafolder", "notes.noldovasuffix", "noldovanone"]);
 
       const marked: number = fixture.kinds(sessionId).length;
       const start: number = fixture.text(sessionId).length;
@@ -995,8 +999,7 @@ function defineRealShellTests(covered: readonly string[]): void {
         `${shellId} did not prompt again after autocd turned on.`);
       const hasAutocd: boolean = !fixture.text(sessionId).slice(start).includes("noldova42noautocd");
 
-      assert.deepEqual([before, await findAsync()], [["noldovafolder", "notes.noldovasuffix", "noldovanone"],
-        shellId === "zsh" ? ["noldovanone"] : [...hasAutocd ? [] : ["noldovafolder"], "notes.noldovasuffix", "noldovanone"]]);
+      await findsAsync(shellId === "zsh" ? ["noldovanone"] : [...hasAutocd ? [] : ["noldovafolder"], "notes.noldovasuffix", "noldovanone"]);
       assert.equal(fixture.text(sessionId).includes("invalid shell option"), false, `${shellId}'s prompt hook printed shopt's error.`);
       await fixture.callAsync("terminal.close", { sessionId });
     });
