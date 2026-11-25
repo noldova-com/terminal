@@ -17,7 +17,7 @@ export class ClassMetadataCoverage implements IVitestPlugin {
   private static readonly LINE_BREAK: string = "\n";
   private static readonly OPENING: string = "(() => {";
   private static readonly CLOSING: string = "})();";
-  private static readonly CALL: RegExp = /^[\t ]+\(Object.isUndefined(ngDevMode) \|\| ngDevMode\) && i\d+\.(?:ɵ|\\u0275)setClassMetadata\(([A-Za-z_$][\w$]*), /u;
+  private static readonly CALL: RegExp = /^[\t ]+\(typeof ngDevMode === "undefined" \|\| ngDevMode\) && i\d+\.(?:ɵ|\\u0275)setClassMetadata\(([A-Za-z_$][\w$]*), /u;
   private static readonly HINT: string = " /* v8 ignore next */";
 
   private readonly ignored: Map<string, readonly string[]> = new Map();
