@@ -839,7 +839,7 @@ describe("TerminalWindowPart", () => {
       await owners.removeAsync();
     }
 
-    expect(menus.places.map(t => new MenuPlace(t.name, "shows" in t && typeof t.shows === "string" ? t.shows : "menu")))
+    expect(menus.places.map(t => new MenuPlace(t.name, "shows" in t && Object.isString(t.shows) ? t.shows : "menu")))
       .toEqual([new MenuPlace("terminal.tabRow", "menu"), new MenuPlace("terminal.shellMenu", "menu")]);
     expect(menus.groups.filter(t => t.place.startsWith("terminal.")).map(t => [t.place, t.name])).toEqual([
       ["terminal.tabRow", "terminal.tabRowActions"], ["terminal.shellMenu", "terminal.shellList"]]);
