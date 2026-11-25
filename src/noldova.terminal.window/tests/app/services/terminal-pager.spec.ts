@@ -19,7 +19,47 @@ import { DrawnWait } from "../../fixtures/drawn-wait.fixture.ts";
 import { FakeRuntime } from "../../fixtures/fake-runtime.fixture.ts";
 import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 
-const drawn: { timeout: number } = { timeout: DrawnWait.milliseconds };
+class WaitOptions {
+  public readonly timeout: number;
+
+  public constructor(timeout: number) {
+    this.timeout = timeout;
+  }
+}
+
+class PageRequest {
+  public readonly start: number;
+  public readonly limit: number;
+
+  public constructor(start: number, limit: number) {
+    this.start = start;
+    this.limit = limit;
+  }
+}
+
+class PagedView<T> {
+  public readonly top: number;
+  public readonly shown: T;
+  public readonly scrollback: number;
+
+  public constructor(top: number, shown: T, scrollback: number) {
+    this.top = top;
+    this.shown = shown;
+    this.scrollback = scrollback;
+  }
+}
+
+class BufferRoom {
+  public readonly lineCount: number;
+  public readonly scrollback: number;
+
+  public constructor(lineCount: number, scrollback: number) {
+    this.lineCount = lineCount;
+    this.scrollback = scrollback;
+  }
+}
+
+const drawn: WaitOptions = new WaitOptions(DrawnWait.milliseconds);
 
 describe("TerminalPager", () => {
   const screenRows: string[] = Array.from({ length: 30 }, (_t, index) => `row ${index + 1}`);
@@ -33,8 +73,8 @@ describe("TerminalPager", () => {
     const buffer: IBuffer = terminal.buffer.active;
     return Array.from({ length: buffer.length }, (_t, index) => buffer.getLine(index)?.translateToString(true) ?? "").filter(t => t.length > 0);
   };
-  const pageRequests = (): [number, number][] =>
-    runtime.context.sent(TerminalNames.linesMethod).map(t => TerminalLinesParams.fromJson(t)).map(t => [t.start, t.limit]);
+  const pageRequests = (): PageRequest[] =>
+    runtime.context.sent(TerminalNames.linesMethod).map(t => TerminalLinesParams.fromJson(t)).map(t => new PageRequest(t.start, t.limit));
   const store = (count: number, stored: TerminalLineRange = new TerminalLineRange(0, count)): void => {
     runtime.storedLines = Array.from({ length: count }, (_t, index) => `stored ${index}`)
       .map(t => new TerminalLine(t, false, [new TerminalTextRun(t.length, 3, -1, TerminalTextStyle.Bold)]));
@@ -138,7 +178,7 @@ describe("TerminalPager", () => {
     terminal.scrollToLine(0);
     await parsedAsync();
 
-    expect(pageRequests()).toEqual([[800, 500], [300, 500], [0, 300]]);
+    expect(pageRequests()).toEqual([new PageRequest(800, 500), new PageRequest(300, 500), new PageRequest(0, 300)]);
     expect(lines().length).toBe(1330);
     expect([lines()[0], lines()[1299], lines()[1300], lines().at(-1)]).toEqual(["stored 0", "stored 1299", "row 1", "row 30"]);
   });
@@ -154,7 +194,7 @@ describe("TerminalPager", () => {
     terminal.scrollToLine(0);
     await parsedAsync();
 
-    expect(pageRequests()).toEqual([[800, 500], [300, 500], [700, 100]]);
+    expect(pageRequests()).toEqual([new PageRequest(800, 500), new PageRequest(300, 500), new PageRequest(700, 100)]);
     expect(lines()[0]).toBe("stored 700");
     expect(lines().length).toBe(630);
   });
@@ -163,20 +203,20 @@ describe("TerminalPager", () => {
     await startAsync(6500);
     for (let page: number = 1; page <= 12; page++)
       await scrollToTopAsync(500 * page + 30);
-    const underCap: [number, string[], number] = [terminal.buffer.active.viewportY, lines().slice(-30), terminal.options.scrollback ?? 0];
+    const underCap: PagedView<string[]> = new PagedView(terminal.buffer.active.viewportY, lines().slice(-30), terminal.options.scrollback ?? 0);
 
     await scrollToTopAsync(6000);
-    const pastCap: [number, string | undefined, number] = [terminal.buffer.active.viewportY, lines().at(-1), terminal.options.scrollback ?? 0];
+    const pastCap: PagedView<string | undefined> = new PagedView(terminal.buffer.active.viewportY, lines().at(-1), terminal.options.scrollback ?? 0);
     terminal.input("ls\r");
     await vi.waitFor(() => expect(lines().slice(-30)).toEqual(screenRows), drawn);
 
-    const back: [number, number] = [lines().length, terminal.options.scrollback ?? 0];
+    const back: BufferRoom = new BufferRoom(lines().length, terminal.options.scrollback ?? 0);
     TerminalConnection.reattachAll();
     await vi.waitFor(() => expect(lines()).toEqual(screenRows), drawn);
 
-    expect(underCap).toEqual([500, screenRows, Resources.scrollback + 6000]);
-    expect(pastCap).toEqual([500, "stored 5999", Resources.scrollback + 6000]);
-    expect(back).toEqual([6030, Resources.scrollback + 6000]);
+    expect(underCap).toEqual(new PagedView(500, screenRows, Resources.scrollback + 6000));
+    expect(pastCap).toEqual(new PagedView(500, "stored 5999", Resources.scrollback + 6000));
+    expect(back).toEqual(new BufferRoom(6030, Resources.scrollback + 6000));
     expect(terminal.options.scrollback).toBe(Resources.scrollback);
   });
 
@@ -234,7 +274,7 @@ describe("TerminalPager", () => {
     runtime.holdLines();
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(pageRequests()).toEqual([[800, 500]]), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(pageRequests()).toEqual([new PageRequest(800, 500)]), { timeout: SpecWait.milliseconds });
     runtime.output("s1", 0, "\r\nwhile loading");
     runtime.releaseLines();
     await vi.waitFor(() => expect(lines().length).toBe(531), drawn);
@@ -273,7 +313,7 @@ describe("TerminalPager", () => {
     runtime.holdLines();
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(pageRequests()).toEqual([[800, 500]]), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(pageRequests()).toEqual([new PageRequest(800, 500)]), { timeout: SpecWait.milliseconds });
     terminal.input("l");
     terminal.input("s");
     terminal.input("\r");
@@ -289,7 +329,7 @@ describe("TerminalPager", () => {
     runtime.holdLines();
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(pageRequests()).toEqual([[800, 500]]), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(pageRequests()).toEqual([new PageRequest(800, 500)]), { timeout: SpecWait.milliseconds });
     runtime.snapshot = newRows.join("\r\n");
     TerminalConnection.reattachAll();
     await vi.waitFor(() => expect(runtime.attachCount).toBe(3), { timeout: SpecWait.milliseconds });
@@ -308,10 +348,10 @@ describe("TerminalPager", () => {
     terminal.scrollToLine(0);
     await vi.waitFor(() => expect(lines()).toEqual(["1,300 older lines were dropped", ...screenRows]), drawn);
 
-    expect(pageRequests()).toEqual([[800, 500]]);
+    expect(pageRequests()).toEqual([new PageRequest(800, 500)]);
     terminal.scrollToLine(0);
     await parsedAsync();
-    expect(pageRequests()).toEqual([[800, 500]]);
+    expect(pageRequests()).toEqual([new PageRequest(800, 500)]);
   });
 
   it("ignores scrolling before its first screen", async () => {
@@ -335,7 +375,7 @@ describe("TerminalPager", () => {
 
     await scrollToTopAsync(630);
 
-    expect(pageRequests()).toEqual([[1300, 100], [800, 500]]);
+    expect(pageRequests()).toEqual([new PageRequest(1300, 100), new PageRequest(800, 500)]);
     expect([lines()[0], lines()[599], lines()[600]]).toEqual(["stored 800", "stored 1399", "row 1"]);
     expect(terminal.buffer.active.viewportY).toBe(500);
   });
@@ -346,7 +386,7 @@ describe("TerminalPager", () => {
 
     await scrollToTopAsync(530);
 
-    expect(pageRequests()).toEqual([[7500, 500]]);
+    expect(pageRequests()).toEqual([new PageRequest(7500, 500)]);
     expect([lines()[0], lines()[499], lines()[500]]).toEqual(["stored 7500", "stored 7999", "row 1"]);
   });
 
@@ -356,7 +396,7 @@ describe("TerminalPager", () => {
 
     await scrollToTopAsync(131);
 
-    expect(pageRequests()).toEqual([[1300, 100]]);
+    expect(pageRequests()).toEqual([new PageRequest(1300, 100)]);
     expect(lines().slice(0, 3)).toEqual(["1,300 older lines were dropped", "stored 1300", "stored 1301"]);
   });
 
@@ -368,10 +408,10 @@ describe("TerminalPager", () => {
     runtime.holdLines();
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(pageRequests()).toEqual([[1300, 100]]), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(pageRequests()).toEqual([new PageRequest(1300, 100)]), { timeout: SpecWait.milliseconds });
     runtime.stored = new TerminalLineRange(1400, 1400);
     runtime.releaseLines();
-    await vi.waitFor(() => expect(pageRequests()).toEqual([[1300, 100], [800, 500]]), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(pageRequests()).toEqual([new PageRequest(1300, 100), new PageRequest(800, 500)]), { timeout: SpecWait.milliseconds });
     await vi.waitFor(() => expect(lines()).toEqual(newRows), drawn);
 
     expect(runtime.attachCount).toBe(2);
@@ -399,7 +439,7 @@ describe("TerminalPager", () => {
     await vi.waitFor(() => expect([lines()[0], lines().at(-1), lines().length]).toEqual(["stored 0", "stored 5999", 6000]), drawn);
 
     expect(runtime.attachCount).toBe(14);
-    expect(pageRequests().slice(-2)).toEqual([[500, 500], [0, 500]]);
+    expect(pageRequests().slice(-2)).toEqual([new PageRequest(500, 500), new PageRequest(0, 500)]);
   });
 
   it("pages down while the screen is left behind and newer pages remain, then brings the screen back", async () => {
@@ -440,7 +480,7 @@ describe("TerminalPager", () => {
     terminal.scrollToLine(terminal.buffer.active.baseY);
     await vi.waitFor(() => expect(lines()).toEqual(["6,600 older lines were dropped", ...screenRows]), drawn);
 
-    expect(pageRequests().at(-1)).toEqual([6000, 500]);
+    expect(pageRequests().at(-1)).toEqual(new PageRequest(6000, 500));
   });
 
   it("comes back to the screen when scrolled down after the runtime cleared its stored lines while the screen was left behind", async () => {
@@ -462,7 +502,7 @@ describe("TerminalPager", () => {
     runtime.stored = new TerminalLineRange(1000, 7000, 1000);
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(pageRequests().at(-1)).toEqual([0, 500]), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(pageRequests().at(-1)).toEqual(new PageRequest(0, 500)), { timeout: SpecWait.milliseconds });
     await parsedAsync();
 
     expect([lines()[0], lines().at(-1), lines().length, runtime.attachCount]).toEqual(["stored 500", "stored 6499", 6000, 14]);
@@ -473,7 +513,7 @@ describe("TerminalPager", () => {
     runtime.holdLines();
 
     terminal.scrollToLine(terminal.buffer.active.baseY);
-    await vi.waitFor(() => expect(pageRequests().at(-1)).toEqual([6000, 500]), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(pageRequests().at(-1)).toEqual(new PageRequest(6000, 500)), { timeout: SpecWait.milliseconds });
     terminal.input("x");
     runtime.releaseLines();
     await vi.waitFor(() => expect(lines().length).toBe(6030), drawn);
@@ -548,7 +588,7 @@ describe("TerminalPager", () => {
     terminal.open(host);
 
     terminal.scrollToLine(0);
-    await vi.waitFor(() => expect(pageRequests().at(-1)).toEqual([0, 500]), { timeout: SpecWait.milliseconds });
+    await vi.waitFor(() => expect(pageRequests().at(-1)).toEqual(new PageRequest(0, 500)), { timeout: SpecWait.milliseconds });
     pager.paste("echo a");
     runtime.releaseLines();
 
