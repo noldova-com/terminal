@@ -47,6 +47,7 @@ export class Resources {
   public static readonly licenseFile: string = "LICENSE";
   public static readonly readmeFile: string = "README.md";
   public static readonly projectFile: string = "tsconfig.json";
+  public static readonly baseProjectFile: string = "tsconfig-base.json";
   public static readonly specProjectFile: string = "tsconfig.spec.json";
   public static readonly moduleFiles: readonly string[] = [Resources.moduleFile, "settings.json", "menus.json", "cli.json", "webViews.json"];
   public static readonly windowEntry: string = "window.ts";
@@ -208,6 +209,7 @@ export class Resources {
   public static readonly vitestArguments: readonly string[] = [`${Resources.modulesFolder}/vitest/vitest.mjs`, "run", "--coverage"];
   public static readonly typeScriptCompilerPath: string = Resources.typeScriptCompiler.join(Resources.posixSeparator);
   public static readonly testChecks: readonly (readonly string[])[] = [
+    ["scripts/checks/archive-age-check.ts"],
     ["scripts/declarations/declaration-check.ts"],
     ["scripts/checks/test-wait-check.ts"],
     ["scripts/checks/api-declaration-check.ts"],
@@ -721,6 +723,26 @@ export class Resources {
 
   public static formatShellTested(shell: string, tests: number): string {
     return `${shell}: ${tests} tests passed.`;
+  }
+
+  public static formatArchiveAgeChecked(packages: number): string {
+    return `Checked that the archives of ${packages} packages are newer than what they pack.`;
+  }
+
+  public static formatArchiveAgeMissing(archive: string): string {
+    return `${archive} is missing; run npm run build, since the tests use the installed archives.`;
+  }
+
+  public static formatArchiveAgeStale(archive: string, file: string): string {
+    return `${file} changed after ${archive} was packed; run npm run build, since the tests use the installed archives.`;
+  }
+
+  public static formatArchiveAgeVersionMissing(file: string): string {
+    return `${file} has no version, so the archives to check can't be named.`;
+  }
+
+  public static formatArchiveAgeNameMissing(file: string): string {
+    return `${file} has no name, so its archive can't be named.`;
   }
 
   public static formatTestWaitChecked(testFiles: number, listed: number): string {
