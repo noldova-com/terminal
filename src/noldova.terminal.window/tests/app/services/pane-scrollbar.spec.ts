@@ -72,10 +72,11 @@ describe("PaneScrollbar", () => {
     await linesAsync(20);
 
     terminal.resize(20, 10);
-    const resized: [number, number] = [rangeOf(), bar.scrollTop];
+    const resizedRange: number = rangeOf();
+    const resizedTop: number = bar.scrollTop;
     await writeAsync("\u001b[?1049h");
 
-    expect(resized).toEqual([terminal.buffer.normal.length * 20, terminal.buffer.normal.baseY * 20]);
+    expect([resizedRange, resizedTop]).toEqual([terminal.buffer.normal.length * 20, terminal.buffer.normal.baseY * 20]);
     expect([rangeOf(), bar.scrollTop]).toEqual([200, 0]);
   });
 

@@ -11,13 +11,14 @@ import "@noldova/context.core";
 import { Resources } from "../../resources.ts";
 import { CommandTokenKind } from "../enums/command-token-kind.ts";
 import { CommandToken } from "../models/command-token.ts";
+import { HereDocument } from "../models/here-document.ts";
 
 export class CommandLineTokens {
   public static read(text: string, isPowerShell: boolean, isZsh: boolean): readonly CommandToken[] {
     const kinds: (CommandTokenKind | null)[] = Array.from({ length: text.length }, () => null);
     const operators: string = isPowerShell ? Resources.powerShellOperators : Resources.posixOperators;
     const joinedBreak: string = (isPowerShell ? Resources.powerShellEscape : Resources.posixEscape) + Resources.commandLineBreak;
-    const delimiters: [string, boolean][] = [];
+    const delimiters: HereDocument[] = [];
     let expectsCommand: boolean = true;
     let afterBlock: boolean = false;
     let expectsDelimiter: boolean = false;
@@ -90,7 +91,7 @@ export class CommandLineTokens {
         if (expectsDelimiter) {
           const isIndented: boolean = word.startsWith(Resources.hereDocumentTabsOption);
           const delimiter: string = isIndented ? word.slice(Resources.hereDocumentTabsOption.length) : word;
-          delimiters.push([delimiter.replace(Resources.delimiterQuotingPattern, ""), isIndented]);
+          delimiters.push(new HereDocument(delimiter.replace(Resources.delimiterQuotingPattern, ""), isIndented));
           expectsDelimiter = false;
         }
         else if (expectsTarget || expectsOptionValue)
@@ -129,15 +130,15 @@ export class CommandLineTokens {
     return CommandLineTokens.collect(kinds);
   }
 
-  private static readHereDocuments(text: string, start: number, delimiters: [string, boolean][], kinds: (CommandTokenKind | null)[]): number {
+  private static readHereDocuments(text: string, start: number, delimiters: HereDocument[], kinds: (CommandTokenKind | null)[]): number {
     if (delimiters.length === 0)
       return start;
     let lineStart: number = start;
-    for (let open: [string, boolean] | undefined = delimiters[0]; !Object.isUndefined(open) && lineStart < text.length; open = delimiters[0]) {
+    for (let open: HereDocument | undefined = delimiters[0]; !Object.isUndefined(open) && lineStart < text.length; open = delimiters[0]) {
       const found: number = text.indexOf(Resources.commandLineBreak, lineStart);
       const lineEnd: number = found === -1 ? text.length : found;
       const line: string = text.slice(lineStart, lineEnd);
-      if ((open[1] ? line.replace(Resources.hereDocumentIndentPattern, "") : line) === open[0])
+      if ((open.stripsTabs ? line.replace(Resources.hereDocumentIndentPattern, "") : line) === open.delimiter)
         delimiters.shift();
       lineStart = lineEnd + 1;
     }

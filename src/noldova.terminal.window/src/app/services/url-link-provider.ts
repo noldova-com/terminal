@@ -11,6 +11,7 @@ import "@noldova/context.core";
 import type { IBuffer, IBufferCell, IBufferCellPosition, IBufferLine, ILink, ILinkProvider, Terminal } from "@xterm/xterm";
 
 import { Resources } from "../../resources.ts";
+import { LinkCell } from "../models/link-cell.ts";
 
 export class UrlLinkProvider implements ILinkProvider {
   private readonly terminal: Terminal;
@@ -29,13 +30,13 @@ export class UrlLinkProvider implements ILinkProvider {
     let first: number = row;
     while (first > 0 && buffer.getLine(first)?.isWrapped === true && (row - first + 1) * this.terminal.cols < Resources.maximumLinkLength)
       first--;
-    const text: string = [...UrlLinkProvider.cells(buffer, first)].map(t => t[0]).join("");
+    const text: string = [...UrlLinkProvider.cells(buffer, first)].map(t => t.text).join("");
     const matches: Iterator<RegExpExecArray> = text.matchAll(Resources.plainLinkPattern);
     const links: ILink[] = [];
     let match: IteratorResult<RegExpExecArray> = matches.next();
     let start: IBufferCellPosition = { x: 1, y: bufferLineNumber };
     let offset: number = 0;
-    for (const [, cellStart, cellEnd] of UrlLinkProvider.cells(buffer, first)) {
+    for (const { start: cellStart, end: cellEnd } of UrlLinkProvider.cells(buffer, first)) {
       if (match.done === true)
         break;
       if (offset === match.value.index)
@@ -50,7 +51,7 @@ export class UrlLinkProvider implements ILinkProvider {
     callback(links.length > 0 ? links : undefined);
   }
 
-  private static *cells(buffer: IBuffer, first: number): Generator<[string, IBufferCellPosition, IBufferCellPosition]> {
+  private static *cells(buffer: IBuffer, first: number): Generator<LinkCell> {
     const cell: IBufferCell = buffer.getNullCell();
     let length: number = 0;
     for (let y: number = first; length < Resources.linkScanLength; y++) {
@@ -64,7 +65,7 @@ export class UrlLinkProvider implements ILinkProvider {
         if (width > 0)
           for (const unit of chars.split("")) {
             length++;
-            yield [unit, { x: x + 1, y: y + 1 }, { x: x + width, y: y + 1 }];
+            yield new LinkCell(unit, { x: x + 1, y: y + 1 }, { x: x + width, y: y + 1 });
           }
       }
     }

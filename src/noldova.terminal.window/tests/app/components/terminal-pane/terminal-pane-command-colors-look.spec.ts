@@ -85,9 +85,10 @@ describe("TerminalPaneComponent's colors for a typed command", () => {
   const drawnAsync = async (shown: PaneHost<TerminalPanelComponent>, colors: readonly string[], count: number, name: string): Promise<(string | undefined)[]> => {
     const size: TerminalSize = sizeOf(shown);
     const screen: DOMRect = shown.screen.getBoundingClientRect();
-    const cell: { width: number; height: number } = { width: screen.width / size.columns, height: screen.height / size.rows };
+    const cellWidth: number = screen.width / size.columns;
+    const cellHeight: number = screen.height / size.rows;
     const shot: ScreenShot = await ScreenShot.takeAsync(shown.element, `${screenshots}/${name}.png`);
-    return Array.from({ length: count }, (_, column) => inkOf(shot.inside(screen.left + cell.width * column, screen.top, cell.width, cell.height), colors));
+    return Array.from({ length: count }, (_, column) => inkOf(shot.inside(screen.left + cellWidth * column, screen.top, cellWidth, cellHeight), colors));
   };
   const tokenOf = (shown: PaneHost<TerminalPanelComponent>, token: string): string => rgbOf(getComputedStyle(paneOf(shown)).getPropertyValue(token).trim());
 

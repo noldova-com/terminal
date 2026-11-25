@@ -15,6 +15,7 @@ import { TerminalStartFolder } from "../../../src/app/services/terminal-start-fo
 import { FakeRuntime } from "../../fixtures/fake-runtime.fixture.ts";
 import { HeldAnswer } from "../../fixtures/held-answer.fixture.ts";
 import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
+import { UpdatedView } from "../../fixtures/updated-view.fixture.ts";
 
 describe("TerminalRuntimeClient", () => {
   it("opens a shell at the opening size, leaving the shell and folder to the runtime when not named", async () => {
@@ -340,7 +341,7 @@ describe("TerminalRuntimeClient", () => {
     await opening;
 
     expect(runtime.context.opened.map(t => [t.instance, t.title])).toEqual([["s1", "Terminal"], ["s3", "Zsh"]]);
-    expect(runtime.context.updates).toEqual([["s1", { title: "Zsh", icon: "percent" }]]);
+    expect(runtime.context.updates).toEqual([new UpdatedView("s1", { title: "Zsh", icon: "percent" })]);
     expect(runtime.context.logs).toEqual(["The terminal tabs show no shell names, since the terminals could not be listed: The runtime is busy."]);
   });
 
@@ -397,7 +398,7 @@ describe("TerminalRuntimeClient", () => {
     await client.openTabsAsync(["s3"]);
 
     expect(runtime.context.opened.map(t => [t.instance, t.title])).toEqual([["s1", "Terminal"], ["s2", "Terminal"], ["s3", "Zsh"]]);
-    expect(runtime.context.updates).toEqual([["s1", { title: "Bash", icon: "attach_money" }]]);
+    expect(runtime.context.updates).toEqual([new UpdatedView("s1", { title: "Bash", icon: "attach_money" })]);
     expect(runtime.context.logs).toEqual(["The terminal tabs show no shell names, since the terminals could not be listed: The runtime is busy.",
       "The terminal tabs show no shell names, since the terminals could not be listed: The runtime is busy."]);
   });
@@ -415,7 +416,7 @@ describe("TerminalRuntimeClient", () => {
     await client.nameTabsAsync();
     await client.nameTabsAsync();
 
-    expect(runtime.context.updates).toEqual([["s1", { title: "Zsh", icon: "percent" }]]);
+    expect(runtime.context.updates).toEqual([new UpdatedView("s1", { title: "Zsh", icon: "percent" })]);
     expect(runtime.context.sent(TerminalNames.sessionsMethod)).toHaveLength(2);
   });
 
@@ -433,7 +434,7 @@ describe("TerminalRuntimeClient", () => {
 
     await new TerminalRuntimeClient(runtime.context).nameTabsAsync();
 
-    expect([runtime.context.updates, other.context.updates]).toEqual([[["s1", { title: "Zsh", icon: "percent" }]], []]);
+    expect([runtime.context.updates, other.context.updates]).toEqual([[new UpdatedView("s1", { title: "Zsh", icon: "percent" })], []]);
   });
 
   it("opens a renamed terminal's tab with the person's name over the app's title and the shell's name, and keeps an app's title for a tab opened again", async () => {
@@ -464,7 +465,7 @@ describe("TerminalRuntimeClient", () => {
     await client.nameTabsAsync();
 
     expect(runtime.context.opened.map(t => t.title)).toEqual(["Terminal"]);
-    expect(runtime.context.updates).toEqual([["s1", { title: "Server", icon: "terminal" }]]);
+    expect(runtime.context.updates).toEqual([new UpdatedView("s1", { title: "Server", icon: "terminal" })]);
   });
 
   it("sends the name the person typed, trimmed and cut to 4096 characters without splitting a character, and nothing left as no name", async () => {
@@ -495,7 +496,7 @@ describe("TerminalRuntimeClient", () => {
       await client.retitleAsync(name);
 
     expect(runtime.context.updates).toEqual([
-      ["s1", { title: "Server" }], ["s1", { title: "Bash", icon: "attach_money" }], ["s2", { title: "Sign in" }], ["s3", { title: "Terminal", icon: "terminal" }]
+      new UpdatedView("s1", { title: "Server" }), new UpdatedView("s1", { title: "Bash", icon: "attach_money" }), new UpdatedView("s2", { title: "Sign in" }), new UpdatedView("s3", { title: "Terminal", icon: "terminal" })
     ]);
   });
 
@@ -509,7 +510,7 @@ describe("TerminalRuntimeClient", () => {
     runtime.sessionsFailure = null;
     await client.nameTabsAsync();
 
-    expect(runtime.context.updates).toEqual([["s1", { title: "Terminal", icon: "terminal" }], ["s1", { title: "Bash", icon: "attach_money" }]]);
+    expect(runtime.context.updates).toEqual([new UpdatedView("s1", { title: "Terminal", icon: "terminal" }), new UpdatedView("s1", { title: "Bash", icon: "attach_money" })]);
     expect(runtime.context.logs).toEqual(["The terminal tabs show no shell names, since the terminals could not be listed: The runtime is busy."]);
   });
 
@@ -524,7 +525,7 @@ describe("TerminalRuntimeClient", () => {
     listing.resolve(null);
     await clearing;
 
-    expect(runtime.context.updates).toEqual([["s1", { title: "Build" }]]);
+    expect(runtime.context.updates).toEqual([new UpdatedView("s1", { title: "Build" })]);
   });
 
   it("titles a cleared tab with the name a later rename gave meanwhile, else an app's title given meanwhile, once the terminals are listed", async () => {
@@ -541,7 +542,7 @@ describe("TerminalRuntimeClient", () => {
     await clearing;
 
     expect(runtime.context.updates).toHaveLength(2);
-    expect(new Map(runtime.context.updates)).toEqual(new Map([["s1", { title: "Build", icon: "attach_money" }], ["s2", { title: "Sign in", icon: "attach_money" }]]));
+    expect(new Map(runtime.context.updates.map(t => [t.instance, t.update]))).toEqual(new Map([["s1", { title: "Build", icon: "attach_money" }], ["s2", { title: "Sign in", icon: "attach_money" }]]));
   });
 
   it("forgets an app's title for a tab whose terminal the person closed", async () => {
@@ -553,6 +554,6 @@ describe("TerminalRuntimeClient", () => {
     await client.closeAsync("s1");
     await client.retitleAsync(new TerminalName("s1", null));
 
-    expect(runtime.context.updates.at(-1)).toEqual(["s1", { title: "Bash", icon: "attach_money" }]);
+    expect(runtime.context.updates.at(-1)).toEqual(new UpdatedView("s1", { title: "Bash", icon: "attach_money" }));
   });
 });
