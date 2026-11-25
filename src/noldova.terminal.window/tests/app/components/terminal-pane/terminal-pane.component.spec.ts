@@ -37,6 +37,59 @@ import { SpecWait } from "../../../fixtures/spec-wait.fixture.ts";
 
 const COPY: KeyboardEventInit = PaneHost.isMac ? { key: "c", metaKey: true } : { key: "C", ctrlKey: true, shiftKey: true };
 const OPEN: MouseEventInit = PaneHost.isMac ? { metaKey: true } : { ctrlKey: true };
+class ScrollPlace {
+  public readonly top: number;
+  public readonly rows: number;
+
+  public constructor(top: number, rows: number) {
+    this.top = top;
+    this.rows = rows;
+  }
+}
+
+class ReachedKey {
+  public readonly key: string;
+  public readonly isPrevented: boolean;
+
+  public constructor(key: string, isPrevented: boolean) {
+    this.key = key;
+    this.isPrevented = isPrevented;
+  }
+
+  public static of(event: KeyboardEvent): ReachedKey {
+    return new ReachedKey(event.key, event.defaultPrevented);
+  }
+}
+
+class SelectionRead {
+  public readonly hasSelection: boolean;
+  public readonly text: string;
+
+  public constructor(hasSelection: boolean, text: string) {
+    this.hasSelection = hasSelection;
+    this.text = text;
+  }
+
+  public static of(source: ISelectionSource): SelectionRead {
+    return new SelectionRead(source.hasSelection(), source.readSelection());
+  }
+}
+
+class TwoPanes {
+  public readonly wide: PaneHost<TerminalPaneComponent>;
+  public readonly narrow: ComponentFixture<TerminalPaneComponent>;
+  public readonly element: HTMLElement;
+  public readonly drawnBy: (offset: number) => number;
+
+  public constructor(wide: PaneHost<TerminalPaneComponent>, narrow: ComponentFixture<TerminalPaneComponent>, element: HTMLElement,
+    drawnBy: (offset: number) => number) {
+    this.wide = wide;
+    this.narrow = narrow;
+    this.element = element;
+    this.drawnBy = drawnBy;
+  }
+}
+
 const IN_APP_BROWSER: IInAppBrowser = { placeFor: () => LinkPlace.InApp, openAsync: async () => undefined };
 const SYSTEM_ON_MODIFIED_BROWSER: IInAppBrowser = {
   placeFor: (_url: string, gesture: LinkGesture) => gesture === LinkGesture.Modified ? LinkPlace.System : LinkPlace.InApp,
@@ -71,11 +124,11 @@ function rowsOf(host: PaneHost<TerminalPaneComponent>): number {
   return host.element.querySelectorAll(".xterm-rows > div").length;
 }
 
-function scrolled(host: PaneHost<TerminalPaneComponent>): readonly [number, number] {
+function scrolled(host: PaneHost<TerminalPaneComponent>): ScrollPlace {
   const bar: HTMLElement = PaneHost.find(host.element, ".nol-terminal-pane-scrollbar", HTMLElement);
   const range: HTMLElement = PaneHost.find(bar, ":scope > *", HTMLElement);
   const row: number = bar.clientHeight / rowsOf(host);
-  return [Math.round(bar.scrollTop / row), Math.round(range.getBoundingClientRect().height / row)];
+  return new ScrollPlace(Math.round(bar.scrollTop / row), Math.round(range.getBoundingClientRect().height / row));
 }
 
 function pageUp(host: PaneHost<TerminalPaneComponent>, times: number): void {
@@ -92,11 +145,10 @@ function storeLines(host: PaneHost<TerminalPaneComponent>): void {
 
 async function pageStoredInAsync(host: PaneHost<TerminalPaneComponent>): Promise<void> {
   await vi.waitFor(() => expect(host.text).toContain("row 40"), { timeout: SpecWait.milliseconds });
-  await vi.waitFor(() => expect(scrolled(host)).toEqual([40 - rowsOf(host), 40]), { timeout: SpecWait.milliseconds });
+  await vi.waitFor(() => expect(scrolled(host)).toEqual(new ScrollPlace(40 - rowsOf(host), 40)), { timeout: SpecWait.milliseconds });
   host.runtime.size = TerminalResizeParams.fromJson(host.runtime.context.sent(TerminalNames.resizeMethod).at(-1) ?? null).size;
-  const [bottom] = scrolled(host);
-  pageUp(host, Math.ceil(bottom / (rowsOf(host) - 1)));
-  await vi.waitFor(() => expect(scrolled(host)).toEqual([300, 340]), { timeout: SpecWait.milliseconds });
+  pageUp(host, Math.ceil(scrolled(host).top / (rowsOf(host) - 1)));
+  await vi.waitFor(() => expect(scrolled(host)).toEqual(new ScrollPlace(300, 340)), { timeout: SpecWait.milliseconds });
 }
 
 async function openTypedAsync(host: PaneHost<TerminalPaneComponent>): Promise<void> {
@@ -285,7 +337,7 @@ describe("TerminalPaneComponent", () => {
     document.removeEventListener("keydown", listener);
 
     await vi.waitFor(() => expect(host.inputs).toEqual(["\r"]), { timeout: SpecWait.milliseconds });
-    expect(reached.map(t => [t.key, t.defaultPrevented])).toEqual([["`", false], ["~", false]]);
+    expect(reached.map(t => ReachedKey.of(t))).toEqual([new ReachedKey("`", false), new ReachedKey("~", false)]);
   });
 
   it("marks its screen as keeping Ctrl keys, so the window reads Ctrl+Shift+key there as its Ctrl+key shortcut", async () => {
@@ -299,8 +351,8 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane();
     await host.attachedAsync();
     host.runtime.context.answer("findWindowCommand", t => t.code === "KeyJ" ? "terminal.toggle" : t.code === "KeyK" ? "chats.find" : null);
-    const reached: [string, boolean][] = [];
-    const listener = (event: KeyboardEvent): void => void reached.push([event.key, event.defaultPrevented]);
+    const reached: ReachedKey[] = [];
+    const listener = (event: KeyboardEvent): void => void reached.push(ReachedKey.of(event));
     document.addEventListener("keydown", listener);
 
     host.press({ key: "j", code: "KeyJ", keyCode: 74, ctrlKey: true });
@@ -308,7 +360,7 @@ describe("TerminalPaneComponent", () => {
     document.removeEventListener("keydown", listener);
 
     await vi.waitFor(() => expect(host.inputs).toEqual(["\u000b"]), { timeout: SpecWait.milliseconds });
-    expect(reached).toEqual([["j", false]]);
+    expect(reached).toEqual([new ReachedKey("j", false)]);
   });
 
   it("sends what an input method composes once, when the composition ends", async () => {
@@ -367,15 +419,15 @@ describe("TerminalPaneComponent", () => {
     await host.startAsync();
     await vi.waitFor(() => expect(host.text).toContain("copy me"), { timeout: SpecWait.milliseconds });
     const source: ISelectionSource | undefined = host.runtime.context.selectionSources.get(host.element);
-    const unselected: readonly [boolean, string] | undefined = Object.isUndefined(source) ? undefined : [source.hasSelection(), source.readSelection()];
+    const unselected: SelectionRead | undefined = Object.isUndefined(source) ? undefined : SelectionRead.of(source);
 
     host.pointAt("mousedown", 2, 1, { detail: 3, button: 0 });
     host.pointAt("mouseup", 2, 1, { detail: 3, button: 0 });
-    const selected: readonly [boolean, string] | undefined = Object.isUndefined(source) ? undefined : [source.hasSelection(), source.readSelection()];
+    const selected: SelectionRead | undefined = Object.isUndefined(source) ? undefined : SelectionRead.of(source);
     host.fixture.destroy();
 
-    expect(unselected).toEqual([false, ""]);
-    expect(selected).toEqual([true, "copy me"]);
+    expect(unselected).toEqual(new SelectionRead(false, ""));
+    expect(selected).toEqual(new SelectionRead(true, "copy me"));
     expect(host.runtime.context.selectionSources.size).toBe(0);
   });
 
@@ -443,8 +495,7 @@ describe("TerminalPaneComponent", () => {
     expect(host.inputs).toEqual([]);
   });
 
-  async function twoPanesAsync(): Promise<{ readonly wide: PaneHost<TerminalPaneComponent>; readonly narrow: ComponentFixture<TerminalPaneComponent>;
-    readonly element: HTMLElement; readonly drawnBy: (offset: number) => number; }> {
+  async function twoPanesAsync(): Promise<TwoPanes> {
     const wide: PaneHost<TerminalPaneComponent> = createPane(true);
     wide.fixture.detectChanges();
     PaneHost.fill(wide.element);
@@ -460,7 +511,7 @@ describe("TerminalPaneComponent", () => {
       { timeout: SpecWait.milliseconds });
     const drawnBy = (offset: number): number => new Set(wide.runtime.context.sent(TerminalNames.ackMethod).map(t => TerminalAckParams.fromJson(t))
       .filter(t => t.offset === offset).map(t => t.paneId)).size;
-    return { wide, narrow, element, drawnBy };
+    return new TwoPanes(wide, narrow, element, drawnBy);
   }
 
   it("answers a color query once for a session in two panes, from the pane that sizes it, as the sizing moves", async () => {
@@ -692,7 +743,7 @@ describe("TerminalPaneComponent", () => {
     pageUp(host, Math.ceil(300 / (rowsOf(host) - 1)));
 
     await vi.waitFor(() => expect(host.text).toMatch(/^stored 0(?!\d)/u), { timeout: SpecWait.milliseconds });
-    expect(scrolled(host)).toEqual([0, 340]);
+    expect(scrolled(host)).toEqual(new ScrollPlace(0, 340));
     expect(host.runtime.context.sent(TerminalNames.linesMethod)).toHaveLength(1);
   });
 
