@@ -95,7 +95,7 @@ The repository's scripts, under `scripts/` and `src/noldova.terminal.window/scri
 The build maps each export to its compiled `.js` and to the handwritten declarations beside it.
 
 `npm run build` (`scripts/build.ts`) first checks, with npm's own tree listing in `scripts/checks/cdk-copy-check.ts`, that the window part holds one copy of `@angular/cdk`, which the UI kit shares, and stops, naming each copy, when it holds more, or none ([TESTING.md](TESTING.md#the-pull-request-checks)).
-It then compiles the protocol and the runtime part into `_build/compiled`.
+It then empties `_build/compiled` and compiles the protocol and the runtime part into it, so the packs carry no script of a removed source.
 It then packs each package into `_packages`, building it in `_build/packages/<package folder>`, such as `_build/packages/noldova.terminal.window`.
 The window part's build resolves the protocol to the packed protocol's declarations, and takes the window package's dependencies and peers from what the compiled part's scripts and declarations import with `from`, `import`, `import()` or `require()`, in either quote, leaving out the examples in the declarations' comments but not a string that holds `/*` or `//`, and not reading a `/// <reference types>` directive, a dependency at the version `src/noldova.terminal.window/package.json` pins and a peer at the range and `peerDependenciesMeta` entry it declares; it refuses to pack a part that imports a peer the manifest doesn't declare as one, or another package it doesn't pin.
 
