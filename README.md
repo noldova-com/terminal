@@ -51,7 +51,7 @@ npm run build
 npm test
 ```
 
-The root manifest, `@noldova/terminal.repository`, pins every package the three packages build and test with, and has no workspaces: `npm ci` installs the exact versions the root's lockfile records, which `npm run build` also does with install scripts off when `node_modules` is missing, `npm run build` builds and packs the three packages into `_packages` and installs each archive into the root's `node_modules` without saving it, so every test that uses another package runs its packed archive, as an app does; a change to one package reaches the others' tests only after `npm run build`, and `npm test` runs every check, the last of which installs those packages into a fixture app, so it runs after the build.
+The root manifest, `@noldova/terminal.repository`, pins every package the three packages build and test with, and has no workspaces: `npm ci` installs the exact versions the root's lockfile records, which `npm run build` also does with install scripts off when `node_modules` is missing, `npm run build` builds and packs the three packages into `_packages` and installs each archive into the root's `node_modules` without saving it, so every test that uses another package runs its packed archive, as an app does; a change to one package reaches the others' tests only after `npm run build`, which every `npm test`, a filtered run too, checks first: it fails, naming that command, when an archive in `_packages` is missing or older than a file its package packs, and `npm test` runs every check, the last of which installs those packages into a fixture app, so it runs after the build.
 [documents/TESTING.md](documents/TESTING.md) says what the checks cover and on which targets.
 
 ## Checks
