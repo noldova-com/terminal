@@ -30,8 +30,8 @@ export class ScreenShot {
 
   public static async takeAsync(element: HTMLElement, path: string): Promise<ScreenShot> {
     const box: DOMRect = element.getBoundingClientRect();
-    const shot: { base64: string } = await page.screenshot({ element, path, base64: true });
-    const bitmap: ImageBitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${shot.base64}`)).blob());
+    const base64: string = (await page.screenshot({ element, path, base64: true })).base64;
+    const bitmap: ImageBitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${base64}`)).blob());
     const canvas: OffscreenCanvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context: OffscreenCanvasRenderingContext2D | null = canvas.getContext("2d");
     if (Object.isNull(context))

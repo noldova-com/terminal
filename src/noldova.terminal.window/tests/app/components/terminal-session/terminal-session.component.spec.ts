@@ -30,7 +30,17 @@ import { FakeRuntime } from "../../../fixtures/fake-runtime.fixture.ts";
 import { PaneHost } from "../../../fixtures/pane-host.fixture.ts";
 import { SpecWait } from "../../../fixtures/spec-wait.fixture.ts";
 
-const SOON: { readonly interval: number; readonly timeout: number } = { interval: 1, timeout: SpecWait.milliseconds };
+class WaitOptions {
+  public readonly interval: number;
+  public readonly timeout: number;
+
+  public constructor(interval: number, timeout: number) {
+    this.interval = interval;
+    this.timeout = timeout;
+  }
+}
+
+const SOON: WaitOptions = new WaitOptions(1, SpecWait.milliseconds);
 
 function createSession(runtime: FakeRuntime = new FakeRuntime(), providers: readonly Provider[] = []): PaneHost<TerminalSessionComponent> {
   return new PaneHost(TerminalSessionComponent, true, { instance: "s1", title: "Terminal" }, runtime, providers);
@@ -81,10 +91,10 @@ describe("TerminalSessionComponent", () => {
       await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toBe(""), SOON);
 
       const screen: HTMLElement = PaneHost.find(host.element, ".nol-terminal-pane-screen", HTMLElement);
-      const minimum: number = host.runtime.context.grownDocks[0]?.[1] ?? 0;
+      const minimum: number = host.runtime.context.grownDocks[0]?.minimum ?? 0;
       host.element.style.blockSize = `calc(${minimum}rem + 0.5px)`;
       await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime).split("x")[1]).toBe("30"), SOON);
-      expect(host.runtime.context.grownDocks.map(([tab]) => tab)).toEqual(["terminal.session/s1"]);
+      expect(host.runtime.context.grownDocks.map(t => t.tab)).toEqual(["terminal.session/s1"]);
       expect(Number.parseFloat(getComputedStyle(screen).paddingTop)).toBeGreaterThan(0);
       expect(host.runtime.context.releasedDocks).toEqual([]);
       release();
@@ -137,7 +147,7 @@ describe("TerminalSessionComponent", () => {
       dock(host, DockSide.Bottom);
 
       await vi.waitFor(() => expect(host.runtime.context.grownDocks).toHaveLength(1), SOON);
-      expect([beside, host.runtime.context.grownDocks.map(([tab]) => tab), host.runtime.context.callsOf("viewDockOf")]).toEqual([0, ["terminal.session/s1"], [["terminal.session", "s1"]]]);
+      expect([beside, host.runtime.context.grownDocks.map(t => t.tab), host.runtime.context.callsOf("viewDockOf")]).toEqual([0, ["terminal.session/s1"], [["terminal.session", "s1"]]]);
     }
     finally {
       release();

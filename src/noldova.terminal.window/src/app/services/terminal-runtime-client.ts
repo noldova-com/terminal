@@ -146,7 +146,7 @@ export class TerminalRuntimeClient {
       if (!isAsked && !TerminalRestartTargets.has(Resources.sessionView, sessionId))
         TerminalFocus.openUnasked(sessionId);
       this.context.openView(Resources.sessionView, sessionId, label?.name ?? launchTitle ?? label?.shellName ?? Resources.panelTitle,
-        { ...this.iconOf(label), ...(Object.isNull(tabGroup) ? {} : { tabGroup }) });
+        { icon: this.iconOf(label), ...(Object.isNull(tabGroup) ? {} : { tabGroup }) });
       if (Object.isNull(labels) && Object.isNull(launchTitle))
         this.unnamed.add(sessionId);
     }
@@ -193,7 +193,7 @@ export class TerminalRuntimeClient {
       return;
     this.context.updateView(Resources.sessionView, name.sessionId, {
       title: label?.name ?? this.launchTitles.get(name.sessionId) ?? label?.shellName ?? Resources.panelTitle,
-      ...this.iconOf(label)
+      icon: this.iconOf(label)
     });
   }
 
@@ -261,13 +261,13 @@ export class TerminalRuntimeClient {
       const label: TerminalTabLabel | undefined = labels.get(sessionId);
       const title: string | null | undefined = label?.name ?? label?.shellName;
       if (!Object.isUndefined(title) && !Object.isNull(title))
-        this.context.updateView(Resources.sessionView, sessionId, { title, ...this.iconOf(label) });
+        this.context.updateView(Resources.sessionView, sessionId, { title, icon: this.iconOf(label) });
     }
     this.unnamed.clear();
   }
 
-  private iconOf(label: TerminalTabLabel | undefined): { readonly icon: string } {
-    return { icon: Object.isUndefined(label) || Object.isNull(label.shellName) ? Resources.panelIcon : Resources.shellKindIcons[label.shellKind] };
+  private iconOf(label: TerminalTabLabel | undefined): string {
+    return Object.isUndefined(label) || Object.isNull(label.shellName) ? Resources.panelIcon : Resources.shellKindIcons[label.shellKind];
   }
 
   private async listLabelsAsync(): Promise<ReadonlyMap<string, TerminalTabLabel>> {

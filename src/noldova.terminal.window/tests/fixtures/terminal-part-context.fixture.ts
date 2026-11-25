@@ -12,9 +12,11 @@ import { signal, type WritableSignal } from "@angular/core";
 import type { JsonValue } from "@noldova/context.json";
 import { QualifiedName, SettingEntry } from "@noldova/desktop.protocol";
 import { UnansweredCallException } from "@noldova/desktop.protocol/testing";
-import { LinkPlace, type CommandContribution, type DockSide, type IInAppBrowser, type ISelectionSource, type IViewInstanceOptions, type IViewUpdate, type IWindowPartContext, type ViewContribution } from "@noldova/desktop.window";
+import { LinkPlace, type CommandContribution, type DockSide, type IInAppBrowser, type ISelectionSource, type IViewInstanceOptions, type IWindowPartContext, type ViewContribution } from "@noldova/desktop.window";
 import { FakeWindowPartContext } from "@noldova/desktop.window/testing";
 import { LinkGesture } from "@noldova/ui.components.angular";
+import { GrownDock } from "./grown-dock.fixture.ts";
+import { UpdatedView } from "./updated-view.fixture.ts";
 
 type MenuProvider = Parameters<IWindowPartContext["provideMenuGroup"]>[1];
 type OptionsProvider = Parameters<IWindowPartContext["provideSettingOptions"]>[1];
@@ -60,10 +62,10 @@ export class TerminalPartContext extends FakeWindowPartContext {
   public readonly closed: string[] = [];
   public readonly shownViews: string[] = [];
   public readonly hiddenDocks: string[] = [];
-  public readonly grownDocks: [string, number][] = [];
+  public readonly grownDocks: GrownDock[] = [];
   public readonly releasedDocks: string[] = [];
   public readonly dock: WritableSignal<DockSide | null> = signal<DockSide | null>(null);
-  public readonly updates: [string, IViewUpdate][] = [];
+  public readonly updates: UpdatedView[] = [];
   public readonly logs: string[] = [];
   public readonly links: string[] = [];
   public readonly linkGestures: (LinkGesture | undefined)[] = [];
@@ -110,7 +112,7 @@ export class TerminalPartContext extends FakeWindowPartContext {
   public override readonly growViewDock: IWindowPartContext["growViewDock"] = (name, minimum, instance) => {
     this.requireOwn(name);
     const tab: string = TerminalPartContext.tabOf(name, instance);
-    this.grownDocks.push([tab, minimum]);
+    this.grownDocks.push(new GrownDock(tab, minimum));
     const release: () => void = this.track("growViewDock", [name, minimum, instance]);
     return () => {
       release();
@@ -144,7 +146,7 @@ export class TerminalPartContext extends FakeWindowPartContext {
     });
     this.answer("updateView", (name, instance, update) => {
       this.requireOwn(name);
-      this.updates.push([instance, update]);
+      this.updates.push(new UpdatedView(instance, update));
     });
     this.answer("refreshSettingOptions", setting => void this.refreshedSettings.push(setting));
     this.answer("log", message => void this.logs.push(message));

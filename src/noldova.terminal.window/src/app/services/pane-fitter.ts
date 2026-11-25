@@ -9,7 +9,7 @@
 import "@noldova/context.core";
 
 import { Resources as ProtocolResources, TerminalSize } from "@noldova/terminal.protocol";
-import type { FitAddon } from "@xterm/addon-fit";
+import type { FitAddon, ITerminalDimensions } from "@xterm/addon-fit";
 import type { Terminal } from "@xterm/xterm";
 
 export class PaneFitter {
@@ -52,7 +52,7 @@ export class PaneFitter {
     this.frame = null;
     if (!this.isSizing())
       return;
-    const proposed: { cols: number; rows: number } | undefined = this.fit.proposeDimensions();
+    const proposed: ITerminalDimensions | undefined = this.fit.proposeDimensions();
     const rows: number = Object.isUndefined(proposed) ? Number.NaN : this.fixedRows() ?? proposed.rows;
     if (Object.isUndefined(proposed) || !Number.isFinite(proposed.cols) || !Number.isFinite(rows)) {
       if (!this.hasReported && !this.isShown())
