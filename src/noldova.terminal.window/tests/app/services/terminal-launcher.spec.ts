@@ -407,14 +407,12 @@ describe("TerminalLauncher", () => {
       "shellKinds.1", "shellKinds.1 must be one of PowerShell, CommandPrompt, Bash, Zsh, Fish, Wsl, Other.")
   ])
     it(`refuses ${what} before anything opens, never naming a value`, async () => {
-      const refusal: unknown = await TerminalLauncher.openAsync(app.context, launch).catch((error: unknown) => error);
+      const refusal: TerminalLaunchRefusedException = await rejectionAsync(TerminalLauncher.openAsync(app.context, launch), type);
 
-      expect(refusal).toBeInstanceOf(TerminalLaunchRefusedException);
-      expect(refusal).toBeInstanceOf(type);
-      expect((refusal as TerminalLaunchRefusedException).parameter).toBe(parameter);
-      expect((refusal as TerminalLaunchRefusedException).message).toBe(`The terminal wasn't launched, and nothing opened: ${message}`);
-      expect((refusal as TerminalLaunchRefusedException).message).not.toContain("secret-value");
-      expect((refusal as TerminalLaunchRefusedException).message).not.toContain("(Parameter");
+      expect(refusal.parameter).toBe(parameter);
+      expect(refusal.message).toBe(`The terminal wasn't launched, and nothing opened: ${message}`);
+      expect(refusal.message).not.toContain("secret-value");
+      expect(refusal.message).not.toContain("(Parameter");
       expect(app.context.requests).toEqual([]);
       expect(app.context.listenerCount(TerminalNames.exitedEvent)).toBe(0);
     });

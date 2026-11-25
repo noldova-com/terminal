@@ -20,21 +20,31 @@ import { TerminalPanelComponent } from "../../../../src/app/components/terminal-
 import { DrawnWait } from "../../../../tests/fixtures/drawn-wait.fixture.ts";
 import { PaneHost } from "../../../../tests/fixtures/pane-host.fixture.ts";
 
-interface ICell {
-  readonly width: number;
-  readonly height: number;
+class Cell {
+  public readonly width: number;
+  public readonly height: number;
+
+  public constructor(width: number, height: number) {
+    this.width = width;
+    this.height = height;
+  }
 }
 
-interface IChange {
-  readonly name: string;
-  readonly apply: (appearance: AppearanceService, mode: ModePreference) => void;
+class AppearanceChange {
+  public readonly name: string;
+  public readonly apply: (appearance: AppearanceService, mode: ModePreference) => void;
+
+  public constructor(name: string, apply: (appearance: AppearanceService, mode: ModePreference) => void) {
+    this.name = name;
+    this.apply = apply;
+  }
 }
 
 class AppearanceCase {
   public readonly mode: ModePreference;
-  public readonly change: IChange;
+  public readonly change: AppearanceChange;
 
-  public constructor(mode: ModePreference, change: IChange) {
+  public constructor(mode: ModePreference, change: AppearanceChange) {
     this.mode = mode;
     this.change = change;
   }
@@ -63,11 +73,11 @@ class OpenedPane {
 describe("TerminalPaneComponent when the appearance changes", () => {
   const screenshots: string = "../../../../../../_build/window/screenshots";
   const modes: readonly ModePreference[] = [ModePreference.Light, ModePreference.Dark];
-  const changes: readonly IChange[] = [
-    { name: "the code font and Code text size", apply: t => t.setTypography(new Typography(13, 13, 17, FontChoice.Noldova, FontChoice.System)) },
-    { name: "the panel text size", apply: t => t.setTypography(new Typography(17)) },
-    { name: "the mode", apply: (t, mode) => t.setModePreference(mode === ModePreference.Dark ? ModePreference.Light : ModePreference.Dark) },
-    { name: "the theme", apply: t => t.setTheme(FixtureTheme.theme) }
+  const changes: readonly AppearanceChange[] = [
+    new AppearanceChange("the code font and Code text size", t => t.setTypography(new Typography(13, 13, 17, FontChoice.Noldova, FontChoice.System))),
+    new AppearanceChange("the panel text size", t => t.setTypography(new Typography(17))),
+    new AppearanceChange("the mode", (t, mode) => t.setModePreference(mode === ModePreference.Dark ? ModePreference.Light : ModePreference.Dark)),
+    new AppearanceChange("the theme", t => t.setTheme(FixtureTheme.theme))
   ];
   const cases: readonly AppearanceCase[] = modes.flatMap(mode => changes.map(change => new AppearanceCase(mode, change)));
   const clear: string = "rgba(0, 0, 0, 0)";
@@ -106,7 +116,7 @@ describe("TerminalPaneComponent when the appearance changes", () => {
     const box: DOMRect = shown.element.getBoundingClientRect();
     const screen: DOMRect = shown.screen.getBoundingClientRect();
     const size: TerminalSize = sizeOf(shown);
-    const cell: ICell = { width: screen.width / size.columns, height: screen.height / size.rows };
+    const cell: Cell = new Cell(screen.width / size.columns, screen.height / size.rows);
     const base64: string = (await page.screenshot({ element: shown.element, path: `${screenshots}/terminal-pane-${name}.png`, base64: true })).base64;
     const bitmap: ImageBitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${base64}`)).blob());
     const canvas: OffscreenCanvas = new OffscreenCanvas(bitmap.width, bitmap.height);
@@ -120,7 +130,7 @@ describe("TerminalPaneComponent when the appearance changes", () => {
     return new PaneColors(at(screen.left + cell.width * 2.5, screen.bottom - cell.height / 2), at(screen.left + cell.width * 4.5, screen.top + cell.height / 2));
   };
 
-  const plainCellAsync = async (pane: HTMLElement, fontSize: number): Promise<ICell> => {
+  const plainCellAsync = async (pane: HTMLElement, fontSize: number): Promise<Cell> => {
     const fontFamily: string = getComputedStyle(pane).getPropertyValue("--nol-font-mono").trim();
     const element: HTMLElement = document.createElement("div");
     document.body.append(element);
@@ -135,7 +145,7 @@ describe("TerminalPaneComponent when the appearance changes", () => {
       terminal.open(element);
       await rendered;
       const screen: DOMRect = element.querySelector(".xterm-screen")?.getBoundingClientRect() ?? new DOMRect();
-      return { width: screen.width / terminal.cols, height: screen.height / terminal.rows };
+      return new Cell(screen.width / terminal.cols, screen.height / terminal.rows);
     }
     finally {
       terminal.dispose();
@@ -144,7 +154,7 @@ describe("TerminalPaneComponent when the appearance changes", () => {
   };
 
   const expectThirteenAsync = async (shown: PaneHost<TerminalPanelComponent>): Promise<void> => {
-    const plain: ICell = await plainCellAsync(paneOf(shown), 13);
+    const plain: Cell = await plainCellAsync(paneOf(shown), 13);
     await vi.waitFor(() => expect(Math.abs(shown.screen.getBoundingClientRect().width / sizeOf(shown).columns - Math.floor(plain.width * devicePixelRatio) / devicePixelRatio))
       .toBeLessThan(0.01), { timeout: DrawnWait.milliseconds });
   };
@@ -199,7 +209,7 @@ describe("TerminalPaneComponent when the appearance changes", () => {
     const { shown, appearance } = await openAsync(ModePreference.Light);
     await changeBehindAsync(shown, () => appearance.setTypography(new Typography(17, 13, 18, FontChoice.Noldova, FontChoice.System)));
 
-    const plain: ICell = await plainCellAsync(paneOf(shown), 13);
+    const plain: Cell = await plainCellAsync(paneOf(shown), 13);
     await vi.waitFor(() => {
       const after: TerminalSize = sizeOf(shown);
       const screen: DOMRect = shown.screen.getBoundingClientRect();
