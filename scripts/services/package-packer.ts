@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { AngularPackageBuilder } from "../../src/noldova.terminal.window/scripts/angular-package-builder.ts";
@@ -54,11 +54,14 @@ export class PackagePacker {
   }
 
   public async runAsync(): Promise<number> {
+    const started: Date = new Date();
+    let isPacking: boolean = false;
     try {
       const version = await this.readVersionAsync();
       await this.checkModuleVersionAsync(version);
       const commit = await this.readCommitAsync();
       await rm(path.join(this.root, Resources.archivesFolder), { recursive: true, force: true });
+      isPacking = true;
       await this.compileAsync(Resources.protocolProject);
       await this.packProtocolAsync(version, commit);
       await this.installArchivesAsync();
@@ -68,9 +71,12 @@ export class PackagePacker {
       await this.packModuleAsync(version, commit);
       await this.installArchivesAsync();
       await new ArchiveCheck(this.root).checkAsync(Resources.archivesFolder, version, commit, Resources.scope);
+      await this.stampArchivesAsync(started);
       return 0;
     }
     catch (error) {
+      if (isPacking)
+        await rm(path.join(this.root, Resources.archivesFolder), { recursive: true, force: true });
       if (!(error instanceof PackageException || error instanceof GitHubException))
         throw error;
       this.report(error.message);
@@ -194,6 +200,12 @@ export class PackagePacker {
       const text = await readFile(path.join(sources, file), Resources.textEncoding);
       await writeFile(path.join(target, file), text.replace(Resources.declarationImportPattern, Resources.declarationImportReplacement));
     }
+  }
+
+  private async stampArchivesAsync(started: Date): Promise<void> {
+    const folder: string = path.join(this.root, Resources.archivesFolder);
+    for (const archive of await readdir(folder))
+      await utimes(path.join(folder, archive), started, started);
   }
 
   private async compileAsync(project: string): Promise<void> {

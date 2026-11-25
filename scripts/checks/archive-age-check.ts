@@ -52,7 +52,8 @@ export class ArchiveAgeCheck {
   }
 
   private listPackedFiles(folder: string): readonly string[] {
-    const files: string[] = [path.posix.join(folder, Resources.manifestFile)];
+    const files: string[] = [Resources.licenseFile, Resources.baseProjectFile,
+      ...[Resources.manifestFile, Resources.readmeFile, Resources.projectFile].map(t => path.posix.join(folder, t))];
     if (folder === Resources.moduleFolder)
       files.push(...Resources.moduleFiles.map(t => path.posix.join(folder, t)).filter(t => existsSync(path.join(this.root, t))));
     const pending: string[] = [path.posix.join(folder, Resources.sourceFolder)];

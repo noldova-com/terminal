@@ -47,6 +47,7 @@ export class Resources {
   public static readonly licenseFile: string = "LICENSE";
   public static readonly readmeFile: string = "README.md";
   public static readonly projectFile: string = "tsconfig.json";
+  public static readonly baseProjectFile: string = "tsconfig-base.json";
   public static readonly specProjectFile: string = "tsconfig.spec.json";
   public static readonly moduleFiles: readonly string[] = [Resources.moduleFile, "settings.json", "menus.json", "cli.json", "webViews.json"];
   public static readonly windowEntry: string = "window.ts";
