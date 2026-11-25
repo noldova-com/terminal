@@ -9,7 +9,7 @@
 import "@noldova/context.core";
 
 import { TerminalNames, TerminalResizeParams, type TerminalSize } from "@noldova/terminal.protocol";
-import { DefaultTheme, ThemeMode } from "@noldova/ui.components.angular";
+import { DefaultTheme, ThemeMode, type Theme } from "@noldova/ui.components.angular";
 import { AppearanceFixture, KitStylesheetFixture } from "@noldova/ui.components.angular/testing";
 import { Terminal, type IDisposable } from "@xterm/xterm";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -23,6 +23,114 @@ import { Contrast } from "../../../../tests/fixtures/contrast.fixture.ts";
 import { DrawnWait } from "../../../../tests/fixtures/drawn-wait.fixture.ts";
 import { PaneHost } from "../../../../tests/fixtures/pane-host.fixture.ts";
 import { ScreenShot } from "../../../../tests/fixtures/screen-shot.fixture.ts";
+
+class Area {
+  public readonly width: number;
+  public readonly height: number;
+
+  public constructor(width: number, height: number) {
+    this.width = width;
+    this.height = height;
+  }
+}
+
+class SquareColors {
+  public readonly text: string;
+  public readonly background: string;
+
+  public constructor(text: string, background: string) {
+    this.text = text;
+    this.background = background;
+  }
+}
+
+class DrawnCells {
+  public readonly pixels: readonly string[];
+  public readonly next: readonly string[];
+  public readonly reference: readonly string[];
+  public readonly empty: string;
+  public readonly edges: readonly string[];
+
+  public constructor(pixels: readonly string[], next: readonly string[], reference: readonly string[], empty: string, edges: readonly string[]) {
+    this.pixels = pixels;
+    this.next = next;
+    this.reference = reference;
+    this.empty = empty;
+    this.edges = edges;
+  }
+}
+
+class DrawnSquares {
+  public readonly drawnAsync: (name: string) => Promise<DrawnCells>;
+  public readonly select: () => void;
+  public readonly blur: () => void;
+
+  public constructor(drawnAsync: (name: string) => Promise<DrawnCells>, select: () => void, blur: () => void) {
+    this.drawnAsync = drawnAsync;
+    this.select = select;
+    this.blur = blur;
+  }
+}
+
+class ForcedDrawn {
+  public readonly own: boolean;
+  public readonly text: boolean;
+  public readonly empty: string;
+
+  public constructor(own: boolean, text: boolean, empty: string) {
+    this.own = own;
+    this.text = text;
+    this.empty = empty;
+  }
+}
+
+class BackgroundCase {
+  public readonly mode: ThemeMode;
+  public readonly color: "window" | "panel";
+
+  public constructor(mode: ThemeMode, color: "window" | "panel") {
+    this.mode = mode;
+    this.color = color;
+  }
+}
+
+class TerminalColorsCase {
+  public readonly name: string;
+  public readonly themeName: string;
+  public readonly mode: ThemeMode;
+  public readonly forcedColors: "none" | "active";
+  public readonly kitTheme: Theme;
+
+  public constructor(name: string, themeName: string, mode: ThemeMode, forcedColors: "none" | "active", kitTheme: Theme) {
+    this.name = name;
+    this.themeName = themeName;
+    this.mode = mode;
+    this.forcedColors = forcedColors;
+    this.kitTheme = kitTheme;
+  }
+}
+
+class ThemeCase {
+  public readonly name: string;
+  public readonly mode: ThemeMode;
+  public readonly theme: Theme;
+
+  public constructor(name: string, mode: ThemeMode, theme: Theme) {
+    this.name = name;
+    this.mode = mode;
+    this.theme = theme;
+  }
+}
+
+class DimmedCase {
+  public readonly scheme: "light" | "dark";
+  public readonly share: number;
+
+  public constructor(scheme: "light" | "dark", share: number) {
+    this.scheme = scheme;
+    this.share = share;
+  }
+}
 
 describe("TerminalPanelComponent in the kit's look", () => {
   const screenshots: string = "../../../../../../_build/window/screenshots";
@@ -203,8 +311,8 @@ describe("TerminalPanelComponent in the kit's look", () => {
     const box: DOMRect = boxElement.getBoundingClientRect();
     const bar: DOMRect = scroller.getBoundingClientRect();
     const screen: DOMRect = shown.screen.getBoundingClientRect();
-    const cell: { width: number; height: number } = { width: screen.width / size.columns, height: screen.height / size.rows };
-    const room: { width: number; height: number } = { width: box.width - rem - bar.width, height: box.height - 0.75 * rem };
+    const cell: Area = new Area(screen.width / size.columns, screen.height / size.rows);
+    const room: Area = new Area(box.width - rem - bar.width, box.height - 0.75 * rem);
     await userEvent.hover(boxElement);
     await slideAsync("PageDown");
     const atEnd: number = travelOf();
@@ -303,8 +411,8 @@ describe("TerminalPanelComponent in the kit's look", () => {
     await DrawnWait.untilAsync("The panel after forced colors", () => backgroundsAsync("terminal-panel-after-forced-colors"), [clear, clear, kit]);
   });
 
-  it.each(AppearanceFixture.modes.flatMap(mode => (["window", "panel"] as const).map(color => [mode, color] as const)))(
-    "draws on its host's background and every ANSI color at a contrast of at least 4.5 there, in %s mode on the kit's %s color", async (mode, color) => {
+  it.each(AppearanceFixture.modes.flatMap(mode => [new BackgroundCase(mode, "window"), new BackgroundCase(mode, "panel")]))(
+    "draws on its host's background and every ANSI color at a contrast of at least 4.5 there, in $mode mode on the kit's $color color", async ({ mode, color }) => {
       await KitStylesheetFixture.ensureAsync();
       AppearanceFixture.apply(DefaultTheme.theme, mode);
       const painted: HTMLElement = document.createElement("div");
@@ -327,9 +435,9 @@ describe("TerminalPanelComponent in the kit's look", () => {
       const paneElement: HTMLElement = shown.element.querySelector<HTMLElement>("nol-terminal-pane") ?? shown.element;
       const size: TerminalSize = sizeOf(shown);
       const screen: DOMRect = shown.screen.getBoundingClientRect();
-      const cell: { width: number; height: number } = { width: screen.width / size.columns, height: screen.height / size.rows };
+      const cell: Area = new Area(screen.width / size.columns, screen.height / size.rows);
       const background: string = getComputedStyle(painted).backgroundColor;
-      const shot: { at: (x: number, y: number) => string; step: number } = await shotAsync(shown.element, `terminal-panel-on-${color}-${mode.toLowerCase()}`);
+      const shot: ScreenShot = await shotAsync(shown.element, `terminal-panel-on-${color}-${mode.toLowerCase()}`);
       const strongest = (column: number): number => {
         let most: number = 0;
         for (let y: number = screen.top; y < screen.top + cell.height; y += shot.step)
@@ -346,12 +454,12 @@ describe("TerminalPanelComponent in the kit's look", () => {
       expect(faint).toEqual([]);
     });
 
-  it.each(AppearanceFixture.themes.flatMap(kitTheme => ([
-    ["light mode", ThemeMode.Light, "none"],
-    ["dark mode", ThemeMode.Dark, "none"],
-    ["forced colors", ThemeMode.Dark, "active"]
-  ] as const).map(([name, mode, forcedColors]) => [name, kitTheme.name, mode, forcedColors, kitTheme] as const)))(
-    "draws its text, cursor and selection in the kit's terminal colors in %s under the %s theme", async (name, _themeName, mode, forcedColors, kitTheme) => {
+  it.each(AppearanceFixture.themes.flatMap(kitTheme => [
+    new TerminalColorsCase("light mode", kitTheme.name, ThemeMode.Light, "none", kitTheme),
+    new TerminalColorsCase("dark mode", kitTheme.name, ThemeMode.Dark, "none", kitTheme),
+    new TerminalColorsCase("forced colors", kitTheme.name, ThemeMode.Dark, "active", kitTheme)
+  ]))(
+    "draws its text, cursor and selection in the kit's terminal colors in $name under the $themeName theme", async ({ name, mode, forcedColors, kitTheme }) => {
       await KitStylesheetFixture.ensureAsync();
       AppearanceFixture.apply(kitTheme, mode);
       await forcedColorsAsync(forcedColors, "reduce");
@@ -370,7 +478,7 @@ describe("TerminalPanelComponent in the kit's look", () => {
       const token = (name: string): string => resolve(`var(--nol-terminal-${name})`);
       const size: TerminalSize = sizeOf(shown);
       const screen: DOMRect = shown.screen.getBoundingClientRect();
-      const cell: { width: number; height: number } = { width: screen.width / size.columns, height: screen.height / size.rows };
+      const cell: Area = new Area(screen.width / size.columns, screen.height / size.rows);
 
       const selectedText: string | undefined = Object.isUndefined(theme.selectionForeground) ? undefined : resolve(theme.selectionForeground);
 
@@ -397,7 +505,7 @@ describe("TerminalPanelComponent in the kit's look", () => {
     await framesAsync();
     const size: TerminalSize = sizeOf(shown);
     const screen: DOMRect = shown.screen.getBoundingClientRect();
-    const cell: { width: number; height: number } = { width: screen.width / size.columns, height: screen.height / size.rows };
+    const cell: Area = new Area(screen.width / size.columns, screen.height / size.rows);
     const cursor: string = resolve("var(--nol-terminal-cursor)");
     const accent: string = mode === ThemeMode.Light ? "rgb(255, 255, 255)" : "rgb(0, 0, 0)";
     const underCursorAsync = async (): Promise<unknown> => {
@@ -418,11 +526,7 @@ describe("TerminalPanelComponent in the kit's look", () => {
     return `rgb(${channel(base[0] ?? 0, red ?? 0)}, ${channel(base[1] ?? 0, green ?? 0)}, ${channel(base[2] ?? 0, blue ?? 0)})`;
   };
 
-  const squaresAsync = async (reference?: { text: string; background: string }): Promise<{
-    drawnAsync: (name: string) => Promise<{ pixels: string[]; next: string[]; reference: string[]; empty: string; edges: string[] }>;
-    select: () => void;
-    blur: () => void;
-  }> => {
+  const squaresAsync = async (reference?: SquareColors): Promise<DrawnSquares> => {
     const shown: PaneHost<TerminalPanelComponent> = new PaneHost(TerminalPanelComponent, true);
     host = shown;
     shown.runtime.addSession("mine", "bash", "/work", null, false, true);
@@ -437,35 +541,29 @@ describe("TerminalPanelComponent in the kit's look", () => {
     await framesAsync();
     const size: TerminalSize = sizeOf(shown);
     const screen: DOMRect = shown.screen.getBoundingClientRect();
-    const cell: { width: number; height: number } = { width: screen.width / size.columns, height: screen.height / size.rows };
-    return {
-      drawnAsync: async name => {
+    const cell: Area = new Area(screen.width / size.columns, screen.height / size.rows);
+    return new DrawnSquares(
+      async name => {
         const shot: ScreenShot = await shotAsync(shown.element, name);
         const cellPixels = (column: number, row: number): string[] =>
           shot.inside(screen.left + cell.width * column, screen.top + cell.height * row, cell.width, cell.height);
         const middle: number = screen.left + cell.width * 5.5;
-        return {
-          pixels: cellPixels(0, 0),
-          next: cellPixels(1, 0),
-          reference: cellPixels(0, 2),
-          empty: shot.at(middle, screen.top + cell.height / 2),
-          edges: [
-            shot.at(middle, screen.top + shot.step * 2),
-            shot.at(middle, screen.top + cell.height - shot.step * 2),
-            shot.at(middle, screen.top + cell.height + shot.step * 2),
-            shot.at(screen.left + cell.width * (size.columns - 0.5), screen.top + cell.height / 2)
-          ]
-        };
+        return new DrawnCells(cellPixels(0, 0), cellPixels(1, 0), cellPixels(0, 2), shot.at(middle, screen.top + cell.height / 2), [
+          shot.at(middle, screen.top + shot.step * 2),
+          shot.at(middle, screen.top + cell.height - shot.step * 2),
+          shot.at(middle, screen.top + cell.height + shot.step * 2),
+          shot.at(screen.left + cell.width * (size.columns - 0.5), screen.top + cell.height / 2)
+        ]);
       },
-      select: () => {
+      () => {
         shown.textarea.focus();
         for (const type of ["mousedown", "mouseup"])
           shown.screen.dispatchEvent(new MouseEvent(type, {
             bubbles: true, cancelable: true, detail: 3, button: 0, clientX: screen.left + cell.width / 2, clientY: screen.top + cell.height / 2
           }));
       },
-      blur: () => shown.textarea.blur()
-    };
+      () => shown.textarea.blur()
+    );
   };
 
   const glyph = (pixels: readonly string[], background: string): string | undefined => {
@@ -475,17 +573,17 @@ describe("TerminalPanelComponent in the kit's look", () => {
     return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   };
 
-  it.each(AppearanceFixture.themes.flatMap(theme => AppearanceFixture.modes.map(mode => [theme.name, mode, theme] as const)))(
-    "draws a selected line's text in the %s theme's terminal selection text color, on its selection, in %s mode", async (_name, mode, theme) => {
+  it.each(AppearanceFixture.themes.flatMap(theme => AppearanceFixture.modes.map(mode => new ThemeCase(theme.name, mode, theme))))(
+    "draws a selected line's text in the $name theme's terminal selection text color, on its selection, in $mode mode", async ({ mode, theme }) => {
       await KitStylesheetFixture.ensureAsync();
       AppearanceFixture.apply(theme, mode);
       const text: string = resolve("var(--nol-terminal-selection-foreground)");
       const background: string = windowBackground();
       const selection: string = selectionOver(background, resolve("var(--nol-terminal-selection)"));
-      const { drawnAsync, select } = await squaresAsync({ text, background: selection });
+      const { drawnAsync, select } = await squaresAsync(new SquareColors(text, selection));
       const shot: string = `terminal-panel-${theme.id}-${mode}`;
       const unselectedAsync = async (): Promise<unknown> => {
-        const drawn: { pixels: string[]; next: string[]; reference: string[]; empty: string; edges: string[] } = await drawnAsync(`${shot}-unselected-text`);
+        const drawn: DrawnCells = await drawnAsync(`${shot}-unselected-text`);
         const drawnText: string | undefined = glyph(drawn.reference, selection);
         return {
           drawn: [!Object.isUndefined(drawnText), drawn.pixels.some(t => t !== drawn.empty)],
@@ -499,7 +597,7 @@ describe("TerminalPanelComponent in the kit's look", () => {
       select();
 
       const selectedAsync = async (): Promise<unknown> => {
-        const drawn: { pixels: string[]; next: string[]; reference: string[]; empty: string; edges: string[] } = await drawnAsync(`${shot}-selected-text`);
+        const drawn: DrawnCells = await drawnAsync(`${shot}-selected-text`);
         const drawnText: string | undefined = glyph(drawn.reference, selection);
         return {
           text: [drawn.pixels, drawn.next].map(t => !Object.isUndefined(drawnText) && t.includes(drawnText)),
@@ -512,15 +610,15 @@ describe("TerminalPanelComponent in the kit's look", () => {
         { text: [true, true], kit: Contrast.of(text, selection) >= 4.5, empty: selection, edges: [selection, selection, background, selection] });
     });
 
-  const forcedAsync = async (drawnAsync: (name: string) => Promise<{ pixels: string[]; empty: string }>, name: string): Promise<{ own: boolean; text: boolean; empty: string }> => {
-    const drawn: { pixels: string[]; empty: string } = await drawnAsync(name);
-    return { own: drawn.pixels.includes(resolve("CanvasText")), text: drawn.pixels.includes(resolve("HighlightText")), empty: drawn.empty };
+  const forcedAsync = async (drawnAsync: (name: string) => Promise<DrawnCells>, name: string): Promise<ForcedDrawn> => {
+    const drawn: DrawnCells = await drawnAsync(name);
+    return new ForcedDrawn(drawn.pixels.includes(resolve("CanvasText")), drawn.pixels.includes(resolve("HighlightText")), drawn.empty);
   };
 
-  it.each(AppearanceFixture.themes.map(theme => [theme.name, theme] as const))(
-    "draws a selected line in forced colors in HighlightText on Highlight, over its cells' own colors, under the %s theme", async (_name, theme) => {
+  it.each(AppearanceFixture.themes.map(theme => new ThemeCase(theme.name, ThemeMode.Dark, theme)))(
+    "draws a selected line in forced colors in HighlightText on Highlight, over its cells' own colors, under the $name theme", async ({ mode, theme }) => {
       await KitStylesheetFixture.ensureAsync();
-      AppearanceFixture.apply(theme, ThemeMode.Dark);
+      AppearanceFixture.apply(theme, mode);
       await forcedColorsAsync("active");
       const { drawnAsync, select } = await squaresAsync();
       expect(await forcedAsync(drawnAsync, `terminal-panel-${theme.id}-forced-colors-unselected`)).toMatchObject({ own: true, empty: resolve("Canvas") });
@@ -529,13 +627,11 @@ describe("TerminalPanelComponent in the kit's look", () => {
 
       await DrawnWait.untilAsync(`The selected line in forced colors under the ${theme.name} theme`,
         () => forcedAsync(drawnAsync, `terminal-panel-${theme.id}-forced-colors-selected`),
-        { own: false, text: true, empty: selectionOver(resolve("Canvas"), resolve("Highlight")) });
+        new ForcedDrawn(false, true, selectionOver(resolve("Canvas"), resolve("Highlight"))));
     });
 
-  it.each([
-    ["light", 0.65],
-    ["dark", 0.7]
-  ] as const)("dims an unfocused pane's selection in %s forced colors at 3:1 against Canvas, and draws it full again when the pane has focus", async (scheme, share) => {
+  it.each([new DimmedCase("light", 0.65), new DimmedCase("dark", 0.7)])(
+    "dims an unfocused pane's selection in $scheme forced colors at 3:1 against Canvas, and draws it full again when the pane has focus", async ({ scheme, share }) => {
     await KitStylesheetFixture.ensureAsync();
     AppearanceFixture.apply(DefaultTheme.theme, ThemeMode.Dark);
     await forcedColorsAsync("active", "no-preference", scheme);
@@ -563,7 +659,7 @@ describe("TerminalPanelComponent in the kit's look", () => {
     const kit: string = windowBackground();
     expect((await drawnAsync("terminal-panel-unselected")).empty).toBe(kit);
     select();
-    let selected: { pixels: string[]; empty: string } | undefined;
+    let selected: DrawnCells | undefined;
     await vi.waitFor(async () => {
       selected = await drawnAsync("terminal-panel-selected");
       expect(selected.empty).not.toBe(kit);
@@ -571,7 +667,7 @@ describe("TerminalPanelComponent in the kit's look", () => {
 
     await forcedColorsAsync("active");
     await DrawnWait.untilAsync("The selected line once forced colors turn on", () => forcedAsync(drawnAsync, "terminal-panel-selected-forced-colors-on"),
-      { own: false, text: true, empty: selectionOver(resolve("Canvas"), resolve("Highlight")) });
+      new ForcedDrawn(false, true, selectionOver(resolve("Canvas"), resolve("Highlight"))));
     await forcedColorsAsync("none");
 
     await DrawnWait.untilAsync("The selected line once forced colors turn off", () => drawnAsync("terminal-panel-selected-forced-colors-off"), selected);
