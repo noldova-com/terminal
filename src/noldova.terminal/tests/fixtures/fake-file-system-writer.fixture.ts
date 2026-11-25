@@ -9,12 +9,13 @@
 import "@noldova/context.core";
 
 import type { IFileSystemWriter } from "../../src/interfaces/i-file-system-writer.ts";
+import { MissingFolder } from "./missing-folder.fixture.ts";
 
 export class FakeFileSystemWriter implements IFileSystemWriter {
   public readonly files: Map<string, string> = new Map<string, string>();
   public readonly removed: string[] = [];
   public readonly removedFiles: string[] = [];
-  public readonly missingFolders: [string, number][] = [];
+  public readonly missingFolders: MissingFolder[] = [];
   public folders: number = 0;
   public failure: Error | string | null = null;
   public removalFailure: Error | string | null = null;
@@ -36,7 +37,7 @@ export class FakeFileSystemWriter implements IFileSystemWriter {
   }
 
   public createMissingFolderAsync(path: string, mode: number): Promise<void> {
-    this.missingFolders.push([path, mode]);
+    this.missingFolders.push(new MissingFolder(path, mode));
     return Object.isNull(this.missingFolderFailure) ? Promise.resolve() : Promise.reject(this.missingFolderFailure);
   }
 

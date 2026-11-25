@@ -18,6 +18,9 @@ import type { IOutputSource } from "../../src/tools/interfaces/i-output-source.t
 import type { ITerminalPrompt } from "../../src/tools/interfaces/i-terminal-prompt.ts";
 import type { AgentTerminalOpening } from "../../src/tools/models/agent-terminal-opening.ts";
 import { OutputChunk } from "../../src/tools/models/output-chunk.ts";
+import { AgentRun } from "./agent-run.fixture.ts";
+import { EndWait } from "./end-wait.fixture.ts";
+import { OutputWait } from "./output-wait.fixture.ts";
 
 export class FakeTerminalPrompt implements ITerminalPrompt {
   public readonly isIdle: boolean;
@@ -43,14 +46,14 @@ export class FakeTerminalPrompt implements ITerminalPrompt {
 export class FakeOutputSource implements IOutputSource {
   public output: string = "";
   public onWait: (() => void) | null = null;
-  public readonly outputWaits: { readonly offset: number; readonly timeoutMilliseconds: number; readonly signal: AbortSignal }[] = [];
+  public readonly outputWaits: OutputWait[] = [];
 
   public readSince(offset: number): OutputChunk {
     return new OutputChunk(this.output.slice(offset), this.output.length);
   }
 
   public async waitForOutputAsync(offset: number, timeoutMilliseconds: number, signal: AbortSignal): Promise<void> {
-    this.outputWaits.push({ offset, timeoutMilliseconds, signal });
+    this.outputWaits.push(new OutputWait(offset, timeoutMilliseconds, signal));
     this.onWait?.();
   }
 }
@@ -61,11 +64,11 @@ export class FakeAgentCommand extends FakeOutputSource implements IAgentCommand 
   public exitCode: number | null = null;
   public cwd: string | null = null;
   public readonly logFile: string = "/logs/command-1.log";
-  public readonly endWaits: { readonly timeoutMilliseconds: number; readonly signal: AbortSignal }[] = [];
+  public readonly endWaits: EndWait[] = [];
   public interrupts: number = 0;
 
   public async waitForEndAsync(timeoutMilliseconds: number, signal: AbortSignal): Promise<void> {
-    this.endWaits.push({ timeoutMilliseconds, signal });
+    this.endWaits.push(new EndWait(timeoutMilliseconds, signal));
     this.onWait?.();
   }
 
@@ -101,7 +104,7 @@ export class FakeAgentTerminal extends FakeOutputSource implements IAgentTermina
   public hasPendingLine: boolean = false;
   public prompt: FakeTerminalPrompt = new FakeTerminalPrompt(true, "/work/project");
   public nextCommand: FakeAgentCommand = new FakeAgentCommand();
-  public readonly runs: { readonly command: string; readonly timeoutMilliseconds: number }[] = [];
+  public readonly runs: AgentRun[] = [];
   public readonly writes: string[] = [];
   public interrupts: number = 0;
   public onClosing: (() => void) | null = null;
@@ -125,7 +128,7 @@ export class FakeAgentTerminal extends FakeOutputSource implements IAgentTermina
 
   public run(command: string, expected: ITerminalPrompt, timeoutMilliseconds: number): IAgentCommand {
     this.requireExpected(expected);
-    this.runs.push({ command, timeoutMilliseconds });
+    this.runs.push(new AgentRun(command, timeoutMilliseconds));
     return this.nextCommand;
   }
 

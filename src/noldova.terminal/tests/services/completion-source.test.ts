@@ -24,6 +24,7 @@ import { CommandTracker } from "../../src/services/command-tracker.ts";
 import { CompletionSource } from "../../src/services/completion-source.ts";
 import { FakeCommandRunner } from "../fixtures/fake-command-runner.fixture.ts";
 import { FakeFileSystemReader } from "../fixtures/fake-file-system-reader.fixture.ts";
+import { RecordedRun } from "../fixtures/recorded-run.fixture.ts";
 
 type Choice = [string, string, string];
 
@@ -61,7 +62,7 @@ class SourceFixture {
   }
 
   public get lookups(): readonly string[] {
-    return this.runner.runs.filter(t => t[0] === PWSH).map(t => Buffer.from(t[1].at(-1) ?? "", "base64").toString("utf16le"));
+    return this.runner.runs.filter(t => t.file === PWSH).map(t => Buffer.from(t.args.at(-1) ?? "", "base64").toString("utf16le"));
   }
 
   public shellOf(key: string): CommandTracker {
@@ -506,7 +507,7 @@ describe("CompletionSource", () => {
         ["gti", "nope"]);
       assert.deepEqual(fixture.lookups.map(t => t.split("\n")[1]), ["$names = @('gti', 'Process', 'process', 'nope')"]);
       assert.deepEqual(fixture.runner.environments, [{ PATH: "/usr/bin", PSModulePath: "/opt/modules" }]);
-      assert.deepEqual(fixture.runner.runs.map(t => [t[1].slice(0, -1), t[2]]),
+      assert.deepEqual(fixture.runner.runs.map(t => [t.args.slice(0, -1), t.timeoutMilliseconds]),
         [[["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand"], 10_000]]);
       assert.deepEqual(fixture.runner.endings, [60_000]);
     });
@@ -734,7 +735,7 @@ describe("CompletionSource", () => {
           ["main", "main", "Branch"],
           ["origin/main", "origin/main", "Branch"]
         ]);
-      assert.deepEqual(fixture.runner.runs[0], ["/usr/bin/git", ["-C", "/work", "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes"], 2_000]);
+      assert.deepEqual(fixture.runner.runs[0], new RecordedRun("/usr/bin/git", ["-C", "/work", "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes"], 2_000));
       assert.deepEqual(await fixture.choicesAsync("git switch ma", "/work", environment), [["main", "main", "Branch"]]);
     });
 
@@ -876,7 +877,7 @@ describe("CompletionSource", () => {
       const environment: Readonly<Record<string, string>> = { PATH: "C:\\Git\\cmd" };
 
       assert.deepEqual(await fixture.choicesAsync("Git.exe checkout ", "/c/work", environment), [["main", "main", "Branch"]]);
-      assert.deepEqual(fixture.runner.runs[0]?.[1][1], "C:\\work");
+      assert.deepEqual(fixture.runner.runs[0]?.args[1], "C:\\work");
       assert.deepEqual(await fixture.choicesAsync("NPM.cmd run ", "C:\\work", environment, TerminalShellKind.PowerShell), [["build", "build", "Script"]]);
     });
   });

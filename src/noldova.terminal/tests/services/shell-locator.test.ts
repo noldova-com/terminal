@@ -14,24 +14,26 @@ import type { UserInfo } from "node:os";
 import { ProcessExit } from "@noldova/desktop.runtime";
 import { FakeModuleLog } from "@noldova/desktop.runtime/testing";
 import { TerminalShellKind } from "@noldova/terminal.protocol";
-import { afterEach, describe, it, vi } from "vitest";
+import { afterEach, describe, it, type Mock, vi } from "vitest";
 
 import { CommandExitedException } from "../../src/exceptions/command-exited.exception.ts";
 import type { Shell } from "../../src/models/shell.ts";
 import { Resources } from "../../src/resources.ts";
 import { ShellLocator } from "../../src/services/shell-locator.ts";
+import { CodedError } from "../fixtures/coded-error.fixture.ts";
 import { FakeCommandRunner } from "../fixtures/fake-command-runner.fixture.ts";
 import { FakeFileSystemReader } from "../fixtures/fake-file-system-reader.fixture.ts";
+import { RecordedRun } from "../fixtures/recorded-run.fixture.ts";
 
-const user: { shell: (() => string | null) | null } = vi.hoisted(() => ({ shell: null }));
+const userShell: Mock<() => string | null> = vi.hoisted(() => vi.fn<() => string | null>());
 
 vi.mock("node:os", async importOriginal => {
   const actual: typeof import("node:os") = await importOriginal<typeof import("node:os")>();
   return {
     ...actual,
     userInfo: (): UserInfo<string> => {
-      const read: (() => string | null) | null = user.shell;
-      return Object.isNull(read) ? actual.userInfo() : { ...actual.userInfo(), shell: read() };
+      const read: (() => string | null) | undefined = userShell.getMockImplementation();
+      return Object.isUndefined(read) ? actual.userInfo() : { ...actual.userInfo(), shell: read() };
     }
   };
 });
@@ -173,7 +175,7 @@ describe("ShellLocator", () => {
           "wsl-Ubuntu|Ubuntu|Wsl|C:\\Windows\\System32\\wsl.exe|-d Ubuntu|",
           "wsl-Debian|Debian|Wsl|C:\\Windows\\System32\\wsl.exe|-d Debian|"
         ]);
-        assert.deepEqual(runner.runs.map(t => [t[0], t[1].slice(0, 4), Buffer.from(t[1][4] ?? "", "base64").toString("utf16le"), t[2]]),
+        assert.deepEqual(runner.runs.map(t => [t.file, t.args.slice(0, 4), Buffer.from(t.args[4] ?? "", "base64").toString("utf16le"), t.timeoutMilliseconds]),
           [[powerShell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand"], Resources.wslDistributionScript, 60_000]]);
       });
 
@@ -200,7 +202,7 @@ describe("ShellLocator", () => {
           "& { Microsoft.PowerShell.Core\\Import-Module 'C:\\VS\\Community\\Common7\\Tools\\Microsoft.VisualStudio.DevShell.dll'; " +
             "Microsoft.VisualStudio.DevShell\\Enter-VsDevShell -VsInstallPath 'C:\\VS\\Community' -SkipAutomaticLocation -DevCmdArguments '-arch=amd64 -host_arch=amd64' }"
         ]);
-        assert.deepEqual(runner.runs.filter(t => t[0] === vswhere), [[vswhere, ["-products", "*", "-prerelease", "-utf8", "-format", "json"], 60_000]]);
+        assert.deepEqual(runner.runs.filter(t => t.file === vswhere), [new RecordedRun(vswhere, ["-products", "*", "-prerelease", "-utf8", "-format", "json"], 60_000)]);
       });
 
       it("runs a Developer PowerShell in Windows PowerShell without PowerShell 7, passes an architecture VsDevCmd doesn't name as it is, and leaves out a developer shell whose shell isn't installed", async () => {
@@ -236,7 +238,7 @@ describe("ShellLocator", () => {
         runner.answers.set(vswhere, "[]");
         assert.deepEqual((await locator.locateAsync()).map(t => t.id), ["powershell", "cmd", "wsl-Ubuntu"]);
         assert.deepEqual((await locator.locateAsync()).map(t => t.id), ["powershell", "cmd", "wsl-Ubuntu"]);
-        assert.deepEqual(runner.runs.map(t => t[0]), [powerShell, vswhere, powerShell, vswhere]);
+        assert.deepEqual(runner.runs.map(t => t.file), [powerShell, vswhere, powerShell, vswhere]);
         assert.equal(log.callsOf("write").map(t => t[0]).length, 2);
       });
 
@@ -393,12 +395,12 @@ describe("ShellLocator", () => {
 
   describe("the person's login shell", () => {
     afterEach(() => {
-      user.shell = null;
+      userShell.mockReset();
     });
 
     it("is the shell the user database names, or null when it names none or can't be read", () => {
       const read = (shell: () => string | null): string | null => {
-        user.shell = shell;
+        userShell.mockImplementation(shell);
         return ShellLocator.readUserShell();
       };
 
@@ -407,7 +409,7 @@ describe("ShellLocator", () => {
         read(() => null),
         read(() => " "),
         read(() => {
-          throw Object.assign(new Error("A system error occurred: uv_os_get_passwd returned ENOENT"), { code: "ERR_SYSTEM_ERROR" });
+          throw new CodedError("A system error occurred: uv_os_get_passwd returned ENOENT", "ERR_SYSTEM_ERROR");
         })
       ], ["/bin/zsh", null, null, null]);
     });
@@ -423,9 +425,9 @@ describe("ShellLocator", () => {
 
     it("passes on any other failure of the read", () => {
       const failure: TypeError = new TypeError("broken");
-      user.shell = () => {
+      userShell.mockImplementation(() => {
         throw failure;
-      };
+      });
 
       assert.throws(() => ShellLocator.readUserShell(), failure);
     });

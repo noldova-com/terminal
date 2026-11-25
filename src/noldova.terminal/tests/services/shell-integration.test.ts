@@ -24,6 +24,8 @@ import { ShellIntegration } from "../../src/services/shell-integration.ts";
 import { FakeFileSystemWriter } from "../fixtures/fake-file-system-writer.fixture.ts";
 import { FakeFolderAccess } from "../fixtures/fake-folder-access.fixture.ts";
 import { FakePtyProcess } from "../fixtures/fake-pty-process.fixture.ts";
+import { MissingFolder } from "../fixtures/missing-folder.fixture.ts";
+import { RestrictedFolder } from "../fixtures/restricted-folder.fixture.ts";
 
 const FOLDER: string = path.join("/tmp", "noldova-terminal-1");
 const NONCE: string = "0123456789abcdef0123456789abcdef";
@@ -217,8 +219,8 @@ describe("ShellIntegration", () => {
     await fixture.prepareAsync("/opt/microsoft/powershell/7/pwsh", ["-NoLogo"], { XDG_RUNTIME_DIR: "/run/user/1000" });
     await fixture.prepareAsync("/usr/bin/pwsh", [], { XDG_RUNTIME_DIR: "/run/user/1001/" });
 
-    assert.deepEqual(fixture.writer.missingFolders, [["/run/user/1000/.dotnet", 0o700], ["/run/user/1000/.dotnet/shm", 0o700],
-      ["/run/user/1001/.dotnet", 0o700], ["/run/user/1001/.dotnet/shm", 0o700]]);
+    assert.deepEqual(fixture.writer.missingFolders, [new MissingFolder("/run/user/1000/.dotnet", 0o700), new MissingFolder("/run/user/1000/.dotnet/shm", 0o700),
+      new MissingFolder("/run/user/1001/.dotnet", 0o700), new MissingFolder("/run/user/1001/.dotnet/shm", 0o700)]);
     assert.deepEqual(fixture.messages, []);
   });
 
@@ -234,7 +236,7 @@ describe("ShellIntegration", () => {
       await fixture.prepareAsync("pwsh", [], { XDG_RUNTIME_DIR: "/run/user/1000" });
     await linux.prepareAsync("/usr/bin/pwsh", [], { XDG_RUNTIME_DIR: "/run/user/1002" });
 
-    assert.deepEqual([linux, ...others].map(t => t.writer.missingFolders), [[["/run/user/1002/.dotnet", 0o700], ["/run/user/1002/.dotnet/shm", 0o700]], [], []]);
+    assert.deepEqual([linux, ...others].map(t => t.writer.missingFolders), [[new MissingFolder("/run/user/1002/.dotnet", 0o700), new MissingFolder("/run/user/1002/.dotnet/shm", 0o700)], [], []]);
   });
 
   it("starts PowerShell with its integration when the shared memory folder can't be made, saying why in the log once for the folder", async () => {
@@ -366,7 +368,7 @@ describe("ShellIntegration", () => {
     await fixture.prepareAsync("pwsh.exe");
 
     assert.equal(bash.nonce, NONCE);
-    assert.deepEqual(fixture.access.restricted, [[FOLDER, 0]]);
+    assert.deepEqual(fixture.access.restricted, [new RestrictedFolder(FOLDER, 0)]);
     assert.equal(fixture.writer.files.size, 7);
   });
 
@@ -380,7 +382,7 @@ describe("ShellIntegration", () => {
 
     assert.deepEqual(plain, new ShellLaunch("/bin/bash", [], {}, null));
     assert.deepEqual(fixture.writer.removed, [FOLDER]);
-    assert.deepEqual(fixture.access.restricted, [[FOLDER, 0], [path.join("/tmp", "noldova-terminal-2"), 0]]);
+    assert.deepEqual(fixture.access.restricted, [new RestrictedFolder(FOLDER, 0), new RestrictedFolder(path.join("/tmp", "noldova-terminal-2"), 0)]);
     assert.equal(path.dirname(integrated.nonceFile ?? ""), path.join("/tmp", "noldova-terminal-2"));
     assert.deepEqual(fixture.messages, [
       "Shells start without the module's shell integration, whose folder could not be made private or whose scripts could not be written: icacls.exe exited with 5."

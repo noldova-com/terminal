@@ -37,10 +37,6 @@ export class FakeLineProcess implements ILineProcess {
     this.listener.onLine(`${Buffer.from(JSON.stringify(value), "utf8").toString("base64")}\r`);
   }
 
-  public reply(machine: Readonly<Record<string, readonly [string, boolean]>>, user: Readonly<Record<string, readonly [string, boolean]>>): void {
-    this.answer({ id: this.written.at(-1), machine, user });
-  }
-
   public line(line: string): void {
     this.listener.onLine(line);
   }

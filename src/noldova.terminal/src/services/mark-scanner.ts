@@ -9,6 +9,8 @@
 import "@noldova/context.core";
 
 import { MarkKind } from "../enums/mark-kind.ts";
+import { MarkIntroducer } from "../models/mark-introducer.ts";
+import { MarkTerminator } from "../models/mark-terminator.ts";
 import { ShellMark } from "../models/shell-mark.ts";
 import { Resources } from "../resources.ts";
 
@@ -32,13 +34,16 @@ export class MarkScanner {
     this.carry = "";
     let index: number = 0;
     while (index < text.length) {
-      const [start, introducer] = MarkScanner.findIntroducer(text, index);
+      const introducer: MarkIntroducer = MarkScanner.findIntroducer(text, index);
+      const start: number = introducer.start;
       if (start < 0) {
         this.carry = MarkScanner.toIntroducerPrefix(text, index);
         break;
       }
-      const payloadStart: number = start + introducer.length;
-      const [payloadEnd, end] = MarkScanner.findTerminator(text, payloadStart);
+      const payloadStart: number = start + introducer.text.length;
+      const terminator: MarkTerminator = MarkScanner.findTerminator(text, payloadStart);
+      const payloadEnd: number = terminator.payloadEnd;
+      const end: number = terminator.end;
       if (payloadEnd < 0) {
         this.carry = text.length - start <= Resources.maximumMarkLength ? text.slice(start) : MarkScanner.toIntroducerPrefix(text, payloadStart);
         break;
@@ -69,28 +74,30 @@ export class MarkScanner {
     return new ShellMark(kind, fields.length === 0 ? null : fields.join(Resources.markScannerFieldSeparator), offset, fields);
   }
 
-  private static findTerminator(text: string, from: number): readonly [number, number] {
+  private static findTerminator(text: string, from: number): MarkTerminator {
     for (let index: number = from; index < text.length; index++) {
       const terminator: string | undefined = TERMINATORS.find(t => text.startsWith(t, index));
       if (!Object.isUndefined(terminator))
-        return [index, index + terminator.length];
+        return new MarkTerminator(index, index + terminator.length);
       if (CANCELS.some(t => text.startsWith(t, index)))
-        return [index, -1];
+        return new MarkTerminator(index, -1);
       if (!text.startsWith(Resources.escape, index))
         continue;
       if (index + Resources.escape.length === text.length)
-        return [-1, -1];
-      return text.startsWith(Resources.stringTerminator, index) ? [index, index + Resources.stringTerminator.length] : [index, -1];
+        return new MarkTerminator(-1, -1);
+      return text.startsWith(Resources.stringTerminator, index)
+        ? new MarkTerminator(index, index + Resources.stringTerminator.length)
+        : new MarkTerminator(index, -1);
     }
-    return [-1, -1];
+    return new MarkTerminator(-1, -1);
   }
 
-  private static findIntroducer(text: string, from: number): readonly [number, string] {
-    let found: readonly [number, string] = [-1, ""];
+  private static findIntroducer(text: string, from: number): MarkIntroducer {
+    let found: MarkIntroducer = new MarkIntroducer(-1, "");
     for (const introducer of INTRODUCERS) {
       const start: number = text.indexOf(introducer, from);
-      if (start >= 0 && (found[0] < 0 || start < found[0]))
-        found = [start, introducer];
+      if (start >= 0 && (found.start < 0 || start < found.start))
+        found = new MarkIntroducer(start, introducer);
     }
     return found;
   }

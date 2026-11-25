@@ -11,9 +11,10 @@ import "@noldova/context.core";
 import { CommandNotStartedException } from "../../src/exceptions/command-not-started.exception.ts";
 import type { ICommandRunner } from "../../src/interfaces/i-command-runner.ts";
 import { CommandRun } from "../../src/models/command-run.ts";
+import { RecordedRun } from "./recorded-run.fixture.ts";
 
 export class FakeCommandRunner implements ICommandRunner {
-  public readonly runs: [string, readonly string[], number][] = [];
+  public readonly runs: RecordedRun[] = [];
   public readonly answers: Map<string, string | Error | Promise<string>> = new Map<string, string | Error | Promise<string>>();
   public readonly environments: Readonly<Record<string, string>>[] = [];
   public readonly endings: number[] = [];
@@ -26,7 +27,7 @@ export class FakeCommandRunner implements ICommandRunner {
   }
 
   public async runAsync(file: string, args: readonly string[], timeoutMilliseconds: number, environment: Readonly<Record<string, string>> = {}): Promise<string> {
-    this.runs.push([file, args, timeoutMilliseconds]);
+    this.runs.push(new RecordedRun(file, args, timeoutMilliseconds));
     this.environments.push(environment);
     const answer: string | Error | Promise<string> | undefined = this.answers.get(file);
     if (Object.isUndefined(answer))

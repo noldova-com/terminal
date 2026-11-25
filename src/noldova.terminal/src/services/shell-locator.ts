@@ -17,7 +17,9 @@ import { TerminalShellKind } from "@noldova/terminal.protocol";
 import type { ICommandRunner } from "../interfaces/i-command-runner.ts";
 import type { IFileSystemReader } from "../interfaces/i-file-system-reader.ts";
 import { Shell } from "../models/shell.ts";
+import { ShellCandidate } from "../models/shell-candidate.ts";
 import type { VisualStudioInstallation } from "../models/visual-studio-installation.ts";
+import { WslLauncher } from "../models/wsl-launcher.ts";
 import { Resources } from "../resources.ts";
 import { FailureText } from "./failure-text.ts";
 import { VisualStudioReader } from "./visual-studio.reader.ts";
@@ -30,7 +32,7 @@ export class ShellLocator {
   private readonly userShell: string | null;
   private readonly fileSystem: IFileSystemReader;
   private readonly log: IModuleLog;
-  private readonly wsl: { readonly file: string; readonly reader: WslDistributionReader } | null;
+  private readonly wsl: WslLauncher | null;
   private readonly visualStudioReader: VisualStudioReader;
   private distributions: Promise<readonly string[]> | null = null;
   private installations: Promise<readonly VisualStudioInstallation[]> | null = null;
@@ -46,7 +48,7 @@ export class ShellLocator {
     this.log = log;
     this.wsl = Object.isUndefined(systemRoot) || systemRoot.length === 0
       ? null
-      : { file: path.win32.join(systemRoot, ...Resources.wslPath), reader: new WslDistributionReader(runner, systemRoot) };
+      : new WslLauncher(path.win32.join(systemRoot, ...Resources.wslPath), new WslDistributionReader(runner, systemRoot));
     this.visualStudioReader = new VisualStudioReader(runner, fileSystem, environment[Resources.programFilesX86Variable]);
   }
 
@@ -96,21 +98,23 @@ export class ShellLocator {
       ...ShellLocator.joinIfSet(localAppData, Resources.gitUserFolder),
       ...await this.findGitOnSearchPathAsync(searchPath)
     ];
-    const candidates: readonly (readonly [string, string, TerminalShellKind, readonly string[], readonly string[]])[] = [
-      [Resources.pwshId, Resources.pwshName, TerminalShellKind.PowerShell, [
+    const candidates: readonly ShellCandidate[] = [
+      new ShellCandidate(Resources.pwshId, Resources.pwshName, TerminalShellKind.PowerShell, [
         ...ShellLocator.joinIfSet(programFiles, [...Resources.pwshFolder, Resources.pwshFile]),
         ...searchPath.map(t => path.win32.join(t, Resources.pwshFile)),
         ...ShellLocator.joinIfSet(localAppData, [...Resources.appAliasFolder, Resources.pwshFile])
-      ], []],
-      [Resources.windowsPowerShellId, Resources.windowsPowerShellName, TerminalShellKind.PowerShell, ShellLocator.joinIfSet(systemRoot, Resources.windowsPowerShellPath), []],
-      [Resources.cmdId, Resources.cmdName, TerminalShellKind.CommandPrompt, ShellLocator.joinIfSet(systemRoot, Resources.cmdPath), []],
-      [Resources.gitBashId, Resources.gitBashName, TerminalShellKind.Bash, gitFolders.map(t => path.win32.join(t, ...Resources.gitBashFile)), Resources.gitBashArguments]
+      ], []),
+      new ShellCandidate(Resources.windowsPowerShellId, Resources.windowsPowerShellName, TerminalShellKind.PowerShell,
+        ShellLocator.joinIfSet(systemRoot, Resources.windowsPowerShellPath), []),
+      new ShellCandidate(Resources.cmdId, Resources.cmdName, TerminalShellKind.CommandPrompt, ShellLocator.joinIfSet(systemRoot, Resources.cmdPath), []),
+      new ShellCandidate(Resources.gitBashId, Resources.gitBashName, TerminalShellKind.Bash, gitFolders.map(t => path.win32.join(t, ...Resources.gitBashFile)),
+        Resources.gitBashArguments)
     ];
     const shells: Shell[] = [];
-    for (const [id, name, kind, files, args] of candidates) {
-      const file: string | null = await this.findFileAsync(files);
+    for (const candidate of candidates) {
+      const file: string | null = await this.findFileAsync(candidate.files);
       if (!Object.isNull(file))
-        shells.push(new Shell(id, name, kind, file, args, shells.length === 0));
+        shells.push(new Shell(candidate.id, candidate.name, candidate.kind, file, candidate.args, shells.length === 0));
     }
     return shells;
   }
@@ -133,8 +137,7 @@ export class ShellLocator {
   }
 
   private async locateListedAsync(installed: readonly Shell[]): Promise<readonly Shell[]> {
-    const [wslShells, installations]: [readonly Shell[], readonly VisualStudioInstallation[]] =
-      await Promise.all([this.locateWslShellsAsync(), this.readInstallationsAsync()]);
+    const [wslShells, installations] = await Promise.all([this.locateWslShellsAsync(), this.readInstallationsAsync()]);
     const commandPrompt: Shell | undefined = installed.find(t => t.id === Resources.cmdId);
     const powerShell: Shell | undefined = installed.find(t => t.id === Resources.pwshId) ?? installed.find(t => t.id === Resources.windowsPowerShellId);
     const shells: Shell[] = [...wslShells];
@@ -162,7 +165,7 @@ export class ShellLocator {
   }
 
   private async locateWslShellsAsync(): Promise<readonly Shell[]> {
-    const wsl: { readonly file: string; readonly reader: WslDistributionReader } | null = this.wsl;
+    const wsl: WslLauncher | null = this.wsl;
     if (Object.isNull(wsl))
       return [];
     this.distributions ??= wsl.reader.readAsync().catch((error: unknown) => {

@@ -37,8 +37,8 @@ export class SpawnedPrograms {
     return new Promise<OwnedProcess>((resolve, reject) => {
       child.once("error", error => reject(SpawnedPrograms.toStartException(request.program, error)));
       child.once("spawn", () => {
-        const ended: Promise<[number | null, NodeJS.Signals | null]> = once(child, "exit").then(([code, signal]) => [code, signal]);
-        const owned: OwnedProcess = new OwnedProcess(child, request.program, new Date(), exited ?? ended.then(([code, signal]) => new ProcessExit(code, signal)),
+        const ended: Promise<ProcessExit> = once(child, "exit").then(([code, signal]) => new ProcessExit(code, signal));
+        const owned: OwnedProcess = new OwnedProcess(child, request.program, new Date(), exited ?? ended,
           async () => {
             child.kill();
             await ended;

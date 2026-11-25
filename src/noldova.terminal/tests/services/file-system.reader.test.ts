@@ -15,6 +15,7 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, it } from "vitest";
 
+import type { FolderEntry } from "../../src/models/folder-entry.ts";
 import { FileSystemReader } from "../../src/services/file-system.reader.ts";
 
 describe("FileSystemReader", () => {
@@ -161,10 +162,10 @@ describe("FileSystemReader", () => {
     await symlink(join(entries, "folder"), join(entries, "to-folder"), "junction");
     await symlink(join(entries, "gone"), join(entries, "to-nothing"), "junction");
     try {
-      const listed: readonly [string, boolean][] = (await reader.readEntriesAsync(entries)).map((t): [string, boolean] => [t.name, t.isFolder])
-        .sort(([a], [b]) => a.localeCompare(b));
+      const listed: readonly FolderEntry[] = [...await reader.readEntriesAsync(entries)].sort((a, b) => a.name.localeCompare(b.name));
 
-      assert.deepEqual(listed, [["file", false], ["folder", true], ["to-folder", true], ["to-nothing", false]]);
+      assert.deepEqual(listed.map(t => t.name), ["file", "folder", "to-folder", "to-nothing"]);
+      assert.deepEqual(listed.map(t => t.isFolder), [false, true, true, false]);
       assert.deepEqual(await reader.readEntriesAsync(join(entries, "gone")), []);
       assert.deepEqual(await reader.readEntriesAsync(join(entries, "file")), []);
     }

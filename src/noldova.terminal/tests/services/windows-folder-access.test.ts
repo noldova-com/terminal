@@ -15,6 +15,7 @@ import { CommandExitedException } from "../../src/exceptions/command-exited.exce
 import { CommandVariableNotSetException } from "../../src/exceptions/command-variable-not-set.exception.ts";
 import { WindowsFolderAccess } from "../../src/services/windows-folder-access.ts";
 import { FakeCommandRunner } from "../fixtures/fake-command-runner.fixture.ts";
+import { RecordedRun } from "../fixtures/recorded-run.fixture.ts";
 
 const ICACLS: string = "C:\\Windows\\System32\\icacls.exe";
 const FOLDER: string = "C:\\Users\\a\\AppData\\Local\\Temp\\noldova-terminal-a1";
@@ -26,8 +27,8 @@ describe("WindowsFolderAccess", () => {
 
     await new WindowsFolderAccess(runner, "C:\\Windows").restrictAsync(FOLDER);
 
-    assert.deepEqual(runner.runs, [[ICACLS, [FOLDER, "/inheritance:r", "/grant:r", "*S-1-3-4:(OI)(CI)F", "*S-1-5-18:(OI)(CI)F",
-      "*S-1-5-32-544:(OI)(CI)F"], 10_000]]);
+    assert.deepEqual(runner.runs, [new RecordedRun(ICACLS, [FOLDER, "/inheritance:r", "/grant:r", "*S-1-3-4:(OI)(CI)F", "*S-1-5-18:(OI)(CI)F",
+      "*S-1-5-32-544:(OI)(CI)F"], 10_000)]);
   });
 
   it("fails as icacls fails", async () => {

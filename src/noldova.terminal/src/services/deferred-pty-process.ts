@@ -91,7 +91,8 @@ export class DeferredPtyProcess implements IPtyProcess {
   public start(): void {
     if (!Object.isUndefined(this.starting) || this.isEnded)
       return;
-    const [columns, rows]: [number, number] = [this.columns, this.rows];
+    const columns: number = this.columns;
+    const rows: number = this.rows;
     this.starting = this.startProcessAsync(columns, rows).then(process => {
       process.onData(t => {
         for (const listener of this.dataListeners)

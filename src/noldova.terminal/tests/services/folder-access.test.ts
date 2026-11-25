@@ -25,7 +25,7 @@ describe("FolderAccess", () => {
     await windows?.restrictAsync("C:\\Temp\\a");
 
     assert.ok(windows instanceof WindowsFolderAccess);
-    assert.deepEqual(runner.runs.map(t => t[0]), ["C:\\Win\\System32\\icacls.exe"]);
+    assert.deepEqual(runner.runs.map(t => t.file), ["C:\\Win\\System32\\icacls.exe"]);
     assert.ok(FolderAccess.create("darwin", runner, {}) instanceof MacFolderAccess);
     assert.equal(FolderAccess.create("linux", runner, { SystemRoot: "C:\\Win" }), null);
   });
