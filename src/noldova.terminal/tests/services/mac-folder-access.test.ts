@@ -14,6 +14,7 @@ import { describe, it } from "vitest";
 import { CommandExitedException } from "../../src/exceptions/command-exited.exception.ts";
 import { MacFolderAccess } from "../../src/services/mac-folder-access.ts";
 import { FakeCommandRunner } from "../fixtures/fake-command-runner.fixture.ts";
+import { RecordedRun } from "../fixtures/recorded-run.fixture.ts";
 
 const FOLDER: string = "/var/folders/xy/T/noldova-terminal-a1";
 
@@ -24,7 +25,7 @@ describe("MacFolderAccess", () => {
 
     await new MacFolderAccess(runner).restrictAsync(FOLDER);
 
-    assert.deepEqual(runner.runs, [["/bin/chmod", ["-N", FOLDER], 10_000]]);
+    assert.deepEqual(runner.runs, [new RecordedRun("/bin/chmod", ["-N", FOLDER], 10_000)]);
   });
 
   it("fails as chmod fails", async () => {

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 
@@ -17,6 +19,7 @@ import type { IDisposable } from "../interfaces/i-disposable.ts";
 import type { IFileSystemWriter } from "../interfaces/i-file-system-writer.ts";
 import type { IFolderAccess } from "../interfaces/i-folder-access.ts";
 import type { IPtyProcess } from "../interfaces/i-pty-process.ts";
+import { IntegrationScript } from "../models/integration-script.ts";
 import type { Shell } from "../models/shell.ts";
 import { ShellLaunch } from "../models/shell-launch.ts";
 import { Resources } from "../resources.ts";
@@ -51,7 +54,7 @@ export class ShellIntegration {
 
   public watch(process: IPtyProcess, launch: ShellLaunch): void {
     const { nonce, nonceFile } = launch;
-    if (nonce === null || nonceFile === null)
+    if (Object.isNull(nonce) || Object.isNull(nonceFile))
       return;
     const remove = (): void => {
       data.dispose();
@@ -66,7 +69,7 @@ export class ShellIntegration {
   }
 
   public async removeNonceFileAsync(nonceFile: string | null): Promise<void> {
-    if (nonceFile === null)
+    if (Object.isNull(nonceFile))
       return;
     try {
       await this.writer.removeFileAsync(nonceFile);
@@ -79,7 +82,7 @@ export class ShellIntegration {
   public async disposeAsync(): Promise<void> {
     const folder: Promise<string> | null = this.folder;
     this.folder = null;
-    if (folder !== null)
+    if (!Object.isNull(folder))
       await this.writer.removeFolderAsync(await folder);
   }
 
@@ -112,17 +115,17 @@ export class ShellIntegration {
     if (family === ShellFamily.PowerShell)
       await this.makeSharedMemoryFolderAsync(environment);
     const folder: string | null = await this.writeScriptsOrNullAsync();
-    const nonceFile: string | null = folder === null ? null : await this.writeNonceOrNullAsync(folder, nonce);
-    if (folder === null || nonceFile === null)
+    const nonceFile: string | null = Object.isNull(folder) ? null : await this.writeNonceOrNullAsync(folder, nonce);
+    if (Object.isNull(folder) || Object.isNull(nonceFile))
       return ShellIntegration.toPlainLaunch(shell, family);
-    const noteVariables: Readonly<Record<string, string>> = note === null ? {} : { [Resources.noteVariable]: note };
+    const noteVariables: Readonly<Record<string, string>> = Object.isNull(note) ? {} : { [Resources.noteVariable]: note };
     if (family === ShellFamily.PowerShell)
       return new ShellLaunch(shell.file, [...shell.args, ...Resources.powerShellIntegrationArguments, ShellIntegration.encode(
         [Resources.shellIntegrationPowerShellNonce, Resources.shellIntegrationPowerShellNote, Resources.shellIntegrationPowerShellProfiles, shell.startCommand,
-          Resources.shellIntegrationPowerShellScript].filter(t => t !== null).join(Resources.lineFeed))], {
+          Resources.shellIntegrationPowerShellScript].filter(t => !Object.isNull(t)).join(Resources.lineFeed))], {
         [Resources.nonceFileVariable]: nonceFile,
         ...noteVariables
-      }, nonce, nonceFile, note !== null);
+      }, nonce, nonceFile, !Object.isNull(note));
     if (family === ShellFamily.Bash) {
       const bashScript: string = path.join(folder, Resources.bashScriptFile).replaceAll(Resources.windowsSeparator, Resources.posixSeparator);
       const isLogin: boolean = shell.args.some(t => Resources.loginArguments.includes(t));
@@ -130,20 +133,20 @@ export class ShellIntegration {
         [Resources.nonceFileVariable]: nonceFile.replaceAll(Resources.windowsSeparator, Resources.posixSeparator),
         ...(isLogin ? { [Resources.loginVariable]: Resources.shellIntegrationLoginValue } : {}),
         ...noteVariables
-      }, nonce, nonceFile, note !== null);
+      }, nonce, nonceFile, !Object.isNull(note));
     }
     const userFolder: string | undefined = environment[Resources.zdotdirVariable];
     return new ShellLaunch(shell.file, shell.args, {
       [Resources.nonceFileVariable]: nonceFile,
       [Resources.zdotdirVariable]: folder,
-      ...(userFolder === undefined ? {} : { [Resources.userZdotdirVariable]: userFolder }),
+      ...(Object.isUndefined(userFolder) ? {} : { [Resources.userZdotdirVariable]: userFolder }),
       ...noteVariables
-    }, nonce, nonceFile, note !== null);
+    }, nonce, nonceFile, !Object.isNull(note));
   }
 
   private makeSharedMemoryFolderAsync(environment: Readonly<Record<string, string | undefined>>): Promise<void> {
     const runtimeFolder: string | undefined = environment[Resources.runtimeFolderVariable];
-    if (this.platform !== Resources.linuxPlatform || runtimeFolder === undefined || !path.posix.isAbsolute(runtimeFolder))
+    if (this.platform !== Resources.linuxPlatform || Object.isUndefined(runtimeFolder) || !path.posix.isAbsolute(runtimeFolder))
       return Promise.resolve();
     const dotnetFolder: string = path.posix.join(runtimeFolder, Resources.dotnetFolder);
     const folder: string = path.posix.join(dotnetFolder, Resources.dotnetSharedMemoryFolder);
@@ -190,14 +193,14 @@ export class ShellIntegration {
     const folder: string = await this.writer.createPrivateFolderAsync(path.join(this.temporaryFolder, Resources.integrationFolderPrefix));
     try {
       await this.access?.restrictAsync(folder);
-      for (const [name, text] of [
-        [Resources.bashScriptFile, Resources.shellIntegrationBashScript],
-        [Resources.zshEnvironmentFile, Resources.shellIntegrationZshEnvironment],
-        [Resources.zshProfileFile, Resources.shellIntegrationZshProfile],
-        [Resources.zshInteractiveFile, Resources.shellIntegrationZshInteractive],
-        [Resources.zshLoginFile, Resources.shellIntegrationZshLogin]
-      ] as const)
-        await this.writer.writeTextAsync(path.join(folder, name), text);
+      for (const script of [
+        new IntegrationScript(Resources.bashScriptFile, Resources.shellIntegrationBashScript),
+        new IntegrationScript(Resources.zshEnvironmentFile, Resources.shellIntegrationZshEnvironment),
+        new IntegrationScript(Resources.zshProfileFile, Resources.shellIntegrationZshProfile),
+        new IntegrationScript(Resources.zshInteractiveFile, Resources.shellIntegrationZshInteractive),
+        new IntegrationScript(Resources.zshLoginFile, Resources.shellIntegrationZshLogin)
+      ])
+        await this.writer.writeTextAsync(path.join(folder, script.fileName), script.text);
     }
     catch (error: unknown) {
       await this.writer.removeFolderAsync(folder)
@@ -209,21 +212,21 @@ export class ShellIntegration {
 
   private static toCommandPromptLaunch(shell: Shell, note: string | null): ShellLaunch {
     const [first, ...start] = shell.args;
-    if (note === null || (first !== undefined && first.toLowerCase() !== Resources.keepOpenArgument))
+    if (Object.isNull(note) || (!Object.isUndefined(first) && first.toLowerCase() !== Resources.keepOpenArgument))
       return new ShellLaunch(shell.file, shell.args, {}, null);
     return new ShellLaunch(shell.file, Resources.formatCmdNoteLine(shell.file, Resources.noteVariable, Resources.formatCmdStart(start)),
       { [Resources.noteVariable]: note.slice(0, note.length - Resources.noteLineBreak.length) }, null, null, true);
   }
 
   private static toPlainLaunch(shell: Shell, family: ShellFamily): ShellLaunch {
-    if (family !== ShellFamily.PowerShell || shell.startCommand === null)
+    if (family !== ShellFamily.PowerShell || Object.isNull(shell.startCommand))
       return new ShellLaunch(shell.file, shell.args, {}, null);
     return new ShellLaunch(shell.file, [...shell.args, ...Resources.powerShellArguments, ShellIntegration.encode(shell.startCommand)], {}, null);
   }
 
   private static toPowerShellLoginLaunch(launch: ShellLaunch): ShellLaunch {
     const [first, ...rest]: string[] = [launch.args].flat();
-    if (first === undefined || !ShellIntegration.isPowerShellLogin(first))
+    if (Object.isUndefined(first) || !ShellIntegration.isPowerShellLogin(first))
       return launch;
     return new ShellLaunch(Resources.powerShellLoginShell, [...Resources.powerShellLoginShellArguments, launch.file, ...rest],
       { ...launch.environment, [Resources.powerShellLoginCheckedVariable]: Resources.powerShellLoginCheckedValue }, launch.nonce, launch.nonceFile,

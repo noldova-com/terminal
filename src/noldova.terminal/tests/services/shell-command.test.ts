@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -25,7 +27,7 @@ import { SessionRecorder } from "../fixtures/session-recorder.fixture.ts";
 const SIGNAL: AbortSignal = new AbortController().signal;
 
 function mark(kind: string, value?: string): string {
-  return `\u001b]6973;${kind};n1${value === undefined ? "" : `;${value}`}\u0007`;
+  return `\u001b]6973;${kind};n1${Object.isUndefined(value) ? "" : `;${value}`}\u0007`;
 }
 
 class CommandFixture {
@@ -197,10 +199,11 @@ describe("ShellCommand", () => {
     fixture.process.emitData(`\r\n[1]+  Done                    sleep 1\r\n${mark("A")}$ ${mark("B")}`);
     const early: string = command.status;
     fixture.process.emitData(`(cd app && make)\r\nbuilt\r\n${mark("A")}$ ${mark("B")}`);
-    const ended: [string, number | null] = [command.status, command.exitCode];
+    const endedStatus: string = command.status;
+    const endedCode: number | null = command.exitCode;
     fixture.process.emitData(`ls\r\n${mark("C")}notes.txt\r\n${mark("D", "0")}${mark("A")}$ ${mark("B")}`);
 
-    assert.deepEqual([early, ended, command.status, command.exitCode], ["Running", ["Exited", null], "Exited", null]);
+    assert.deepEqual([early, endedStatus, endedCode, command.status, command.exitCode], ["Running", "Exited", null, "Exited", null]);
     assert.deepEqual(command.readSince(0), new OutputChunk("\n[1]+  Done                    sleep 1\n$ (cd app && make)\nbuilt\n", 66));
   });
 

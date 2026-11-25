@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonObject } from "@noldova/context.json";
 
 import { Resources } from "../resources.ts";
@@ -18,7 +20,7 @@ export class TerminalName {
 
   public constructor(sessionId: string, name: string | null) {
     ArgumentValidator.requireIdentifier(Resources.sessionIdField, sessionId);
-    if (name !== null)
+    if (!Object.isNull(name))
       ArgumentValidator.requireNonBlank(Resources.nameField, name, Resources.maximumTitleLength);
 
     this.sessionId = sessionId;

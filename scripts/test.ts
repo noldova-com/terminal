@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { spawnSync } from "node:child_process";
 import type { SpawnSyncReturns } from "node:child_process";
 import path from "node:path";
@@ -83,7 +85,7 @@ class Test {
     for (const [folder, steps] of stages)
       for (const step of steps) {
         const result: SpawnSyncReturns<string | Buffer> = spawnSync(process.execPath, step, { cwd: folder, stdio: Resources.inheritedStdio });
-        if (result.error !== undefined)
+        if (!Object.isUndefined(result.error))
           console.error(result.error.message);
         if (result.status !== 0)
           return result.status ?? 1;

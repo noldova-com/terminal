@@ -47,6 +47,7 @@ export class Resources {
   public static readonly licenseFile: string = "LICENSE";
   public static readonly readmeFile: string = "README.md";
   public static readonly projectFile: string = "tsconfig.json";
+  public static readonly baseProjectFile: string = "tsconfig-base.json";
   public static readonly specProjectFile: string = "tsconfig.spec.json";
   public static readonly moduleFiles: readonly string[] = [Resources.moduleFile, "settings.json", "menus.json", "cli.json", "webViews.json"];
   public static readonly windowEntry: string = "window.ts";
@@ -56,6 +57,7 @@ export class Resources {
   public static readonly archiveExtension: string = ".tgz";
   public static readonly entryDeclaration: string = `index${Resources.declarationExtension}`;
   public static readonly manifestExport: string = `./${Resources.manifestFile}`;
+  public static readonly fileExports: readonly string[] = [Resources.manifestExport, "./menus.json"];
   public static readonly declarationImportPattern: RegExp = /(from\s+"\.{1,2}\/[^"]*)\.d\.ts"/g;
   public static readonly declarationImportReplacement: string = `$1${Resources.scriptExtension}"`;
   public static readonly scope: string = "@noldova";
@@ -180,10 +182,8 @@ export class Resources {
   public static readonly cleanInstallArguments: readonly string[] = ["ci", "--ignore-scripts", "--no-audit", "--no-fund"];
   public static readonly projectOption: string = "--project";
   public static readonly typeScriptCompiler: readonly string[] = [Resources.modulesFolder, "typescript", "bin", "tsc"];
-  public static readonly compiledProjects: readonly string[] = [
-    `${Resources.protocolFolder}/${Resources.projectFile}`,
-    `${Resources.moduleFolder}/${Resources.projectFile}`
-  ];
+  public static readonly protocolProject: string = `${Resources.protocolFolder}/${Resources.projectFile}`;
+  public static readonly moduleProject: string = `${Resources.moduleFolder}/${Resources.projectFile}`;
   public static readonly compilerManifest: readonly string[] = [Resources.modulesFolder, "@angular", "compiler-cli", Resources.manifestFile];
   public static readonly compilerCommand: string = "ngc";
   public static readonly compilerProjectOption: string = "-p";
@@ -209,6 +209,7 @@ export class Resources {
   public static readonly vitestArguments: readonly string[] = [`${Resources.modulesFolder}/vitest/vitest.mjs`, "run", "--coverage"];
   public static readonly typeScriptCompilerPath: string = Resources.typeScriptCompiler.join(Resources.posixSeparator);
   public static readonly testChecks: readonly (readonly string[])[] = [
+    ["scripts/checks/archive-age-check.ts"],
     ["scripts/declarations/declaration-check.ts"],
     ["scripts/checks/test-wait-check.ts"],
     ["scripts/checks/api-declaration-check.ts"],
@@ -609,6 +610,14 @@ export class Resources {
     return `Packing ${packageName} failed with exit code ${exitCode}:\n${output}`;
   }
 
+  public static formatCompileFailed(project: string, exitCode: number): string {
+    return `Compiling ${project} failed with exit code ${exitCode}.`;
+  }
+
+  public static formatArchiveInstallFailed(exitCode: number | null, output: string): string {
+    return `Installing the packed archives from ${Resources.archivesFolder} failed with exit code ${exitCode}:\n${output}`;
+  }
+
   public static formatPackageCorePeerDiffers(name: string, desktopCore: string): string {
     return `The package's manifest must name ${name} at module.json's ${Resources.desktopCoreField}, ${desktopCore}, in ${Resources.peersField}.`;
   }
@@ -651,6 +660,10 @@ export class Resources {
 
   public static formatReadFailed(path: string, error: unknown): string {
     return `Could not read ${path}: ${String(error)}`;
+  }
+
+  public static formatPartPinNotAtRoot(description: string, name: string, pin: string): string {
+    return `${description} pins ${name} at ${pin}, but the root manifest's devDependencies don't pin it at that version; the root installs every package the parts build with.`;
   }
 
   public static formatRootDependencyPinned(name: string): string {
@@ -722,6 +735,26 @@ export class Resources {
 
   public static formatShellTested(shell: string, tests: number): string {
     return `${shell}: ${tests} tests passed.`;
+  }
+
+  public static formatArchiveAgeChecked(packages: number): string {
+    return `Checked that the archives of ${packages} packages are newer than what they pack.`;
+  }
+
+  public static formatArchiveAgeMissing(archive: string): string {
+    return `${archive} is missing; run npm run build, since the tests use the installed archives.`;
+  }
+
+  public static formatArchiveAgeStale(archive: string, file: string): string {
+    return `${file} changed after ${archive} was packed; run npm run build, since the tests use the installed archives.`;
+  }
+
+  public static formatArchiveAgeVersionMissing(file: string): string {
+    return `${file} has no version, so the archives to check can't be named.`;
+  }
+
+  public static formatArchiveAgeNameMissing(file: string): string {
+    return `${file} has no name, so its archive can't be named.`;
   }
 
   public static formatTestWaitChecked(testFiles: number, listed: number): string {

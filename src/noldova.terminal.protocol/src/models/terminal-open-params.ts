@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonObject } from "@noldova/context.json";
 
@@ -24,14 +26,14 @@ export class TerminalOpenParams {
 
   public constructor(shellId: string | null, folder: string | null, size: TerminalSize, storedLimit: number = Resources.defaultStoredLimit,
     isPanelTerminal: boolean = false, owner: string | null = null) {
-    if (shellId !== null)
+    if (!Object.isNull(shellId))
       ArgumentValidator.requireIdentifier(Resources.shellIdField, shellId);
-    if (folder !== null)
+    if (!Object.isNull(folder))
       ArgumentValidator.requireAbsolutePath(Resources.folderField, folder);
     ArgumentValidator.requireIntegerInRange(Resources.storedLimitField, storedLimit, Resources.minimumStoredLimit, Resources.maximumStoredLimit);
-    if (owner !== null)
+    if (!Object.isNull(owner))
       ArgumentValidator.requireNonBlank(Resources.ownerField, owner, Resources.maximumOwnerLength);
-    if (owner !== null && isPanelTerminal)
+    if (!Object.isNull(owner) && isPanelTerminal)
       throw new ArgumentException(Resources.panelTerminalOwned, Resources.ownerField);
 
     this.shellId = shellId;

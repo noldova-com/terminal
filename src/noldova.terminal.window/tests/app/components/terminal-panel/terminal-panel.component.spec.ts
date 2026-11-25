@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { FocusTrapFactory, LiveAnnouncer, type FocusTrap } from "@angular/cdk/a11y";
 import { ErrorHandler } from "@angular/core";
 import { TestBed, type ComponentFixture } from "@angular/core/testing";
@@ -55,7 +57,7 @@ describe("TerminalPanelComponent", () => {
     await host.settleAsync();
     const pane: HTMLElement = await vi.waitFor(() => {
       const element: HTMLElement | null = host.element.querySelector<HTMLElement>("nol-terminal-pane");
-      if (element === null)
+      if (Object.isNull(element))
         throw new Error("The panel shows no pane yet.");
       return element;
     }, { timeout: SpecWait.milliseconds });

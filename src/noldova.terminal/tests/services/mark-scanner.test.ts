@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { describe, it } from "vitest";
@@ -29,12 +31,24 @@ function eightBitMark(payload: string, terminator: string = BELL): string {
 
 function letterOf(kind: MarkKind): string {
   const letter: string | undefined = [...Resources.markKindLetters].find(([, t]) => t === kind)?.[0];
-  assert.ok(letter !== undefined, `No mark letter names ${kind}.`);
+  assert.ok(!Object.isUndefined(letter), `No mark letter names ${kind}.`);
   return letter;
 }
 
 function describeMarks(marks: readonly ShellMark[]): readonly string[] {
   return marks.map(t => `${letterOf(t.kind)}:${t.value ?? "-"}@${t.offset}`);
+}
+
+class LongMarkCase {
+  public readonly description: string;
+  public readonly length: number;
+  public readonly split: number | null;
+
+  public constructor(description: string, length: number, split: number | null) {
+    this.description = description;
+    this.length = length;
+    this.split = split;
+  }
 }
 
 describe("MarkScanner", () => {
@@ -101,19 +115,19 @@ describe("MarkScanner", () => {
     assert.deepEqual(describeMarks(scanner.scan(`${BELL}${mark(`A;${NONCE}`)}`, long.length)), [`A:-@${long.length + 1 + mark(`A;${NONCE}`).length}`]);
   });
 
-  for (const [description, length, split] of [
-    ["whole, at 20 KiB", 20_480, null],
-    ["whole, past 20 KiB", 20_481, null],
-    ["split, at 20 KiB", 20_480, 15_000],
-    ["split, past 20 KiB, with each read's part under it", 20_481, 15_000]
-  ] as const)
+  for (const { description, length, split } of [
+    new LongMarkCase("whole, at 20 KiB", 20_480, null),
+    new LongMarkCase("whole, past 20 KiB", 20_481, null),
+    new LongMarkCase("split, at 20 KiB", 20_480, 15_000),
+    new LongMarkCase("split, past 20 KiB, with each read's part under it", 20_481, 15_000)
+  ])
     it(`${length > 20_480 ? "drops" : "keeps"} a mark ${description}, and finds the next one`, () => {
       const scanner: MarkScanner = new MarkScanner(NONCE);
       const head: string = `P;${NONCE};Path=`;
       const long: string = mark(`${head}${"x".repeat(length - mark(head).length)}`);
       const next: string = mark(`A;${NONCE}`);
       const text: string = `${long}${next}`;
-      const parts: readonly string[] = split === null ? [text] : [text.slice(0, split), text.slice(split)];
+      const parts: readonly string[] = Object.isNull(split) ? [text] : [text.slice(0, split), text.slice(split)];
 
       const marks: readonly ShellMark[] = parts.flatMap((part, index) => scanner.scan(part, index === 0 ? 0 : split ?? 0));
 

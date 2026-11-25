@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { describe, expect, it } from "vitest";
 
 import * as api from "../../src/api/index.ts";
@@ -34,7 +36,7 @@ describe("api", () => {
       "TerminalRunRefusedException", "TerminalRunTarget", "TerminalShellKind", "TerminalStartFolder", "TerminalTextRun", "TerminalTextStyle", "TerminalWindowException",
       "windowPart"
     ]);
-    expect(Object.entries(api).filter(([, value]) => value === undefined)).toEqual([]);
+    expect(Object.entries(api).filter(([, value]) => Object.isUndefined(value))).toEqual([]);
   });
 
   it("exports the launcher, the owners and the start folder, with what a launch takes, gives and ends with, and what providing them twice fails with", () => {

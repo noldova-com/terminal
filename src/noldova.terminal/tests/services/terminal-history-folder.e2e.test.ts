@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -38,7 +40,7 @@ async function checkStoredAsync(passOn: (folder: string) => void, check: (path: 
     passOn(parent);
 
     const paths: TerminalHistoryPaths | null = await folder.pathsAsync("s1");
-    assert.ok(paths !== null, log.callsOf("write").map(t => String(t[0])).join(" "));
+    assert.ok(!Object.isNull(paths), log.callsOf("write").map(t => String(t[0])).join(" "));
     const file: string = paths.first;
     await writer.writeTextAsync(file, "{}\n");
 
@@ -67,7 +69,7 @@ describe("a terminal's stored lines", () => {
   it("are readable by the person's account alone on Linux, whatever default ACL their parent has",
     async test => {
       test.skip(process.platform !== "linux", "POSIX default access lists are set with setfacl, which only Linux has.");
-      test.skip(PrivateFolder.linuxAclMissing !== null, PrivateFolder.linuxAclMissing ?? "");
+      test.skip(!Object.isNull(PrivateFolder.linuxAclMissing), PrivateFolder.linuxAclMissing ?? "");
       await checkStoredAsync(t => PrivateFolder.passOnLinuxDefaultAcl(t), t => {
         PrivateFolder.assertPrivate(t);
         PrivateFolder.assertLinuxEntriesMasked(t);

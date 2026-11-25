@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Terminal, type IMarker } from "@xterm/xterm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -30,7 +32,7 @@ describe("CommandContinuation", () => {
   it("holds the marker of the line a command continues on and the column its text starts at", () => {
     const marker: IMarker | undefined = terminal.registerMarker(0);
     expect(marker).toBeDefined();
-    if (marker === undefined)
+    if (Object.isUndefined(marker))
       return;
 
     const continuation: CommandContinuation = new CommandContinuation(marker, 2);

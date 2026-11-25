@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ShellLine } from "../models/shell-line.ts";
 import { Resources } from "../resources.ts";
 
@@ -38,7 +40,7 @@ export class ShellWords {
       }
       if (character === escape && index + 1 < text.length) {
         const next: string = text.charAt(index + 1);
-        if (quote === null || isPowerShell || Resources.posixQuotedEscapes.includes(next)) {
+        if (Object.isNull(quote) || isPowerShell || Resources.posixQuotedEscapes.includes(next)) {
           value += next;
           index++;
         }
@@ -74,7 +76,7 @@ export class ShellWords {
     keepsHome: boolean): string {
     const literal: string = isPowerShell && escapesWildcards ? value.replace(Resources.powerShellWildcards, Resources.shellWordsPowerShellEscapeReplacement) : value;
     const quoted: string | null = quote ?? (isPowerShell && (literal !== value || Resources.powerShellSpecial.test(value)) ? Resources.singleQuote : null);
-    if (quoted === null)
+    if (Object.isNull(quoted))
       return isPowerShell ? literal : `${!keepsHome && value.startsWith(Resources.homeWord) ? Resources.posixEscape : ""}${value.replace(Resources.posixSpecial,
         Resources.shellWordsPosixEscapeReplacement)}`;
     const body: string = quoted === Resources.singleQuote

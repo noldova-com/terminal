@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -41,8 +43,18 @@ class OneShotRun {
   }
 }
 
+class ShellCheck {
+  public readonly command: string;
+  public readonly expected: (shell: Shell) => RegExp;
+
+  public constructor(command: string, expected: (shell: Shell) => RegExp) {
+    this.command = command;
+    this.expected = expected;
+  }
+}
+
 describe("OneShotCommand with this computer's Windows shells: Command Prompt, and each Visual Studio developer shell and WSL distribution installed", () => {
-  const environment: Record<string, string> = Object.fromEntries(Object.entries(process.env).filter((t): t is [string, string] => t[1] !== undefined));
+  const environment: Record<string, string> = Object.fromEntries(Object.entries(process.env).filter((t): t is [string, string] => !Object.isUndefined(t[1])));
   let terminals: SupervisedTerminals;
   let context: FakeRuntimePartContext;
 
@@ -72,7 +84,7 @@ describe("OneShotCommand with this computer's Windows shells: Command Prompt, an
 
   async function listInstallationsAsync(): Promise<readonly string[]> {
     const programFilesX86: string | undefined = process.env["ProgramFiles(x86)"];
-    if (programFilesX86 === undefined)
+    if (Object.isUndefined(programFilesX86))
       return [];
     const vswhere: string = path.win32.join(programFilesX86, "Microsoft Visual Studio", "Installer", "vswhere.exe");
     if (!await new FileSystemReader().isFileAsync(vswhere))
@@ -80,7 +92,7 @@ describe("OneShotCommand with this computer's Windows shells: Command Prompt, an
     const listed: unknown = JSON.parse(await new CommandRunner(context).runAsync(vswhere, ["-products", "*", "-prerelease", "-utf8", "-format", "json"], 60_000));
     assert.ok(Array.isArray(listed), `vswhere wrote ${String(listed)}`);
     return listed.map((t: unknown) => {
-      assert.ok(typeof t === "object" && t !== null && "instanceId" in t && "installationVersion" in t, `vswhere listed ${JSON.stringify(t)}`);
+      assert.ok(Object.isObject(t) && "instanceId" in t && "installationVersion" in t, `vswhere listed ${JSON.stringify(t)}`);
       return `${String(t.instanceId)} ${String(t.installationVersion)}`;
     });
   }
@@ -147,12 +159,12 @@ describe("OneShotCommand with this computer's Windows shells: Command Prompt, an
       .locateAsync();
     const installations: readonly VisualStudioInstallation[] = await new VisualStudioReader(runner, new FileSystemReader(), process.env["ProgramFiles(x86)"]).readAsync();
     const shells: readonly Shell[] = located.filter(t => t.kind === TerminalShellKind.Wsl || t.id.startsWith("vs-"));
-    const checks: ReadonlyMap<TerminalShellKind, readonly [string, (shell: Shell) => RegExp]> = new Map([
-      [TerminalShellKind.CommandPrompt, ["echo \"one&two\" & echo VS=%VSCMD_VER%= & echo \"Q=%VSCMD_VER%\" & echo \"100%\" & echo bang! & echo caret^^ & " +
+    const checks: ReadonlyMap<TerminalShellKind, ShellCheck> = new Map([
+      [TerminalShellKind.CommandPrompt, new ShellCheck("echo \"one&two\" & echo VS=%VSCMD_VER%= & echo \"Q=%VSCMD_VER%\" & echo \"100%\" & echo bang! & echo caret^^ & " +
         "echo \"bang!\" & echo \"q^^\" & exit 5",
-        () => /"one&two"[\s\S]*VS=\d+\.\d+[\s\S]*"Q=\d+\.\d+[\s\S]*"100%"[\s\S]*bang![\s\S]*caret\^[\s\S]*"bang!"[\s\S]*"q\^\^"/u]],
-      [TerminalShellKind.PowerShell, ["Write-Output \"one&two VS=$env:VSCMD_VER=\"; exit 5", () => /one&two VS=\d+\.\d+/u]],
-      [TerminalShellKind.Wsl, ["echo \"one&two\"; echo \"WSL=$WSL_DISTRO_NAME=\"; exit 5", (t: Shell) => new RegExp(`one&two[\\s\\S]*WSL=${t.name}=`, "u")]]
+        () => /"one&two"[\s\S]*VS=\d+\.\d+[\s\S]*"Q=\d+\.\d+[\s\S]*"100%"[\s\S]*bang![\s\S]*caret\^[\s\S]*"bang!"[\s\S]*"q\^\^"/u)],
+      [TerminalShellKind.PowerShell, new ShellCheck("Write-Output \"one&two VS=$env:VSCMD_VER=\"; exit 5", () => /one&two VS=\d+\.\d+/u)],
+      [TerminalShellKind.Wsl, new ShellCheck("echo \"one&two\"; echo \"WSL=$WSL_DISTRO_NAME=\"; exit 5", (t: Shell) => new RegExp(`one&two[\\s\\S]*WSL=${t.name}=`, "u"))]
     ]);
 
     await test.annotate(`Visual Studio installations and versions: ${listed.join(", ") || "none"}.`);
@@ -165,12 +177,11 @@ describe("OneShotCommand with this computer's Windows shells: Command Prompt, an
         "vswhere lists a Visual Studio installation, but no developer shell is listed.");
     test.skip(shells.length === 0, "This computer has no Visual Studio developer shell and no WSL distribution to run.");
     for (const shell of shells) {
-      const check: readonly [string, (shell: Shell) => RegExp] | undefined = checks.get(shell.kind);
-      assert.ok(check !== undefined, `${shell.id} is a ${shell.kind} shell, which this test has no check for.`);
-      const [command, expected] = check;
-      const { output, exitCode }: OneShotRun = await runAsync(shell, command);
+      const check: ShellCheck | undefined = checks.get(shell.kind);
+      assert.ok(!Object.isUndefined(check), `${shell.id} is a ${shell.kind} shell, which this test has no check for.`);
+      const { output, exitCode }: OneShotRun = await runAsync(shell, check.command);
 
-      assert.match(output, expected(shell), `${shell.id}: ${output}`);
+      assert.match(output, check.expected(shell), `${shell.id}: ${output}`);
       assert.equal(exitCode, 5, `${shell.id}: ${output}`);
     }
   });

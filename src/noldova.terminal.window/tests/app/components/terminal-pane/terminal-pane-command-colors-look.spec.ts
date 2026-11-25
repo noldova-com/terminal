@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TestBed } from "@angular/core/testing";
 import { TerminalInputEdge, TerminalInputMark, TerminalMissingCommands, TerminalNames, TerminalResizeParams, TerminalShellKind, type TerminalSize } from "@noldova/terminal.protocol";
 import { AppearanceService, ModePreference, Typography } from "@noldova/ui.components.angular";
@@ -83,9 +85,10 @@ describe("TerminalPaneComponent's colors for a typed command", () => {
   const drawnAsync = async (shown: PaneHost<TerminalPanelComponent>, colors: readonly string[], count: number, name: string): Promise<(string | undefined)[]> => {
     const size: TerminalSize = sizeOf(shown);
     const screen: DOMRect = shown.screen.getBoundingClientRect();
-    const cell: { width: number; height: number } = { width: screen.width / size.columns, height: screen.height / size.rows };
+    const cellWidth: number = screen.width / size.columns;
+    const cellHeight: number = screen.height / size.rows;
     const shot: ScreenShot = await ScreenShot.takeAsync(shown.element, `${screenshots}/${name}.png`);
-    return Array.from({ length: count }, (_, column) => inkOf(shot.inside(screen.left + cell.width * column, screen.top, cell.width, cell.height), colors));
+    return Array.from({ length: count }, (_, column) => inkOf(shot.inside(screen.left + cellWidth * column, screen.top, cellWidth, cellHeight), colors));
   };
   const tokenOf = (shown: PaneHost<TerminalPanelComponent>, token: string): string => rgbOf(getComputedStyle(paneOf(shown)).getPropertyValue(token).trim());
 
@@ -94,7 +97,7 @@ describe("TerminalPaneComponent's colors for a typed command", () => {
     await KitStylesheetFixture.ensureAsync();
     const runtime: FakeRuntime = new FakeRuntime();
     runtime.context.settings.set(Resources.fontSizeSetting, 24);
-    if (setting !== null)
+    if (!Object.isNull(setting))
       runtime.context.settings.set(Resources.commandColorsSetting, setting);
     prepare(runtime);
     runtime.shellKind = shellKind;

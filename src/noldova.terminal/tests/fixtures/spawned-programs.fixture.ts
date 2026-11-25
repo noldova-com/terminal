@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { addAbortListener, once } from "node:events";
@@ -35,13 +37,13 @@ export class SpawnedPrograms {
     return new Promise<OwnedProcess>((resolve, reject) => {
       child.once("error", error => reject(SpawnedPrograms.toStartException(request.program, error)));
       child.once("spawn", () => {
-        const ended: Promise<[number | null, NodeJS.Signals | null]> = once(child, "exit").then(([code, signal]) => [code, signal]);
-        const owned: OwnedProcess = new OwnedProcess(child, request.program, new Date(), exited ?? ended.then(([code, signal]) => new ProcessExit(code, signal)),
+        const ended: Promise<ProcessExit> = once(child, "exit").then(([code, signal]) => new ProcessExit(code, signal));
+        const owned: OwnedProcess = new OwnedProcess(child, request.program, new Date(), exited ?? ended,
           async () => {
             child.kill();
             await ended;
           });
-        if (request.signal !== undefined)
+        if (!Object.isUndefined(request.signal))
           addAbortListener(request.signal, () => void owned.stopAsync().catch((error: unknown) => void this.stopFailures.push(error)));
         this.ends.set(owned, ended);
         for (const waiter of this.waiters.splice(0))

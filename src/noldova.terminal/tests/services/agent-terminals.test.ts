@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import path from "node:path";
 
@@ -51,7 +53,7 @@ class TerminalsFixture extends AgentHostFixture {
     while (this.spawner.spawned.length < count)
       await this.spawner.nextSpawnAsync();
     const spawned: FakePtyProcess | undefined = this.spawner.spawned[count - 1];
-    assert.ok(spawned !== undefined);
+    assert.ok(!Object.isUndefined(spawned));
     await spawned.waitUntilReadAsync();
   }
 }
@@ -147,7 +149,7 @@ describe("AgentTerminals", () => {
     const second: string = TerminalReference.fromJson(await fixture.host.handleAsync("terminal.open", open, APP)).sessionId;
     await fixture.spawnedAsync(3);
     const person: FakePtyProcess | undefined = fixture.spawner.spawned[1];
-    assert.ok(person !== undefined);
+    assert.ok(!Object.isUndefined(person));
 
     person.emitData(`${fixture.markFor(person, "A")}$ ${fixture.markFor(person, "B")}ls -la\r\n${fixture.markFor(person, "C")}`);
     await fixture.commandAdded.waitUntilAsync("The second terminal.commandAdded event", () => fixture.commandAdded.published.length === 2);

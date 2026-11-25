@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { type IToolDescriptor, type ToolResult, ToolRisk } from "@noldova/desktop.runtime";
 
 import { Resources } from "../../resources.ts";
@@ -66,7 +68,7 @@ export class TerminalInterruptTool extends TerminalTool<TerminalTargetInput> {
         ToolRisk.Medium,
         [
           ...PermissionDetails.forTerminal(access),
-          ...PermissionDetails.forFolder(prompt.cwd, prompt.cwd !== null && context.isInsideWorkingFolder(prompt.cwd)),
+          ...PermissionDetails.forFolder(prompt.cwd, !Object.isNull(prompt.cwd) && context.isInsideWorkingFolder(prompt.cwd)),
           ...PermissionDetails.forExplanation(input.explanation)
         ],
         PermissionAsk.listSubject([access.terminal.id])),

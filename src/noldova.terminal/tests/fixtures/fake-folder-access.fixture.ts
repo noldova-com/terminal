@@ -6,11 +6,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IFolderAccess } from "../../src/interfaces/i-folder-access.ts";
 import type { FakeFileSystemWriter } from "./fake-file-system-writer.fixture.ts";
+import { RestrictedFolder } from "./restricted-folder.fixture.ts";
 
 export class FakeFolderAccess implements IFolderAccess {
-  public readonly restricted: [string, number][] = [];
+  public readonly restricted: RestrictedFolder[] = [];
   public failure: Error | null = null;
   private readonly writer: FakeFileSystemWriter;
 
@@ -19,8 +22,8 @@ export class FakeFolderAccess implements IFolderAccess {
   }
 
   public async restrictAsync(folder: string): Promise<void> {
-    this.restricted.push([folder, this.writer.files.size]);
-    if (this.failure !== null)
+    this.restricted.push(new RestrictedFolder(folder, this.writer.files.size));
+    if (!Object.isNull(this.failure))
       throw this.failure;
   }
 }

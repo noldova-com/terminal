@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { ProcessExit } from "@noldova/desktop.runtime";
@@ -20,10 +22,32 @@ import { ShellMark } from "../../src/models/shell-mark.ts";
 import { Resources } from "../../src/resources.ts";
 import { CommandTracker } from "../../src/services/command-tracker.ts";
 import { CompletionSource } from "../../src/services/completion-source.ts";
+import { CodedError } from "../fixtures/coded-error.fixture.ts";
 import { FakeCommandRunner } from "../fixtures/fake-command-runner.fixture.ts";
 import { FakeFileSystemReader } from "../fixtures/fake-file-system-reader.fixture.ts";
+import { RecordedRun } from "../fixtures/recorded-run.fixture.ts";
 
-type Choice = [string, string, string];
+class Choice {
+  public readonly text: string;
+  public readonly label: string;
+  public readonly kind: string;
+
+  public constructor(text: string, label: string, kind: string) {
+    this.text = text;
+    this.label = label;
+    this.kind = kind;
+  }
+}
+
+class Completion {
+  public readonly replaceFrom: number;
+  public readonly choices: readonly Choice[];
+
+  public constructor(replaceFrom: number, choices: readonly Choice[]) {
+    this.replaceFrom = replaceFrom;
+    this.choices = choices;
+  }
+}
 
 const PWSH: string = "/usr/bin/pwsh";
 
@@ -40,16 +64,16 @@ class SourceFixture {
 
   public async completeAsync(line: string, folder: string = "/work", environment: Readonly<Record<string, string>> = {},
     kind: TerminalShellKind = TerminalShellKind.Bash, key: string = "s1", shellNames: ReadonlySet<string> | null = null,
-    shellBuiltins: ReadonlySet<string> | null = null): Promise<[number, readonly Choice[]]> {
+    shellBuiltins: ReadonlySet<string> | null = null): Promise<Completion> {
     const completion: TerminalCompletion = await this.source.completeAsync(key, kind, line, line.length, folder, environment, shellNames, shellBuiltins);
-    return [completion.replaceFrom, completion.items.map(t => [t.text, t.label, t.kind])];
+    return new Completion(completion.replaceFrom, completion.items.map(t => new Choice(t.text, t.label, t.kind)));
   }
 
   public async missingAsync(names: readonly string[], shellNames: readonly string[] | null = [], environment: Readonly<Record<string, string>> = {},
     kind: TerminalShellKind = TerminalShellKind.Bash, key: string = "s1", prompt: number = 1, shell: CommandTracker = this.shellOf(key),
     folder: string = "/work"): Promise<readonly string[]> {
     const missing: TerminalMissingCommands = await this.source.findMissingAsync(key, shell, prompt, kind, folder, names,
-      shellNames === null ? null : new Set(shellNames), environment);
+      Object.isNull(shellNames) ? null : new Set(shellNames), environment);
     return missing.names;
   }
 
@@ -59,7 +83,7 @@ class SourceFixture {
   }
 
   public get lookups(): readonly string[] {
-    return this.runner.runs.filter(t => t[0] === PWSH).map(t => Buffer.from(t[1].at(-1) ?? "", "base64").toString("utf16le"));
+    return this.runner.runs.filter(t => t.file === PWSH).map(t => Buffer.from(t.args.at(-1) ?? "", "base64").toString("utf16le"));
   }
 
   public shellOf(key: string): CommandTracker {
@@ -70,7 +94,7 @@ class SourceFixture {
 
   public async choicesAsync(line: string, folder?: string, environment?: Readonly<Record<string, string>>,
     kind?: TerminalShellKind): Promise<readonly Choice[]> {
-    return (await this.completeAsync(line, folder, environment, kind))[1];
+    return (await this.completeAsync(line, folder, environment, kind)).choices;
   }
 }
 
@@ -80,7 +104,7 @@ describe("CompletionSource", () => {
     fixture.fileSystem.files.set("/work/setup.sh", "");
 
     for (const kind of [TerminalShellKind.Fish, TerminalShellKind.CommandPrompt, TerminalShellKind.Wsl, TerminalShellKind.Other])
-      assert.deepEqual(await fixture.completeAsync("cat s", "/work", {}, kind), [5, []]);
+      assert.deepEqual(await fixture.completeAsync("cat s", "/work", {}, kind), new Completion(5, []));
   });
 
   describe("for a command's first word", () => {
@@ -93,11 +117,11 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("/usr/bin/ls", "");
       const environment: Record<string, string> = { PATH: "/usr/bin:/opt/bin:bin:/usr/bin" };
 
-      assert.deepEqual(await fixture.completeAsync("g", "/work", environment, TerminalShellKind.Bash, "s1", new Set(["getopts", "git"])), [0, [
-        ["getopts", "getopts", "Command"],
-        ["git", "git", "Command"],
-        ["grep", "grep", "Command"]
-      ]]);
+      assert.deepEqual(await fixture.completeAsync("g", "/work", environment, TerminalShellKind.Bash, "s1", new Set(["getopts", "git"])), new Completion(0, [
+        new Choice("getopts", "getopts", "Command"),
+        new Choice("git", "git", "Command"),
+        new Choice("grep", "grep", "Command")
+      ]));
       assert.deepEqual(await fixture.choicesAsync("cat a | G", "/work", environment), []);
     });
 
@@ -105,10 +129,10 @@ describe("CompletionSource", () => {
       const fixture: SourceFixture = new SourceFixture();
       const names: ReadonlySet<string> = new Set(["pwd", "_pwd_helper", "__noldova_mark", "*/", "*.txt", "setopt"]);
 
-      assert.deepEqual((await fixture.completeAsync("", "/work", {}, TerminalShellKind.Bash, "s1", names))[1], [["pwd", "pwd", "Command"], ["setopt", "setopt", "Command"]]);
-      assert.deepEqual((await fixture.completeAsync("setop", "/work", {}, TerminalShellKind.Zsh, "s1", new Set(["setopt"])))[1], [["setopt", "setopt", "Command"]]);
+      assert.deepEqual((await fixture.completeAsync("", "/work", {}, TerminalShellKind.Bash, "s1", names)).choices, [new Choice("pwd", "pwd", "Command"), new Choice("setopt", "setopt", "Command")]);
+      assert.deepEqual((await fixture.completeAsync("setop", "/work", {}, TerminalShellKind.Zsh, "s1", new Set(["setopt"]))).choices, [new Choice("setopt", "setopt", "Command")]);
       assert.deepEqual(await fixture.choicesAsync("pw"), []);
-      assert.deepEqual(await fixture.choicesAsync("set-l", "/work", {}, TerminalShellKind.PowerShell), [["Set-Location", "Set-Location", "Command"]]);
+      assert.deepEqual(await fixture.choicesAsync("set-l", "/work", {}, TerminalShellKind.PowerShell), [new Choice("Set-Location", "Set-Location", "Command")]);
     });
 
     it("lists the builtins a shell reported apart, once each, with no names, as an older Git Bash sends, and after a names reset", async () => {
@@ -116,11 +140,11 @@ describe("CompletionSource", () => {
       const builtins: ReadonlySet<string> = new Set(["cd", "case", "export"]);
 
       assert.deepEqual([
-        (await fixture.completeAsync("c", "/work", {}, TerminalShellKind.Bash, "s1", null, builtins))[1],
-        (await fixture.completeAsync("c", "/work", {}, TerminalShellKind.Bash, "s1", new Set(["cd", "cdl"]), builtins))[1]
+        (await fixture.completeAsync("c", "/work", {}, TerminalShellKind.Bash, "s1", null, builtins)).choices,
+        (await fixture.completeAsync("c", "/work", {}, TerminalShellKind.Bash, "s1", new Set(["cd", "cdl"]), builtins)).choices
       ], [
-        [["case", "case", "Command"], ["cd", "cd", "Command"]],
-        [["case", "case", "Command"], ["cd", "cd", "Command"], ["cdl", "cdl", "Command"]]
+        [new Choice("case", "case", "Command"), new Choice("cd", "cd", "Command")],
+        [new Choice("case", "case", "Command"), new Choice("cd", "cd", "Command"), new Choice("cdl", "cdl", "Command")]
       ]);
     });
 
@@ -129,8 +153,8 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("/work/run.sh", "");
       fixture.fileSystem.files.set("/work/bin/tool", "");
 
-      assert.deepEqual(await fixture.choicesAsync("./r"), [["./run.sh", "run.sh", "File"]]);
-      assert.deepEqual(await fixture.choicesAsync("bin/"), [["bin/tool", "tool", "File"]]);
+      assert.deepEqual(await fixture.choicesAsync("./r"), [new Choice("./run.sh", "run.sh", "File")]);
+      assert.deepEqual(await fixture.choicesAsync("bin/"), [new Choice("bin/tool", "tool", "File")]);
       assert.deepEqual(await fixture.choicesAsync("~"), []);
     });
   });
@@ -143,8 +167,8 @@ describe("CompletionSource", () => {
       fixture.fileSystem.folders.add("/work/src");
       fixture.fileSystem.folders.add("/work/.git");
 
-      assert.deepEqual(await fixture.completeAsync("cat "), [4, [["a\\ b.txt", "a b.txt", "File"], ["src/", "src/", "Folder"]]]);
-      assert.deepEqual(await fixture.choicesAsync("cat ."), [[".env", ".env", "File"], [".git/", ".git/", "Folder"]]);
+      assert.deepEqual(await fixture.completeAsync("cat "), new Completion(4, [new Choice("a\\ b.txt", "a b.txt", "File"), new Choice("src/", "src/", "Folder")]));
+      assert.deepEqual(await fixture.choicesAsync("cat ."), [new Choice(".env", ".env", "File"), new Choice(".git/", ".git/", "Folder")]);
       assert.deepEqual(await fixture.choicesAsync("cat S"), []);
     });
 
@@ -154,10 +178,10 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("/work/src/main.ts", "");
       fixture.fileSystem.files.set("/home/a/notes", "");
 
-      assert.deepEqual(await fixture.completeAsync("cat src/m"), [4, [["src/main.ts", "main.ts", "File"]]]);
-      assert.deepEqual(await fixture.choicesAsync("cat ~/"), [["~/notes", "notes", "File"]]);
-      assert.deepEqual(await fixture.completeAsync("cd '/work/s"), [3, [["'/work/src/", "src/", "Folder"]]]);
-      assert.deepEqual(await fixture.choicesAsync("cat \"src/"), [["\"src/main.ts\"", "main.ts", "File"]]);
+      assert.deepEqual(await fixture.completeAsync("cat src/m"), new Completion(4, [new Choice("src/main.ts", "main.ts", "File")]));
+      assert.deepEqual(await fixture.choicesAsync("cat ~/"), [new Choice("~/notes", "notes", "File")]);
+      assert.deepEqual(await fixture.completeAsync("cd '/work/s"), new Completion(3, [new Choice("'/work/src/", "src/", "Folder")]));
+      assert.deepEqual(await fixture.choicesAsync("cat \"src/"), [new Choice("\"src/main.ts\"", "main.ts", "File")]);
     });
 
     it("reads ~ as the home folder only where bash reads it so, unquoted, and escapes a name's own leading ~", async () => {
@@ -167,12 +191,12 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("/work/~/nested", "");
       fixture.fileSystem.files.set("/work/~root", "");
 
-      assert.deepEqual(await fixture.choicesAsync("cat ~/n"), [["~/notes", "notes", "File"]]);
-      assert.deepEqual(await fixture.choicesAsync("cat '~/n"), [["'~/nested'", "nested", "File"]]);
-      assert.deepEqual(await fixture.choicesAsync("cat \"~/n"), [["\"~/nested\"", "nested", "File"]]);
-      assert.deepEqual(await fixture.choicesAsync("cat \\~/n"), [["\\~/nested", "nested", "File"]]);
-      assert.deepEqual(await fixture.choicesAsync("cat ~r"), [["\\~root", "~root", "File"]]);
-      assert.deepEqual(await fixture.choicesAsync("cat '~/n", "/work", {}, TerminalShellKind.PowerShell), [["'~/notes'", "notes", "File"]]);
+      assert.deepEqual(await fixture.choicesAsync("cat ~/n"), [new Choice("~/notes", "notes", "File")]);
+      assert.deepEqual(await fixture.choicesAsync("cat '~/n"), [new Choice("'~/nested'", "nested", "File")]);
+      assert.deepEqual(await fixture.choicesAsync("cat \"~/n"), [new Choice("\"~/nested\"", "nested", "File")]);
+      assert.deepEqual(await fixture.choicesAsync("cat \\~/n"), [new Choice("\\~/nested", "nested", "File")]);
+      assert.deepEqual(await fixture.choicesAsync("cat ~r"), [new Choice("\\~root", "~root", "File")]);
+      assert.deepEqual(await fixture.choicesAsync("cat '~/n", "/work", {}, TerminalShellKind.PowerShell), [new Choice("'~/notes'", "notes", "File")]);
     });
 
     it("escapes a PowerShell path's wildcards and quotes it where a cmdlet's -Path reads them, but not for a native program, another parameter or a command", async () => {
@@ -183,13 +207,13 @@ describe("CompletionSource", () => {
 
       for (const line of ["Get-Item e", "Get-Item -Path e", "gi -path e", "gci -Recurse -Force e", "gci -Verbose e", "gci -Verbose:$true e",
         "gci -Filter x e", "Copy-Item -Destination d e", "Copy-Item e", "Remove-Item -Force -r e", "gi -Pa e"])
-        assert.deepEqual(await fixture.choicesAsync(line, "/work", {}, TerminalShellKind.PowerShell), [["'e`[1`]'", "e[1]", "File"]], line);
-      assert.deepEqual(await fixture.choicesAsync("gc \"t", "/work", {}, TerminalShellKind.PowerShell), [["\"t````x\"", "t`x", "File"]]);
+        assert.deepEqual(await fixture.choicesAsync(line, "/work", {}, TerminalShellKind.PowerShell), [new Choice("'e`[1`]'", "e[1]", "File")], line);
+      assert.deepEqual(await fixture.choicesAsync("gc \"t", "/work", {}, TerminalShellKind.PowerShell), [new Choice("\"t````x\"", "t`x", "File")]);
       for (const line of ["cat e", "ls e", "rm e", "Get-Item -LiteralPath e", "gi -LP e", "gi -PSPath e", "Copy-Item a e", "Copy-Item -Path a -Destination e",
         "gi -Path a e", "gi -LiteralPath:a e", "Copy-Item -r a e", "gci -f e", "node e"])
-        assert.deepEqual(await fixture.choicesAsync(line, "/work", {}, TerminalShellKind.PowerShell), [["e[1]", "e[1]", "File"]], line);
-      assert.deepEqual(await fixture.choicesAsync("node t", "/work", {}, TerminalShellKind.PowerShell), [["'t`x'", "t`x", "File"]]);
-      assert.deepEqual(await fixture.choicesAsync("e[", "/work", { PATH: "/usr/bin" }, TerminalShellKind.PowerShell), [["e[2]", "e[2]", "Command"]]);
+        assert.deepEqual(await fixture.choicesAsync(line, "/work", {}, TerminalShellKind.PowerShell), [new Choice("e[1]", "e[1]", "File")], line);
+      assert.deepEqual(await fixture.choicesAsync("node t", "/work", {}, TerminalShellKind.PowerShell), [new Choice("'t`x'", "t`x", "File")]);
+      assert.deepEqual(await fixture.choicesAsync("e[", "/work", { PATH: "/usr/bin" }, TerminalShellKind.PowerShell), [new Choice("e[2]", "e[2]", "Command")]);
     });
 
     it("escapes for PowerShell's Windows-only aliases of those cmdlets on Windows", async () => {
@@ -197,8 +221,8 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("C:\\work\\e[1]", "");
 
       for (const line of ["cat e", "ls e", "rm e", "rm -r e", "ac e", "cp e", "mv e", "rmdir e", "Get-Item e"])
-        assert.deepEqual(await fixture.choicesAsync(line, "C:\\work", {}, TerminalShellKind.PowerShell), [["'e`[1`]'", "e[1]", "File"]], line);
-      assert.deepEqual(await fixture.choicesAsync("gi -LiteralPath e", "C:\\work", {}, TerminalShellKind.PowerShell), [["e[1]", "e[1]", "File"]]);
+        assert.deepEqual(await fixture.choicesAsync(line, "C:\\work", {}, TerminalShellKind.PowerShell), [new Choice("'e`[1`]'", "e[1]", "File")], line);
+      assert.deepEqual(await fixture.choicesAsync("gi -LiteralPath e", "C:\\work", {}, TerminalShellKind.PowerShell), [new Choice("e[1]", "e[1]", "File")]);
     });
 
     it("reads a PowerShell path word's wildcard escapes back only where a cmdlet's -Path reads them, so a second Tab lists inside the folder", async () => {
@@ -206,9 +230,9 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("/work/e[1]/in.txt", "");
       fixture.fileSystem.files.set("/work/e`[1`]/out.txt", "");
 
-      assert.deepEqual(await fixture.choicesAsync("gc 'e`[1`]/", "/work", {}, TerminalShellKind.PowerShell), [["'e`[1`]/in.txt'", "in.txt", "File"]]);
+      assert.deepEqual(await fixture.choicesAsync("gc 'e`[1`]/", "/work", {}, TerminalShellKind.PowerShell), [new Choice("'e`[1`]/in.txt'", "in.txt", "File")]);
       for (const line of ["gc -LiteralPath 'e`[1`]/", "cat 'e`[1`]/", "node 'e`[1`]/"])
-        assert.deepEqual(await fixture.choicesAsync(line, "/work", {}, TerminalShellKind.PowerShell), [["'e`[1`]/out.txt'", "out.txt", "File"]], line);
+        assert.deepEqual(await fixture.choicesAsync(line, "/work", {}, TerminalShellKind.PowerShell), [new Choice("'e`[1`]/out.txt'", "out.txt", "File")], line);
     });
 
     it("lists what answered once a folder doesn't answer by the list's deadline, and lists nothing more for that terminal until its read ends", async () => {
@@ -222,19 +246,19 @@ describe("CompletionSource", () => {
         fixture.fileSystem.files.set("/work/run.sh", "");
         const environment: Readonly<Record<string, string>> = { PATH: "/share/bin:/usr/bin" };
 
-        const first: Promise<[number, readonly Choice[]]> = fixture.completeAsync("gi", "/work", environment);
+        const first: Promise<Completion> = fixture.completeAsync("gi", "/work", environment);
         let isListed: boolean = false;
         void first.then(() => isListed = true, () => isListed = true);
         await vi.advanceTimersByTimeAsync(999);
         const isListedEarly: boolean = isListed;
         await vi.advanceTimersByTimeAsync(1);
-        assert.deepEqual([isListedEarly, await first], [false, [0, [["git", "git", "Command"]]]]);
-        assert.deepEqual(await fixture.completeAsync("cat r"), [5, []]);
-        assert.deepEqual(await fixture.completeAsync("cat r", "/work", {}, TerminalShellKind.Bash, "s2"), [4, [["run.sh", "run.sh", "File"]]]);
+        assert.deepEqual([isListedEarly, await first], [false, new Completion(0, [new Choice("git", "git", "Command")])]);
+        assert.deepEqual(await fixture.completeAsync("cat r"), new Completion(5, []));
+        assert.deepEqual(await fixture.completeAsync("cat r", "/work", {}, TerminalShellKind.Bash, "s2"), new Completion(4, [new Choice("run.sh", "run.sh", "File")]));
         assert.deepEqual(fixture.fileSystem.listed, ["/share/bin", "/usr/bin", "/work"]);
         stalled.resolve();
         await vi.advanceTimersByTimeAsync(0);
-        assert.deepEqual(await fixture.completeAsync("cat r"), [4, [["run.sh", "run.sh", "File"]]]);
+        assert.deepEqual(await fixture.completeAsync("cat r"), new Completion(4, [new Choice("run.sh", "run.sh", "File")]));
       }
       finally {
         vi.useRealTimers();
@@ -250,14 +274,14 @@ describe("CompletionSource", () => {
         fixture.fileSystem.files.set("/usr/bin/git", "");
         const environment: Readonly<Record<string, string>> = { PATH: "/share/bin:/usr/bin" };
 
-        const tabs: Promise<[number, readonly Choice[]]>[] = [1, 2, 3].map(() => fixture.completeAsync("gi", "/work", environment));
+        const tabs: Promise<Completion>[] = [1, 2, 3].map(() => fixture.completeAsync("gi", "/work", environment));
         await vi.advanceTimersByTimeAsync(1_000);
-        assert.deepEqual(await Promise.all(tabs), [1, 2, 3].map(() => [0, [["git", "git", "Command"]]]));
+        assert.deepEqual(await Promise.all(tabs), [1, 2, 3].map(() => new Completion(0, [new Choice("git", "git", "Command")])));
         assert.deepEqual(fixture.fileSystem.listed, ["/share/bin", "/usr/bin"]);
-        assert.deepEqual(await fixture.completeAsync("gi", "/work", environment), [2, []]);
+        assert.deepEqual(await fixture.completeAsync("gi", "/work", environment), new Completion(2, []));
         stalled.resolve();
         await vi.advanceTimersByTimeAsync(0);
-        assert.deepEqual(await fixture.completeAsync("gi", "/work", environment), [0, [["git", "git", "Command"]]]);
+        assert.deepEqual(await fixture.completeAsync("gi", "/work", environment), new Completion(0, [new Choice("git", "git", "Command")]));
       }
       finally {
         vi.useRealTimers();
@@ -274,15 +298,15 @@ describe("CompletionSource", () => {
         fixture.fileSystem.stalled.set("/work/b", second.promise);
         fixture.fileSystem.files.set("/work/run.sh", "");
 
-        const lists: Promise<[number, readonly Choice[]]>[] = [fixture.completeAsync("cat a/"), fixture.completeAsync("cat b/")];
+        const lists: Promise<Completion>[] = [fixture.completeAsync("cat a/"), fixture.completeAsync("cat b/")];
         await vi.advanceTimersByTimeAsync(1_000);
-        assert.deepEqual(await Promise.all(lists), [[4, []], [4, []]]);
+        assert.deepEqual(await Promise.all(lists), [new Completion(4, []), new Completion(4, [])]);
         first.resolve();
         await vi.advanceTimersByTimeAsync(0);
-        assert.deepEqual(await fixture.completeAsync("cat r"), [5, []]);
+        assert.deepEqual(await fixture.completeAsync("cat r"), new Completion(5, []));
         second.resolve();
         await vi.advanceTimersByTimeAsync(0);
-        assert.deepEqual(await fixture.completeAsync("cat r"), [4, [["run.sh", "run.sh", "File"]]]);
+        assert.deepEqual(await fixture.completeAsync("cat r"), new Completion(4, [new Choice("run.sh", "run.sh", "File")]));
       }
       finally {
         vi.useRealTimers();
@@ -296,9 +320,9 @@ describe("CompletionSource", () => {
         fixture.fileSystem.stalled.set("/a/b/c/package.json", new Promise<void>(() => undefined));
         fixture.fileSystem.files.set("/package.json", "{\"scripts\":{\"build\":\"\"}}");
 
-        const completion: Promise<[number, readonly Choice[]]> = fixture.completeAsync("npm run b", "/a/b/c");
+        const completion: Promise<Completion> = fixture.completeAsync("npm run b", "/a/b/c");
         await vi.advanceTimersByTimeAsync(1_000);
-        assert.deepEqual(await completion, [8, []]);
+        assert.deepEqual(await completion, new Completion(8, []));
         assert.deepEqual(fixture.fileSystem.listed, ["/a/b/c/package.json"]);
       }
       finally {
@@ -312,7 +336,7 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("/work/read.me", "");
 
       const choices: readonly (readonly Choice[])[] = await Promise.all([fixture.choicesAsync("cat ru"), fixture.choicesAsync("cat re")]);
-      assert.deepEqual(choices, [[["run.sh", "run.sh", "File"]], [["read.me", "read.me", "File"]]]);
+      assert.deepEqual(choices, [[new Choice("run.sh", "run.sh", "File")], [new Choice("read.me", "read.me", "File")]]);
     });
 
     it("gives at most 500 choices, and none whose text is longer than a path", async () => {
@@ -323,8 +347,8 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("/long/y", "");
 
       const choices: readonly Choice[] = await fixture.choicesAsync("cat ", "/many");
-      assert.deepEqual([choices.length, choices[0]?.[0], choices[499]?.[0]], [500, "f000", "f499"]);
-      assert.deepEqual(await fixture.choicesAsync("cat /long/"), [["/long/y", "y", "File"]]);
+      assert.deepEqual([choices.length, choices[0]?.text, choices[499]?.text], [500, "f000", "f499"]);
+      assert.deepEqual(await fixture.choicesAsync("cat /long/"), [new Choice("/long/y", "y", "File")]);
     });
   });
 
@@ -345,8 +369,10 @@ describe("CompletionSource", () => {
       const powerShell: TerminalCompletion = source.addOptions(files, TerminalShellKind.PowerShell, "Get-ChildItem -R", 16,
         ["-Recurse", "-ReadOnly", "-Path", "-readme.md"]);
 
-      assert.deepEqual([bash.replaceFrom, bash.items.map(t => [t.label, t.kind])], [3, [["--all", "Option"], ["--author", "Option"]]]);
-      assert.deepEqual(powerShell.items.map(t => [t.label, t.kind]), [["-readme.md", "File"], ["-ReadOnly", "Option"], ["-Recurse", "Option"]]);
+      assert.deepEqual(bash, new TerminalCompletion(3, [new TerminalCompletionItem("--all", "--all", TerminalCompletionKind.Option),
+        new TerminalCompletionItem("--author", "--author", TerminalCompletionKind.Option)]));
+      assert.deepEqual(powerShell.items, [new TerminalCompletionItem("-readme.md", "-readme.md", TerminalCompletionKind.File),
+        new TerminalCompletionItem("-ReadOnly", "-ReadOnly", TerminalCompletionKind.Option), new TerminalCompletionItem("-Recurse", "-Recurse", TerminalCompletionKind.Option)]);
     });
 
     it("keeps the list at 500 choices with the options in, and the list as it was when no option fits", () => {
@@ -504,7 +530,7 @@ describe("CompletionSource", () => {
         ["gti", "nope"]);
       assert.deepEqual(fixture.lookups.map(t => t.split("\n")[1]), ["$names = @('gti', 'Process', 'process', 'nope')"]);
       assert.deepEqual(fixture.runner.environments, [{ PATH: "/usr/bin", PSModulePath: "/opt/modules" }]);
-      assert.deepEqual(fixture.runner.runs.map(t => [t[1].slice(0, -1), t[2]]),
+      assert.deepEqual(fixture.runner.runs.map(t => [t.args.slice(0, -1), t.timeoutMilliseconds]),
         [[["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand"], 10_000]]);
       assert.deepEqual(fixture.runner.endings, [60_000]);
     });
@@ -646,7 +672,7 @@ describe("CompletionSource", () => {
     it("on Windows, gives the lookup a PSModulePath folder as written when reading its real path fails with a system error, as on a RAM disk", async () => {
       const fixture: SourceFixture = new SourceFixture("win32", "C:\\Users\\a");
       fixture.runner.answers.set(PWSH, "0\r\n");
-      fixture.fileSystem.realPathFailures.set("R:\\MODULE~1", Object.assign(new Error("EISDIR: illegal operation on a directory"), { code: "EISDIR" }));
+      fixture.fileSystem.realPathFailures.set("R:\\MODULE~1", new CodedError("EISDIR: illegal operation on a directory", "EISDIR"));
       fixture.fileSystem.realPaths.set("C:\\Users\\RUNNER~1\\Modules", "C:\\Users\\runneradmin\\Modules");
 
       const missing: readonly string[] = await fixture.powerShellMissingAsync(["gti"], new Set(), { PSModulePath: "R:\\MODULE~1;C:\\Users\\RUNNER~1\\Modules" });
@@ -728,12 +754,12 @@ describe("CompletionSource", () => {
 
       for (const command of ["checkout", "switch", "merge", "rebase"])
         assert.deepEqual(await fixture.choicesAsync(`git ${command} `, "/work", environment), [
-          ["feature/x", "feature/x", "Branch"],
-          ["main", "main", "Branch"],
-          ["origin/main", "origin/main", "Branch"]
+          new Choice("feature/x", "feature/x", "Branch"),
+          new Choice("main", "main", "Branch"),
+          new Choice("origin/main", "origin/main", "Branch")
         ]);
-      assert.deepEqual(fixture.runner.runs[0], ["/usr/bin/git", ["-C", "/work", "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes"], 2_000]);
-      assert.deepEqual(await fixture.choicesAsync("git switch ma", "/work", environment), [["main", "main", "Branch"]]);
+      assert.deepEqual(fixture.runner.runs[0], new RecordedRun("/usr/bin/git", ["-C", "/work", "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes"], 2_000));
+      assert.deepEqual(await fixture.choicesAsync("git switch ma", "/work", environment), [new Choice("main", "main", "Branch")]);
     });
 
     it("lists paths after other commands and after a branch, and no branches where git isn't on PATH or fails", async () => {
@@ -746,8 +772,8 @@ describe("CompletionSource", () => {
       assert.deepEqual(await fixture.choicesAsync("git checkout ma", "/work", environment), []);
       assert.equal(fixture.runner.runs.length, 1);
       fixture.runner.answers.set("/usr/bin/git", "refs/heads/main\n");
-      assert.deepEqual(await fixture.choicesAsync("git log ma", "/work", environment), [["main.c", "main.c", "File"]]);
-      assert.deepEqual(await fixture.choicesAsync("git checkout main ma", "/work", environment), [["main.c", "main.c", "File"]]);
+      assert.deepEqual(await fixture.choicesAsync("git log ma", "/work", environment), [new Choice("main.c", "main.c", "File")]);
+      assert.deepEqual(await fixture.choicesAsync("git checkout main ma", "/work", environment), [new Choice("main.c", "main.c", "File")]);
     });
 
     it("passes on a failure that isn't git's", async () => {
@@ -765,10 +791,10 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("/work/app/package.json", JSON.stringify({ scripts: { test: "vitest", build: "tsc" } }));
       fixture.fileSystem.files.set("/work/package.json", JSON.stringify({ scripts: { root: "x" } }));
 
-      assert.deepEqual(await fixture.choicesAsync("npm run ", "/work/app/src"), [["build", "build", "Script"], ["test", "test", "Script"]]);
-      assert.deepEqual(await fixture.choicesAsync("npm run-script t", "/work/app"), [["test", "test", "Script"]]);
+      assert.deepEqual(await fixture.choicesAsync("npm run ", "/work/app/src"), [new Choice("build", "build", "Script"), new Choice("test", "test", "Script")]);
+      assert.deepEqual(await fixture.choicesAsync("npm run-script t", "/work/app"), [new Choice("test", "test", "Script")]);
       fixture.fileSystem.files.set("/work/app/src/build.ts", "");
-      assert.deepEqual(await fixture.choicesAsync("npm install b", "/work/app/src"), [["build.ts", "build.ts", "File"]]);
+      assert.deepEqual(await fixture.choicesAsync("npm install b", "/work/app/src"), [new Choice("build.ts", "build.ts", "File")]);
     });
 
     it("lists no script or file whose name holds a C0, DEL or C1 control character, which the terminal would type as a key", async () => {
@@ -777,8 +803,8 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("/work/t\u007fx.ts", "");
       fixture.fileSystem.files.set("/work/tx.ts", "");
 
-      assert.deepEqual(await fixture.choicesAsync("npm run t", "/work"), [["test", "test", "Script"]]);
-      assert.deepEqual(await fixture.choicesAsync("ls t", "/work"), [["tx.ts", "tx.ts", "File"]]);
+      assert.deepEqual(await fixture.choicesAsync("npm run t", "/work"), [new Choice("test", "test", "Script")]);
+      assert.deepEqual(await fixture.choicesAsync("ls t", "/work"), [new Choice("tx.ts", "tx.ts", "File")]);
     });
 
     it("lists none for a package.json that isn't JSON or has no scripts object, nor without one", async () => {
@@ -815,14 +841,14 @@ describe("CompletionSource", () => {
       const environment: Readonly<Record<string, string>> = { Path: "C:\\Tools", PathExt: ".EXE;.CMD;" };
 
       assert.deepEqual(await fixture.choicesAsync("n", "C:\\work", environment, TerminalShellKind.PowerShell), [
-        ["New-Item", "New-Item", "Command"],
-        ["Node", "Node", "Command"],
-        ["npm", "npm", "Command"]
+        new Choice("New-Item", "New-Item", "Command"),
+        new Choice("Node", "Node", "Command"),
+        new Choice("npm", "npm", "Command")
       ]);
       assert.deepEqual(await fixture.choicesAsync("note", "C:\\work", { PATH: "C:\\Tools" }, TerminalShellKind.PowerShell), []);
       fixture.fileSystem.files.set("C:\\Tools\\notepad.com", "");
       assert.deepEqual(await fixture.choicesAsync("note", "C:\\work", { PATH: "C:\\Tools" }, TerminalShellKind.PowerShell),
-        [["notepad", "notepad", "Command"]]);
+        [new Choice("notepad", "notepad", "Command")]);
     });
 
     it("lists PowerShell's paths with its separator, quoted where they must be, from the home folder too", async () => {
@@ -831,10 +857,10 @@ describe("CompletionSource", () => {
       fixture.fileSystem.folders.add("C:\\Users\\a\\Desktop");
       fixture.fileSystem.files.set("C:\\Tools\\npm.cmd", "");
 
-      assert.deepEqual(await fixture.completeAsync("cd m", "C:\\work", {}, TerminalShellKind.PowerShell), [3, [["'My Docs\\", "My Docs\\", "Folder"]]]);
-      assert.deepEqual(await fixture.choicesAsync("cd ~\\D", "C:\\work", {}, TerminalShellKind.PowerShell), [["~\\Desktop\\", "Desktop\\", "Folder"]]);
-      assert.deepEqual(await fixture.choicesAsync("cd ~/D", "C:\\work", {}, TerminalShellKind.PowerShell), [["~/Desktop/", "Desktop/", "Folder"]]);
-      assert.deepEqual(await fixture.choicesAsync("C:\\Tools\\N", "C:\\work", {}, TerminalShellKind.PowerShell), [["C:\\Tools\\npm.cmd", "npm.cmd", "File"]]);
+      assert.deepEqual(await fixture.completeAsync("cd m", "C:\\work", {}, TerminalShellKind.PowerShell), new Completion(3, [new Choice("'My Docs\\", "My Docs\\", "Folder")]));
+      assert.deepEqual(await fixture.choicesAsync("cd ~\\D", "C:\\work", {}, TerminalShellKind.PowerShell), [new Choice("~\\Desktop\\", "Desktop\\", "Folder")]);
+      assert.deepEqual(await fixture.choicesAsync("cd ~/D", "C:\\work", {}, TerminalShellKind.PowerShell), [new Choice("~/Desktop/", "Desktop/", "Folder")]);
+      assert.deepEqual(await fixture.choicesAsync("C:\\Tools\\N", "C:\\work", {}, TerminalShellKind.PowerShell), [new Choice("C:\\Tools\\npm.cmd", "npm.cmd", "File")]);
     });
 
     it("reads Git Bash's drive paths, and lists nothing for its paths outside a drive", async () => {
@@ -843,9 +869,9 @@ describe("CompletionSource", () => {
       fixture.fileSystem.folders.add("D:\\data");
       fixture.fileSystem.folders.add("C:\\work");
 
-      assert.deepEqual(await fixture.choicesAsync("cd s", "/c/work"), [["src/", "src/", "Folder"]]);
-      assert.deepEqual(await fixture.choicesAsync("cd w", "/c"), [["work/", "work/", "Folder"]]);
-      assert.deepEqual(await fixture.choicesAsync("cd /d/", "/c/work"), [["/d/data/", "data/", "Folder"]]);
+      assert.deepEqual(await fixture.choicesAsync("cd s", "/c/work"), [new Choice("src/", "src/", "Folder")]);
+      assert.deepEqual(await fixture.choicesAsync("cd w", "/c"), [new Choice("work/", "work/", "Folder")]);
+      assert.deepEqual(await fixture.choicesAsync("cd /d/", "/c/work"), [new Choice("/d/data/", "data/", "Folder")]);
       assert.deepEqual(await fixture.choicesAsync("cd /usr/", "/c/work"), []);
       assert.deepEqual(await fixture.choicesAsync("cd ", "/usr/share"), []);
       assert.deepEqual(await fixture.choicesAsync("git checkout ", "/usr/share", { PATH: "C:\\Git\\cmd" }), []);
@@ -858,9 +884,9 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("C:\\Temp\\top", "");
       const environment: Readonly<Record<string, string>> = { Temp: "C:\\Temp" };
 
-      assert.deepEqual(await fixture.choicesAsync("cat a", "/tmp/names", environment), [["a\\ b", "a b", "File"]]);
-      assert.deepEqual(await fixture.choicesAsync("cat /tmp/t", "/c/work", environment), [["/tmp/top", "top", "File"]]);
-      assert.deepEqual(await fixture.choicesAsync("cat t", "/tmp", environment), [["top", "top", "File"]]);
+      assert.deepEqual(await fixture.choicesAsync("cat a", "/tmp/names", environment), [new Choice("a\\ b", "a b", "File")]);
+      assert.deepEqual(await fixture.choicesAsync("cat /tmp/t", "/c/work", environment), [new Choice("/tmp/top", "top", "File")]);
+      assert.deepEqual(await fixture.choicesAsync("cat t", "/tmp", environment), [new Choice("top", "top", "File")]);
       assert.deepEqual(await fixture.choicesAsync("cat t", "/tmpx", environment), []);
       assert.deepEqual(await fixture.choicesAsync("cat t", "/tmp", { TEMP: "Temp" }), []);
       assert.deepEqual(await fixture.choicesAsync("cat t", "/tmp"), []);
@@ -873,9 +899,9 @@ describe("CompletionSource", () => {
       fixture.fileSystem.files.set("C:\\work\\package.json", "{\"scripts\":{\"build\":\"tsc\"}}");
       const environment: Readonly<Record<string, string>> = { PATH: "C:\\Git\\cmd" };
 
-      assert.deepEqual(await fixture.choicesAsync("Git.exe checkout ", "/c/work", environment), [["main", "main", "Branch"]]);
-      assert.deepEqual(fixture.runner.runs[0]?.[1][1], "C:\\work");
-      assert.deepEqual(await fixture.choicesAsync("NPM.cmd run ", "C:\\work", environment, TerminalShellKind.PowerShell), [["build", "build", "Script"]]);
+      assert.deepEqual(await fixture.choicesAsync("Git.exe checkout ", "/c/work", environment), [new Choice("main", "main", "Branch")]);
+      assert.deepEqual(fixture.runner.runs[0]?.args[1], "C:\\work");
+      assert.deepEqual(await fixture.choicesAsync("NPM.cmd run ", "C:\\work", environment, TerminalShellKind.PowerShell), [new Choice("build", "build", "Script")]);
     });
   });
 });

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IWindowPartContext } from "@noldova/desktop.window";
 import { ArgumentValidator } from "@noldova/terminal.protocol";
 
@@ -17,7 +19,7 @@ export class TerminalStartFolder {
   private static provider: IStartFolderProvider | null = null;
 
   public static provide(context: IWindowPartContext, folder: () => string | null): () => void {
-    if (TerminalStartFolder.provider !== null)
+    if (!Object.isNull(TerminalStartFolder.provider))
       throw new StartFolderProvidedException();
     const provider: IStartFolderProvider = { context, folder };
     TerminalStartFolder.provider = provider;
@@ -29,11 +31,11 @@ export class TerminalStartFolder {
 
   public static read(): string | null {
     const provider: IStartFolderProvider | null = TerminalStartFolder.provider;
-    if (provider === null)
+    if (Object.isNull(provider))
       return null;
     try {
       const folder: string | null = provider.folder();
-      if (folder !== null)
+      if (!Object.isNull(folder))
         ArgumentValidator.requireAbsolutePath(Resources.startFolderName, folder);
       return folder;
     }

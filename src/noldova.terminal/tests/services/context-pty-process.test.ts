@@ -5,6 +5,9 @@
  * This source code is licensed under the license found in the
  * LICENSE file in the root directory of this source tree.
  */
+
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { constants } from "node:os";
 
@@ -32,6 +35,18 @@ class ForegroundTerminal extends PseudoTerminal {
 
   public override readForegroundProcessAsync(): Promise<ForegroundProcess | null> {
     return Promise.resolve(this.foreground);
+  }
+}
+
+class ExitCase {
+  public readonly exitCode: number | undefined;
+  public readonly signal: number | undefined;
+  public readonly expected: IPtyExitEvent;
+
+  public constructor(exitCode: number | undefined, signal: number | undefined, expected: IPtyExitEvent) {
+    this.exitCode = exitCode;
+    this.signal = signal;
+    this.expected = expected;
   }
 }
 
@@ -99,7 +114,7 @@ describe("ContextPtyProcess", () => {
           throw new Error(`The listener failed on ${t}.`);
         output.push(t);
       });
-      for (let task: (() => void) | undefined = tasks.shift(); task !== undefined; task = tasks.shift())
+      for (let task: (() => void) | undefined = tasks.shift(); !Object.isUndefined(task); task = tasks.shift())
         try {
           task();
         }
@@ -154,11 +169,11 @@ describe("ContextPtyProcess", () => {
   });
 
   it("reports an exit code, a signal by its number, and an exit without either", async () => {
-    const cases: [number | undefined, number | undefined, IPtyExitEvent][] = [
-      [3, undefined, { exitCode: 3 }],
-      [0, constants.signals.SIGHUP, { exitCode: undefined, signal: constants.signals.SIGHUP }],
-      [undefined, undefined, { exitCode: undefined }]];
-    for (const [exitCode, signal, expected] of cases) {
+    const cases: readonly ExitCase[] = [
+      new ExitCase(3, undefined, { exitCode: 3 }),
+      new ExitCase(0, constants.signals.SIGHUP, { exitCode: undefined, signal: constants.signals.SIGHUP }),
+      new ExitCase(undefined, undefined, { exitCode: undefined })];
+    for (const { exitCode, signal, expected } of cases) {
       const handle: FakePtyHandle = new FakePtyHandle();
       const process: ContextPtyProcess = create(handle);
       const exited: Promise<IPtyExitEvent> = waitForExitAsync(process);

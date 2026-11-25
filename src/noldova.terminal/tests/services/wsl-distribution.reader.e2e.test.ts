@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { FakeRuntimePartContext } from "@noldova/desktop.runtime/testing";
@@ -32,7 +34,7 @@ describe("WslDistributionReader with this computer's Windows PowerShell and regi
     context.answer("startProcessAsync", t => terminals.processes.startAsync(SupervisedTerminals.moduleId, t));
 
     const systemRoot: string | undefined = process.env["SystemRoot"];
-    assert.ok(systemRoot !== undefined, "SystemRoot is not set.");
+    assert.ok(!Object.isUndefined(systemRoot), "SystemRoot is not set.");
 
     const distributions: readonly string[] = await new WslDistributionReader(new CommandRunner(context), systemRoot).readAsync();
 

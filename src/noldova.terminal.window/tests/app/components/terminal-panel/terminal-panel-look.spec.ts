@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TerminalNames, TerminalResizeParams, type TerminalSize } from "@noldova/terminal.protocol";
 import { DefaultTheme, ThemeMode } from "@noldova/ui.components.angular";
 import { AppearanceFixture, KitStylesheetFixture } from "@noldova/ui.components.angular/testing";
@@ -370,7 +372,7 @@ describe("TerminalPanelComponent in the kit's look", () => {
       const screen: DOMRect = shown.screen.getBoundingClientRect();
       const cell: { width: number; height: number } = { width: screen.width / size.columns, height: screen.height / size.rows };
 
-      const selectedText: string | undefined = theme.selectionForeground === undefined ? undefined : resolve(theme.selectionForeground);
+      const selectedText: string | undefined = Object.isUndefined(theme.selectionForeground) ? undefined : resolve(theme.selectionForeground);
 
       expect([getComputedStyle(paneElement).color, resolve(theme.cursor ?? ""), resolve(theme.selectionBackground ?? ""), selectedText])
         .toEqual([token("foreground"), token("cursor"), token("selection"), token("selection-foreground")]);
@@ -427,7 +429,7 @@ describe("TerminalPanelComponent in the kit's look", () => {
     await shown.attachedAsync();
     await vi.waitFor(() => expect(shown.runtime.context.sent(TerminalNames.resizeMethod)).not.toHaveLength(0), { timeout: DrawnWait.milliseconds });
     const sgr = (code: number, color: string): string => `\u001b[${code};2;${(color.match(/\d+/gu) ?? []).slice(0, 3).join(";")}m`;
-    const squares: string = `\u001b[31m■■\u001b[0m${reference === undefined ? ""
+    const squares: string = `\u001b[31m■■\u001b[0m${Object.isUndefined(reference) ? ""
       : `\r\n\r\n${sgr(38, reference.text)}${sgr(48, reference.background)}■■\u001b[0m`}`;
     shown.runtime.output("mine", 0, squares);
     await vi.waitFor(() => expect(shown.runtime.context.sent(TerminalNames.ackMethod).at(-1)).toMatchObject({ offset: squares.length }),
@@ -486,8 +488,8 @@ describe("TerminalPanelComponent in the kit's look", () => {
         const drawn: { pixels: string[]; next: string[]; reference: string[]; empty: string; edges: string[] } = await drawnAsync(`${shot}-unselected-text`);
         const drawnText: string | undefined = glyph(drawn.reference, selection);
         return {
-          drawn: [drawnText !== undefined, drawn.pixels.some(t => t !== drawn.empty)],
-          text: [drawn.pixels, drawn.next].map(t => drawnText !== undefined && t.includes(drawnText)),
+          drawn: [!Object.isUndefined(drawnText), drawn.pixels.some(t => t !== drawn.empty)],
+          text: [drawn.pixels, drawn.next].map(t => !Object.isUndefined(drawnText) && t.includes(drawnText)),
           edges: drawn.edges
         };
       };
@@ -500,7 +502,7 @@ describe("TerminalPanelComponent in the kit's look", () => {
         const drawn: { pixels: string[]; next: string[]; reference: string[]; empty: string; edges: string[] } = await drawnAsync(`${shot}-selected-text`);
         const drawnText: string | undefined = glyph(drawn.reference, selection);
         return {
-          text: [drawn.pixels, drawn.next].map(t => drawnText !== undefined && t.includes(drawnText)),
+          text: [drawn.pixels, drawn.next].map(t => !Object.isUndefined(drawnText) && t.includes(drawnText)),
           kit: drawn.pixels.includes(text),
           empty: drawn.empty,
           edges: drawn.edges

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonObject } from "@noldova/context.json";
 
 import { Resources } from "../resources.ts";
@@ -17,7 +19,7 @@ export class TerminalShowOwnerParams {
   public readonly isHidden: boolean;
 
   public constructor(owner: string | null, isHidden: boolean = false) {
-    if (owner !== null)
+    if (!Object.isNull(owner))
       ArgumentValidator.requireNonBlank(Resources.ownerField, owner, Resources.maximumOwnerLength);
 
     this.owner = owner;

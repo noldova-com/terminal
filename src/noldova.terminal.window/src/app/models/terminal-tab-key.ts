@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { JsonReader, type JsonValue } from "@noldova/context.json";
 
 import { Resources } from "../../resources.ts";
@@ -20,11 +22,11 @@ export class TerminalTabKey {
   }
 
   public static fromArguments(commandArguments: JsonValue): TerminalTabKey | null {
-    if (commandArguments === null || typeof commandArguments !== "object" || Array.isArray(commandArguments))
+    if (!Object.isObject(commandArguments) || Array.isArray(commandArguments))
       return null;
     const reader: JsonReader = JsonReader.fromValue(commandArguments);
     const tab: JsonValue = reader.hasField(Resources.tabArgument) ? reader.readValue(Resources.tabArgument) : null;
-    if (typeof tab !== "string")
+    if (!Object.isString(tab))
       return null;
     const [kind, view = "", ...instance] = tab.split(Resources.tabKeySeparator);
     if (kind !== Resources.viewTabKind || view === "")

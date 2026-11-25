@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { JsonException, JsonReader } from "@noldova/context.json";
@@ -20,6 +22,7 @@ import type { VisualStudioInstallation } from "../../src/models/visual-studio-in
 import { VisualStudioReader } from "../../src/services/visual-studio.reader.ts";
 import { FakeCommandRunner } from "../fixtures/fake-command-runner.fixture.ts";
 import { FakeFileSystemReader } from "../fixtures/fake-file-system-reader.fixture.ts";
+import { RecordedRun } from "../fixtures/recorded-run.fixture.ts";
 
 const VSWHERE: string = "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe";
 const UNREADABLE: string = "The shell list leaves out Visual Studio's developer shells, since its installations could not be read.";
@@ -44,7 +47,7 @@ describe("VisualStudioReader", () => {
       ["e7143cad", "Visual Studio Professional 2026", "C:\\Program Files\\Microsoft Visual Studio\\18\\Professional"],
       ["1b2c", "Visual Studio Build Tools 2022 — Café", "D:\\Tools"]
     ]);
-    assert.deepEqual(runner.runs, [[VSWHERE, ["-products", "*", "-prerelease", "-utf8", "-format", "json"], 60_000]]);
+    assert.deepEqual(runner.runs, [new RecordedRun(VSWHERE, ["-products", "*", "-prerelease", "-utf8", "-format", "json"], 60_000)]);
   });
 
   it("leaves out an installation whose id, name or path is longer than the protocol takes, and reads the others", async () => {
@@ -81,7 +84,7 @@ describe("VisualStudioReader", () => {
   it("keeps why the output could not be read as the cause", async () => {
     await assert.rejects(readAsync("not json"), (error: unknown) => error instanceof VisualStudioUnreadableException && error.cause instanceof SyntaxError);
     await assert.rejects(readAsync("[1]"), (error: unknown) => error instanceof VisualStudioUnreadableException && error.cause instanceof JsonException);
-    await assert.rejects(readAsync("{}"), (error: unknown) => error instanceof VisualStudioUnreadableException && error.cause === undefined);
+    await assert.rejects(readAsync("{}"), (error: unknown) => error instanceof VisualStudioUnreadableException && Object.isUndefined(error.cause));
   });
 
   it("reports vswhere's failure, keeping it as the cause", async () => {

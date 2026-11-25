@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { BinaryToTextEncoding } from "node:crypto";
 
 import { Resources as ProtocolResources, TerminalShellKind } from "@noldova/terminal.protocol";
@@ -146,7 +148,8 @@ export class Resources {
   public static readonly windowsPlatform: string = "win32";
   public static readonly linuxPlatform: string = "linux";
   public static readonly minimumWindowsBuild: number = 17_763;
-  public static readonly minimumGlibcVersion: readonly [number, number] = [2, 28];
+  public static readonly minimumGlibcMajor: number = 2;
+  public static readonly minimumGlibcMinor: number = 28;
   public static readonly macPlatform: string = "darwin";
   public static readonly languageVariable: string = "LANG";
   public static readonly characterTypeVariable: string = "LC_CTYPE";
@@ -762,7 +765,7 @@ exit 0
   }
 
   public static formatShellLeftRunning(sessionId: string, pid: number | null): string {
-    return `The shell of terminal ${sessionId}${pid === null ? "" : `, process ${pid}`}, or a process it started, did not end in time.`;
+    return `The shell of terminal ${sessionId}${Object.isNull(pid) ? "" : `, process ${pid}`}, or a process it started, did not end in time.`;
   }
 
   public static formatTerminalHistoryFile(sessionId: string, index: number): string {
@@ -810,7 +813,7 @@ exit 0
   }
 
   public static formatLateShellLeftRunning(pid: number | null): string {
-    return `A shell that started as the terminals ended${pid === null ? "" : `, process ${pid}`}, or a process it started, did not end in time.`;
+    return `A shell that started as the terminals ended${Object.isNull(pid) ? "" : `, process ${pid}`}, or a process it started, did not end in time.`;
   }
 
   public static formatLogFailed(path: string, message: string): string {

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { MarkKind } from "../enums/mark-kind.ts";
 
 export class ShellMark {
@@ -14,7 +16,7 @@ export class ShellMark {
   public readonly offset: number;
   public readonly values: readonly string[];
 
-  public constructor(kind: MarkKind, value: string | null, offset: number, values: readonly string[] = value === null ? [] : [value]) {
+  public constructor(kind: MarkKind, value: string | null, offset: number, values: readonly string[] = Object.isNull(value) ? [] : [value]) {
     this.kind = kind;
     this.value = value;
     this.offset = offset;

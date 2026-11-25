@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { chmod, lstat, mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -13,6 +15,7 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, it } from "vitest";
 
+import type { FolderEntry } from "../../src/models/folder-entry.ts";
 import { FileSystemReader } from "../../src/services/file-system.reader.ts";
 
 describe("FileSystemReader", () => {
@@ -96,7 +99,7 @@ describe("FileSystemReader", () => {
     });
     const links: boolean[] = await Promise.all(names.map(async t => (await lstat(join(aliasFolder, t))).isSymbolicLink()));
     const alias: string | undefined = names.find((t, i) => t.endsWith(".exe") && links[i] === true);
-    context.skip(alias === undefined, "This Windows has no app execution alias.");
+    context.skip(Object.isUndefined(alias), "This Windows has no app execution alias.");
     const reader: FileSystemReader = new FileSystemReader();
 
     assert.equal(await reader.isFileAsync(join(aliasFolder, alias ?? "")), false);
@@ -159,10 +162,10 @@ describe("FileSystemReader", () => {
     await symlink(join(entries, "folder"), join(entries, "to-folder"), "junction");
     await symlink(join(entries, "gone"), join(entries, "to-nothing"), "junction");
     try {
-      const listed: readonly [string, boolean][] = (await reader.readEntriesAsync(entries)).map((t): [string, boolean] => [t.name, t.isFolder])
-        .sort(([a], [b]) => a.localeCompare(b));
+      const listed: readonly FolderEntry[] = [...await reader.readEntriesAsync(entries)].sort((a, b) => a.name.localeCompare(b.name));
 
-      assert.deepEqual(listed, [["file", false], ["folder", true], ["to-folder", true], ["to-nothing", false]]);
+      assert.deepEqual(listed.map(t => t.name), ["file", "folder", "to-folder", "to-nothing"]);
+      assert.deepEqual(listed.map(t => t.isFolder), [false, true, true, false]);
       assert.deepEqual(await reader.readEntriesAsync(join(entries, "gone")), []);
       assert.deepEqual(await reader.readEntriesAsync(join(entries, "file")), []);
     }

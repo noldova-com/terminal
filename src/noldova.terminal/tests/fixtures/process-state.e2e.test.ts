@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { Writable } from "node:stream";
@@ -29,10 +31,12 @@ describe("ProcessState", () => {
     try {
       const output: NodeJS.ReadableStream | null = parent.stdout;
       const release: unknown = parent.stdio[3];
-      if (parent.pid === undefined || output === null || !(release instanceof Writable))
+      if (Object.isUndefined(parent.pid) || Object.isNull(output) || !(release instanceof Writable))
         throw new Error("The shell did not start with its pipes.");
       const pid: number = parent.pid;
-      const [line] = await once(output, "data") as [Buffer];
+      const line: unknown = (await once(output, "data"))[0];
+      if (!(line instanceof Buffer))
+        throw new Error("The shell wrote no bytes.");
       const zombie: number = Number(line.toString().trim());
       await vi.waitFor(() => expect(commandOf(pid), `The shell ${pid} did not become sleep.`).toMatch(/sleep$/u), { timeout: WAIT_MS, interval: POLL_MS });
       expect(ProcessState.isRunning(zombie)).toBe(true);

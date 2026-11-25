@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { ILineProcessListener } from "../../src/interfaces/i-line-process-listener.ts";
 import type { ILineProcessStarter } from "../../src/interfaces/i-line-process-starter.ts";
 import type { ILineProcess } from "../../src/interfaces/i-line-process.ts";
@@ -35,10 +37,6 @@ export class FakeLineProcess implements ILineProcess {
     this.listener.onLine(`${Buffer.from(JSON.stringify(value), "utf8").toString("base64")}\r`);
   }
 
-  public reply(machine: Readonly<Record<string, readonly [string, boolean]>>, user: Readonly<Record<string, readonly [string, boolean]>>): void {
-    this.answer({ id: this.written.at(-1), machine, user });
-  }
-
   public line(line: string): void {
     this.listener.onLine(line);
   }
@@ -53,7 +51,7 @@ export class FakeLineProcessStarter implements ILineProcessStarter {
 
   public get last(): FakeLineProcess {
     const process: FakeLineProcess | undefined = this.started.at(-1);
-    if (process === undefined)
+    if (Object.isUndefined(process))
       throw new Error("No process has started.");
     return process;
   }

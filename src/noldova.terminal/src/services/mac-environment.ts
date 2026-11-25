@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { posix } from "node:path";
 
 import type { IEnvironmentSource } from "../interfaces/i-environment-source.ts";
@@ -79,8 +81,8 @@ export class MacEnvironment implements IEnvironmentSource {
 
   private async withUtf8LocaleAsync(locale: string): Promise<Readonly<Record<string, string | undefined>>> {
     const maximized: Intl.Locale = new Intl.Locale(locale).maximize();
-    const name: string | null = maximized.region === undefined ? null : Resources.formatUtf8Locale(maximized.language, maximized.region);
-    return name !== null && await this.hasLocaleAsync(name)
+    const name: string | null = Object.isUndefined(maximized.region) ? null : Resources.formatUtf8Locale(maximized.language, maximized.region);
+    return !Object.isNull(name) && await this.hasLocaleAsync(name)
       ? { ...this.environment, [Resources.languageVariable]: name }
       : { ...this.environment, [Resources.characterTypeVariable]: Resources.utf8Locale };
   }

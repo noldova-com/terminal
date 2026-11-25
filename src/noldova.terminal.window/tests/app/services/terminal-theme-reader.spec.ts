@@ -14,6 +14,20 @@ import type { TerminalAppearance } from "../../../src/app/models/terminal-appear
 import { TerminalThemeReader } from "../../../src/app/services/terminal-theme-reader.ts";
 import { Contrast } from "../../fixtures/contrast.fixture.ts";
 
+class ContrastCase {
+  public readonly theme: string;
+  public readonly canvas: string;
+  public readonly highlight: string;
+  public readonly isDark: boolean;
+
+  public constructor(theme: string, canvas: string, highlight: string, isDark: boolean) {
+    this.theme = theme;
+    this.canvas = canvas;
+    this.highlight = highlight;
+    this.isDark = isDark;
+  }
+}
+
 describe("TerminalThemeReader", () => {
   const elements: HTMLElement[] = [];
 
@@ -158,22 +172,23 @@ describe("TerminalThemeReader", () => {
     expect([...light, dark]).toEqual(["rgba(0, 0, 255, 0.52)", "color(display-p3 0 0 1)", "rgba(0, 0, 255, 0.7)"]);
   });
 
-  it.each([
-    ["Aquatic", "rgb(32, 32, 32)", "rgb(142, 227, 240)", true],
-    ["Desert", "rgb(255, 250, 239)", "rgb(144, 57, 9)", false],
-    ["Dusk", "rgb(45, 50, 54)", "rgb(161, 191, 222)", true],
-    ["Night sky", "rgb(0, 0, 0)", "rgb(214, 180, 253)", true]
-  ] as const)("keeps an unfocused selection's fill at 3:1 against Canvas in the %s contrast theme", async (_, canvas, highlight, isDark) => {
-    await forceColorsAsync(isDark ? "dark" : "light");
-    const base: number[] = (canvas.match(/\d+/gu) ?? []).map(Number);
-    const [red, green, blue, alpha] = (inactive({ "--nol-terminal-selection": highlight })?.match(/[\d.]+/gu) ?? []).map(Number);
-    const opacity: number = Math.round((alpha ?? 1) * 255) / 255;
-    const channel = (from: number, to: number): number => from + Math.round((to - from) * opacity);
+  for (const { theme, canvas, highlight, isDark } of [
+    new ContrastCase("Aquatic", "rgb(32, 32, 32)", "rgb(142, 227, 240)", true),
+    new ContrastCase("Desert", "rgb(255, 250, 239)", "rgb(144, 57, 9)", false),
+    new ContrastCase("Dusk", "rgb(45, 50, 54)", "rgb(161, 191, 222)", true),
+    new ContrastCase("Night sky", "rgb(0, 0, 0)", "rgb(214, 180, 253)", true)
+  ])
+    it(`keeps an unfocused selection's fill at 3:1 against Canvas in the ${theme} contrast theme`, async () => {
+      await forceColorsAsync(isDark ? "dark" : "light");
+      const base: number[] = (canvas.match(/\d+/gu) ?? []).map(Number);
+      const [red, green, blue, alpha] = (inactive({ "--nol-terminal-selection": highlight })?.match(/[\d.]+/gu) ?? []).map(Number);
+      const opacity: number = Math.round((alpha ?? 1) * 255) / 255;
+      const channel = (from: number, to: number): number => from + Math.round((to - from) * opacity);
 
-    const fill: string = `rgb(${channel(base[0] ?? 0, red ?? 0)}, ${channel(base[1] ?? 0, green ?? 0)}, ${channel(base[2] ?? 0, blue ?? 0)})`;
+      const fill: string = `rgb(${channel(base[0] ?? 0, red ?? 0)}, ${channel(base[1] ?? 0, green ?? 0)}, ${channel(base[2] ?? 0, blue ?? 0)})`;
 
-    expect(Contrast.of(fill, canvas)).toBeGreaterThanOrEqual(3);
-  });
+      expect(Contrast.of(fill, canvas)).toBeGreaterThanOrEqual(3);
+    });
 
   it("maps every ANSI color to its theme key, and selects in bright black without a selection or selected token", () => {
     const names: readonly string[] = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "bright-black", "bright-red", "bright-green",

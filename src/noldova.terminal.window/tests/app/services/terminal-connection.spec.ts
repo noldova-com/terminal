@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { FailureCode } from "@noldova/desktop.protocol";
 import type { JsonValue } from "@noldova/context.json";
 import { EndedBy, TerminalExit, TerminalLine, TerminalLineRange, TerminalNames, TerminalSize, TerminalTextRun, WindowsPty, type TerminalAttachment, TerminalInputEdge, TerminalInputMark, type TerminalLinePage } from "@noldova/terminal.protocol";
@@ -27,9 +29,9 @@ class SinkRecorder implements ITerminalSink {
 
   public async drawAsync(attachment: TerminalAttachment): Promise<void> {
     const { size, windowsPty } = attachment;
-    this.events.push(`reset ${size.columns}x${size.rows} ${windowsPty === null ? "none" : windowsPty.buildNumber}`);
+    this.events.push(`reset ${size.columns}x${size.rows} ${Object.isNull(windowsPty) ? "none" : windowsPty.buildNumber}`);
     await this.drawn;
-    if (this.drawFailure !== null)
+    if (!Object.isNull(this.drawFailure))
       throw this.drawFailure;
     this.events.push(`write ${attachment.snapshot + attachment.pending}`);
   }

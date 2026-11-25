@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import path from "node:path";
 
 import type { IModuleLog } from "@noldova/desktop.runtime";
@@ -101,7 +103,7 @@ export class AgentTerminal implements IAgentTerminal {
 
   private get hasUnechoedInput(): boolean {
     const received: number | null = this.hosted.inputReceivedLength;
-    if (received === null || !this.hosted.hasRecentInput)
+    if (Object.isNull(received) || !this.hosted.hasRecentInput)
       return false;
     return !this.hasShellIntegration || this.hosted.hasUnreadInput;
   }
@@ -156,7 +158,7 @@ export class AgentTerminal implements IAgentTerminal {
   }
 
   public async waitForIntegrationAsync(signal: AbortSignal): Promise<void> {
-    const isReady = (): boolean => !this.session.hasIntegration || this.session.hasExited || this.session.commands.promptEndOffset !== null;
+    const isReady = (): boolean => !this.session.hasIntegration || this.session.hasExited || !Object.isNull(this.session.commands.promptEndOffset);
     await this.session.waitForStartAsync(() => isReady() || this.session.commands.isLoaded, signal);
     if (this.session.commands.isLoaded)
       await this.session.changes.waitUntilAsync(isReady, Resources.shellStartMilliseconds, signal);
@@ -172,7 +174,7 @@ export class AgentTerminal implements IAgentTerminal {
   }
 
   private openLogFile(): LogFile {
-    if (this.logFile === undefined) {
+    if (Object.isUndefined(this.logFile)) {
       const logFile: LogFile = new LogFile(this.writer, path.join(this.logFolder, this.id + Resources.logFileExtension), this.log);
       this.session.text.subscribe(t => logFile.append(t));
       this.logFile = logFile;

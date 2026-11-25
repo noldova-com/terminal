@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources as ProtocolResources, TerminalInputStart, TerminalRunOutput, type TerminalLine, type TerminalSize } from "@noldova/terminal.protocol";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import type { IBuffer, IBufferLine, IMarker, Terminal as XtermTerminal } from "@xterm/headless";
@@ -88,7 +90,7 @@ export class TerminalMirror {
     this.terminal.write("", () => {
       const start: IMarker | undefined = this.inputStart;
       const buffer: IBuffer = this.terminal.buffer.active;
-      if (start !== undefined && !start.isDisposed && buffer.baseY + buffer.cursorY === start.line)
+      if (!Object.isUndefined(start) && !start.isDisposed && buffer.baseY + buffer.cursorY === start.line)
         this.rightPrompt = buffer.cursorX;
     });
   }
@@ -110,11 +112,11 @@ export class TerminalMirror {
     return new Promise<MirrorLine>(resolve => this.terminal.write("", () => {
       const buffer: IBuffer = this.terminal.buffer.normal;
       const cursor: number = buffer.baseY + buffer.cursorY;
-      const index: number | null = at === null ? cursor : at.index;
-      const marker: IMarker | undefined = index === null || this.terminal.buffer.active.type !== Resources.normalBufferType ? undefined
+      const index: number | null = Object.isNull(at) ? cursor : at.index;
+      const marker: IMarker | undefined = Object.isNull(index) || this.terminal.buffer.active.type !== Resources.normalBufferType ? undefined
         : this.terminal.registerMarker(index - cursor);
       const line: MirrorLine = new MirrorLine(at?.number ?? this.removedLines + cursor, marker);
-      if (marker !== undefined) {
+      if (!Object.isUndefined(marker)) {
         this.anchors.set(line, marker);
         marker.onDispose(() => this.anchors.delete(line));
       }
@@ -134,12 +136,12 @@ export class TerminalMirror {
 
   private readInput(): string | null {
     const start: IMarker | undefined = this.inputStart;
-    if (start === undefined || start.isDisposed)
+    if (Object.isUndefined(start) || start.isDisposed)
       return null;
     const buffer: IBuffer = this.terminal.buffer.normal;
     let text: string = "";
     let line: IBufferLine | undefined = buffer.getLine(start.line);
-    for (let index: number = start.line; line !== undefined; index++) {
+    for (let index: number = start.line; !Object.isUndefined(line); index++) {
       const next: IBufferLine | undefined = buffer.getLine(index + 1);
       const continues: boolean = next?.isWrapped === true;
       const end: number | undefined = index === start.line && !continues ? this.findRightPrompt(line) : undefined;
@@ -154,14 +156,14 @@ export class TerminalMirror {
 
   private findRightPrompt(line: IBufferLine): number | undefined {
     const column: number | null = this.rightPrompt;
-    return column !== null && column > this.inputColumn && line.translateToString(false, column - 1, column).trim().length === 0 ? column : undefined;
+    return !Object.isNull(column) && column > this.inputColumn && line.translateToString(false, column - 1, column).trim().length === 0 ? column : undefined;
   }
 
   private readInputStart(): TerminalInputStart | null {
     const buffer: IBuffer = this.terminal.buffer.active;
     const start: IMarker | undefined = this.inputStart;
     const cursor: number = buffer.baseY + buffer.cursorY;
-    if (start === undefined || start.isDisposed || buffer.type !== Resources.normalBufferType || start.line > cursor)
+    if (Object.isUndefined(start) || start.isDisposed || buffer.type !== Resources.normalBufferType || start.line > cursor)
       return null;
     return new TerminalInputStart(cursor - start.line, this.inputColumn, this.rightPrompt);
   }
@@ -174,7 +176,7 @@ export class TerminalMirror {
       first++;
     const lines: TerminalLine[] = [];
     let line: IBufferLine | undefined = buffer.getLine(first - this.removedLines);
-    for (let number: number = first; number < last && line !== undefined; number++) {
+    for (let number: number = first; number < last && !Object.isUndefined(line); number++) {
       const next: IBufferLine | undefined = buffer.getLine(number + 1 - this.removedLines);
       lines.push(this.reader.read(line, next?.isWrapped === true));
       line = next;
@@ -192,7 +194,7 @@ export class TerminalMirror {
     this.terminal.resize(size.columns, size.rows);
     const excess: number = buffer.baseY - Resources.scrollback;
     let line: IBufferLine | undefined = buffer.getLine(0);
-    for (let y: number = 0; y < excess && line !== undefined; y++) {
+    for (let y: number = 0; y < excess && !Object.isUndefined(line); y++) {
       const next: IBufferLine | undefined = buffer.getLine(y + 1);
       this.store(this.reader.read(line, next?.isWrapped === true));
       line = next;
@@ -204,14 +206,14 @@ export class TerminalMirror {
   }
 
   private capture(): void {
-    if (this.oldestMarker?.isDisposed === true && this.oldest !== null)
+    if (this.oldestMarker?.isDisposed === true && !Object.isNull(this.oldest))
       this.store(this.oldest);
     this.releaseOldest();
     const buffer: IBuffer = this.terminal.buffer.normal;
     if (buffer.baseY === Resources.scrollback) {
       this.oldestMarker = this.terminal.registerMarker(-buffer.baseY - buffer.cursorY) ?? null;
       const line: IBufferLine | undefined = buffer.getLine(0);
-      if (this.oldestMarker !== null && line !== undefined)
+      if (!Object.isNull(this.oldestMarker) && !Object.isUndefined(line))
         this.oldest = this.reader.read(line, buffer.getLine(1)?.isWrapped === true);
     }
   }

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { randomUUID } from "node:crypto";
 
 import { ArgumentException } from "@noldova/context.exceptions";
@@ -36,6 +38,7 @@ import type { ShellLaunch } from "../models/shell-launch.ts";
 import { ShellOptionsReply } from "../models/shell-options-reply.ts";
 import { StartedShell } from "../models/started-shell.ts";
 import type { TerminalEvents } from "../models/terminal-events.ts";
+import { TerminalFolderKey } from "../models/terminal-folder-key.ts";
 import type { TerminalHistoryPaths } from "../models/terminal-history-paths.ts";
 import { TerminalOpening } from "../models/terminal-opening.ts";
 import { WaitingRun } from "../models/waiting-run.ts";
@@ -67,7 +70,7 @@ export class TerminalHost {
   private readonly events: TerminalEvents;
   private readonly saved: SavedTerminals;
   private readonly completions: CompletionSource;
-  private readonly folderKeys: WeakMap<HostedTerminal, readonly [string, string]> = new WeakMap<HostedTerminal, readonly [string, string]>();
+  private readonly folderKeys: WeakMap<HostedTerminal, TerminalFolderKey> = new WeakMap<HostedTerminal, TerminalFolderKey>();
   private readonly realFolderReads: Map<string, Promise<string | null>> = new Map<string, Promise<string | null>>();
   private readonly sessions: Map<string, HostedTerminal> = new Map<string, HostedTerminal>();
   private readonly commandHistory: CommandHistory = new CommandHistory();
@@ -133,7 +136,7 @@ export class TerminalHost {
         return null;
       case TerminalNames.sessionsMethod:
         return new TerminalSessions(this.terminals.filter(t => t.isReachedBy(client.connection, client.isApp))
-          .map(t => t.session.toSummary(t.folder, t.ownerSessionId !== null, t.isPanelTerminal, t.owner, t.opensTab, t.name, t.shell.name))).toJson();
+          .map(t => t.session.toSummary(t.folder, !Object.isNull(t.ownerSessionId), t.isPanelTerminal, t.owner, t.opensTab, t.name, t.shell.name))).toJson();
       case TerminalNames.attachMethod:
         return (await this.attachAsync(TerminalPaneReference.fromJson(payload), client)).toJson();
       case TerminalNames.inputMethod:
@@ -176,7 +179,7 @@ export class TerminalHost {
       case TerminalNames.findCommandsMethod:
         return (await this.findCommandsAsync(TerminalFindCommandsParams.fromJson(payload), client)).toJson();
       case TerminalNames.windowStartedMethod:
-        if (client.window !== null) {
+        if (!Object.isNull(client.window)) {
           this.detachLeftPanes(t => t.connection === client.connection && t.window === client.window && t.page !== client.page);
           await this.endLaunchesWithoutTabAsync(client.connection, client.window, client.page);
         }
@@ -246,13 +249,13 @@ export class TerminalHost {
   }
 
   public async closeOwnerAsync(owner: string, client: RequestClient | null): Promise<void> {
-    const isApp: boolean = client === null || client.isApp;
+    const isApp: boolean = Object.isNull(client) || client.isApp;
     if (isApp)
       for (const [agentSessionId, bound] of this.agentSessionOwners)
         if (bound === owner)
           this.agentSessionOwners.delete(agentSessionId);
     const isOwned = (terminal: HostedTerminal | TerminalOpening): boolean => terminal.owner === owner
-      && (client === null || terminal.isReachedBy(client.connection, client.isApp));
+      && (Object.isNull(client) || terminal.isReachedBy(client.connection, client.isApp));
     const closed: PromiseWithResolvers<void> = Promise.withResolvers<void>();
     this.closings.set(isOwned, closed);
     try {
@@ -280,9 +283,9 @@ export class TerminalHost {
 
   public async closeConnectionAsync(connection: number, window: number | null): Promise<void> {
     const wasApp: boolean = this.audience.forget(connection, window);
-    this.detachLeftPanes(t => t.connection === connection && (window === null || t.window === window));
+    this.detachLeftPanes(t => t.connection === connection && (Object.isNull(window) || t.window === window));
     this.startUnshownShells();
-    if (window !== null) {
+    if (!Object.isNull(window)) {
       await this.endLaunchesWithoutTabAsync(connection, window, null);
       return;
     }
@@ -299,15 +302,15 @@ export class TerminalHost {
 
   public async closeTerminalAsync(sessionId: string): Promise<void> {
     const terminal: HostedTerminal | undefined = this.sessions.get(sessionId);
-    if (terminal === undefined)
+    if (Object.isUndefined(terminal))
       return;
     this.sessions.delete(sessionId);
     terminal.cancelCommand();
     this.endRun(terminal, TerminalRunEndedBy.TerminalEnded, null);
     this.saved.forget(sessionId);
-    if (terminal.owner !== null)
+    if (!Object.isNull(terminal.owner))
       this.audience.publish(this.events.closed, terminal, new TerminalReference(sessionId).toJson());
-    if ((!await this.stopAsync(terminal.session) || terminal.heldExit !== null) && terminal.environment !== null) {
+    if ((!await this.stopAsync(terminal.session) || !Object.isNull(terminal.heldExit)) && !Object.isNull(terminal.environment)) {
       terminal.isEndSent = true;
       this.audience.publish(this.events.exited, terminal, new TerminalExited(sessionId, new TerminalExit(null, EndedBy.Close)).toJson());
     }
@@ -319,8 +322,8 @@ export class TerminalHost {
     environment: Readonly<Record<string, string>> | null, startsAtFit: boolean, opensTab: boolean, kept: SavedTerminal | null): Promise<HostedTerminal> {
     const shell: Shell | undefined = await this.locator.findAsync(shellId);
     this.ensureRunning();
-    if (shell === undefined)
-      throw shellId === null ? new DefaultShellNotFoundException() : new ShellNotFoundException(shellId);
+    if (Object.isUndefined(shell))
+      throw Object.isNull(shellId) ? new DefaultShellNotFoundException() : new ShellNotFoundException(shellId);
     const isFolder: boolean = await this.fileSystem.isFolderAsync(folder);
     this.ensureRunning();
     if (!isFolder)
@@ -328,7 +331,7 @@ export class TerminalHost {
     const historyPaths: TerminalHistoryPaths | null = await this.historyFolder.pathsAsync(sessionId);
     this.ensureRunning();
     const started: StartedShell = await this.startShellAsync(shell, folder, size, note, environment ?? {}, startsAtFit ? sessionId : null);
-    const isKept: boolean = ownerSessionId === null && client?.isApp === true && environment === null;
+    const isKept: boolean = Object.isNull(ownerSessionId) && client?.isApp === true && Object.isNull(environment);
     const publish: (channel: EventChannel, payload: JsonValue) => void = (channel, payload) => this.audience.publish(channel, terminal, payload);
     const terminal: HostedTerminal = new HostedTerminal(new TerminalSession(sessionId, shell.id, size, started.process, started.nonce, this.windowsPty, historyPaths, storedLimit, {
       onOutput: t => publish(this.events.output, t.toJson()),
@@ -355,7 +358,7 @@ export class TerminalHost {
       },
       onPromptStarted: () => {
         const offset: number | null = terminal.launchCommandOffset;
-        if (offset !== null && terminal.session.text.readRange(offset, terminal.session.text.endOffset).includes(Resources.lineFeed))
+        if (!Object.isNull(offset) && terminal.session.text.readRange(offset, terminal.session.text.endOffset).includes(Resources.lineFeed))
           this.endLaunchCommand(terminal, null);
         this.countRunEnd(terminal, null, false);
       },
@@ -363,8 +366,8 @@ export class TerminalHost {
       onDetached: t => publish(this.events.detached, t.toJson()),
       onFailed: (id, message) => this.log.write(Resources.formatStartedCommandUnread(id, message)),
       onResizeUnasked: t => this.log.write(Resources.formatResizeUnasked(t))
-    }, Resources.maximumAgentTextLength, shell.kind, ownerSessionId === null), shell, folder, ownerSessionId, isPanelTerminal, owner, client?.connection ?? null, environment);
-    if (kept !== null)
+    }, Resources.maximumAgentTextLength, shell.kind, Object.isNull(ownerSessionId)), shell, folder, ownerSessionId, isPanelTerminal, owner, client?.connection ?? null, environment);
+    if (!Object.isNull(kept))
       terminal.keepFolderReports(kept.shellId === shell.id, kept.folder === folder);
     terminal.deferredShell = started.deferred;
     terminal.startTemporaryFolder = started.temporaryFolder;
@@ -374,7 +377,7 @@ export class TerminalHost {
     this.sessions.set(sessionId, terminal);
     if (isKept)
       this.saved.save(kept ?? new SavedTerminal(sessionId, shell.id, folder, isPanelTerminal, owner, opensTab));
-    else if (ownerSessionId !== null && owner !== null)
+    else if (!Object.isNull(ownerSessionId) && !Object.isNull(owner))
       this.audience.publish(this.events.opened, terminal,
         terminal.session.toSummary(folder, true, isPanelTerminal, owner, true, null, shell.name).toJson());
     return terminal;
@@ -383,7 +386,7 @@ export class TerminalHost {
   private async endLaunchesWithoutTabAsync(connection: number, window: number, page: number | null): Promise<void> {
     await Promise.allSettled([...this.launches].filter(([, t]) => t.connection === connection && t.window === window).map(([t]) => t));
     await Promise.all(this.terminals
-      .filter(t => t.connection === connection && t.launcher?.window === window && (page === null || t.launcher.page !== page))
+      .filter(t => t.connection === connection && t.launcher?.window === window && (Object.isNull(page) || t.launcher.page !== page))
       .map(t => this.closeTerminalAsync(t.session.sessionId)));
   }
 
@@ -395,7 +398,7 @@ export class TerminalHost {
   }
 
   private async endConnectionAsync(connection: number, wasApp: boolean): Promise<void> {
-    const isEnding = (terminal: HostedTerminal | TerminalOpening): boolean => terminal.connection === null ? wasApp && terminal.owner !== null
+    const isEnding = (terminal: HostedTerminal | TerminalOpening): boolean => Object.isNull(terminal.connection) ? wasApp && !Object.isNull(terminal.owner)
       : terminal.connection === connection;
     const closed: PromiseWithResolvers<void> = Promise.withResolvers<void>();
     this.closings.set(isEnding, closed);
@@ -429,7 +432,7 @@ export class TerminalHost {
 
   private endForClose(params: TerminalRunParams, client: RequestClient): TerminalRunResult | null {
     const closing: HostedTerminal | undefined = this.findClosing(params, client);
-    return closing === undefined ? null : new TerminalRunResult(closing.session.sessionId, TerminalRunOutcome.Ended);
+    return Object.isUndefined(closing) ? null : new TerminalRunResult(closing.session.sessionId, TerminalRunOutcome.Ended);
   }
 
   private findClosing(params: TerminalRunParams, client: RequestClient): HostedTerminal | undefined {
@@ -448,7 +451,7 @@ export class TerminalHost {
   }
 
   private async launchAsync(params: TerminalLaunchParams, client: RequestClient): Promise<TerminalLaunched> {
-    if (params.folder !== null && !this.isAbsolute(params.folder))
+    if (!Object.isNull(params.folder) && !this.isAbsolute(params.folder))
       throw new ArgumentException(ProtocolResources.formatNotAbsolutePath(ProtocolResources.valueSubject), Resources.folderParameter);
     const folder: string = params.folder ?? this.homeFolder;
     const isFolder: boolean = await this.fileSystem.isFolderAsync(folder);
@@ -459,7 +462,7 @@ export class TerminalHost {
     if (params.shellKinds.length > 0) {
       const shell: Shell | undefined = await this.findShellOfKindsAsync(params.shellKinds, params.shellId);
       this.ensureRunning();
-      if (shell === undefined)
+      if (Object.isUndefined(shell))
         throw new ShellKindNotFoundException(params.shellKinds);
       shellId = shell.id;
     }
@@ -467,10 +470,10 @@ export class TerminalHost {
       null, client, randomUUID(), params.environment, false, params.opensTab, null);
     if (!params.opensTab)
       terminal.launcher = client;
-    if (params.command !== null)
+    if (!Object.isNull(params.command))
       void this.typeCommandAsync(terminal, params.command).then(t => {
         terminal.launchCommandOffset = terminal.session.text.endOffset;
-        if (t !== TerminalRunOutcome.Typed || !terminal.session.commands.hasMarks || terminal.session.commands.promptEndOffset === null || terminal.keyCount !== 0)
+        if (t !== TerminalRunOutcome.Typed || !terminal.session.commands.hasMarks || Object.isNull(terminal.session.commands.promptEndOffset) || terminal.keyCount !== 0)
           this.endLaunchCommand(terminal, null);
       }).catch((error: unknown) => this.log.write(Resources.formatLaunchCommandFailed(terminal.session.sessionId, FailureText.read(error))));
     return new TerminalLaunched(terminal.session.sessionId, null);
@@ -491,7 +494,7 @@ export class TerminalHost {
         this.startShell(terminal);
     }
     const startedAt: number = Date.now();
-    const isReady = (): boolean => session.hasIntegration ? session.commands.promptEndOffset !== null : session.receivedLength > 0;
+    const isReady = (): boolean => session.hasIntegration ? !Object.isNull(session.commands.promptEndOffset) : session.receivedLength > 0;
     const isStarted = (): boolean => session.hasExited || isReady() || session.commands.isLoaded;
     if (await session.waitForStartAsync(isStarted, signal) && session.text.endOffset > 0)
       await session.changes.waitUntilAsync(isStarted, Resources.integrationWaitMilliseconds, signal);
@@ -507,7 +510,7 @@ export class TerminalHost {
     const isEnded = (): boolean => signal.aborted || session.hasExited || this.sessions.get(session.sessionId) !== terminal || this.isClosing(terminal);
     const isBracketed: boolean = isPaste && !isEnded() && await session.isBracketedPasteAsync();
     const outcome: TerminalRunOutcome = isEnded() ? TerminalRunOutcome.Ended
-      : isPaste && ((waitsForFit ? terminal.keyCount !== keyCount : terminal.inputCount !== inputCount) || session.commands.promptEndOffset !== null && session.readPromptLine() !== "") ? TerminalRunOutcome.Input
+      : isPaste && ((waitsForFit ? terminal.keyCount !== keyCount : terminal.inputCount !== inputCount) || !Object.isNull(session.commands.promptEndOffset) && session.readPromptLine() !== "") ? TerminalRunOutcome.Input
       : isPaste && !isBracketed && typed.includes(Resources.tabKey) ? TerminalRunOutcome.Tab
       : TerminalRunOutcome.Typed;
     if (outcome === TerminalRunOutcome.Typed) {
@@ -524,7 +527,7 @@ export class TerminalHost {
   }
 
   private endLaunchCommand(terminal: HostedTerminal, exitCode: number | null): void {
-    if (terminal.launchCommandOffset === null)
+    if (Object.isNull(terminal.launchCommandOffset))
       return;
     terminal.launchCommandOffset = null;
     this.audience.publish(this.events.launchCommandEnded, terminal, new TerminalCommandEnded(terminal.session.sessionId, exitCode).toJson());
@@ -549,16 +552,16 @@ export class TerminalHost {
   private async runAfterClosesAsync(params: TerminalRunParams, client: RequestClient): Promise<TerminalRunResult> {
     const place: TerminalOpening = new TerminalOpening(params.owner, client.connection);
     for (;;) {
-      if (params.sessionId === null && this.isClosing(place)) {
+      if (Object.isNull(params.sessionId) && this.isClosing(place)) {
         const closing: HostedTerminal | undefined = this.findClosing(params, client);
-        if (closing !== undefined)
+        if (!Object.isUndefined(closing))
           return new TerminalRunResult(closing.session.sessionId, TerminalRunOutcome.Ended);
         if (this.closingConnections.has(client.connection))
           throw new ConnectionClosingException();
         await Promise.allSettled([...this.closings].filter(([isTheirs]) => isTheirs(place)).map(([, closed]) => closed.promise));
       }
       const result: TerminalRunResult | null = await this.trackAsync(this.runAsync(params, client), place);
-      if (result !== null)
+      if (!Object.isNull(result))
         return result;
     }
   }
@@ -566,9 +569,9 @@ export class TerminalHost {
   private async runAsync(params: TerminalRunParams, client: RequestClient): Promise<TerminalRunResult | null> {
     await Promise.allSettled([this.restoring]);
     this.ensureRunning();
-    if (params.sessionId !== null) {
+    if (!Object.isNull(params.sessionId)) {
       const target: HostedTerminal | null = this.findRunTarget(params.sessionId, params, client);
-      return target === null || this.isClosing(target) ? new TerminalRunResult(params.sessionId, TerminalRunOutcome.Ended)
+      return Object.isNull(target) || this.isClosing(target) ? new TerminalRunResult(params.sessionId, TerminalRunOutcome.Ended)
         : this.runIntoAsync(params, target, client);
     }
     const place: TerminalOpening = new TerminalOpening(params.owner, client.connection);
@@ -576,19 +579,19 @@ export class TerminalHost {
       return this.endForClose(params, client);
     const isOwned = (t: HostedTerminal): boolean => t.owner === params.owner && t.isReachedBy(client.connection, client.isApp)
       && (params.shellKinds.length === 0 || params.shellKinds.includes(t.shell.kind)) && !t.isRunStarting;
-    const wanted: string | null = params.folder === null ? null : await this.toRunFolderKeyAsync(params.folder);
+    const wanted: string | null = Object.isNull(params.folder) ? null : await this.toRunFolderKeyAsync(params.folder);
     let inFolder: ReadonlySet<HostedTerminal> | null = await this.findInFolderAsync(wanted, isOwned);
     const newest: HostedTerminal | undefined = this.terminals.findLast(t => isOwned(t) && inFolder?.has(t) !== false && (t.isFree || t.isDrawingPrompt));
-    if (newest !== undefined && !newest.isFree) {
+    if (!Object.isUndefined(newest) && !newest.isFree) {
       await this.waitForPromptAsync(newest);
       inFolder = await this.findInFolderAsync(wanted, isOwned);
     }
     let terminal: HostedTerminal | undefined = this.terminals.findLast(t => isOwned(t) && inFolder?.has(t) !== false && t.isFree);
-    const isNew: boolean = terminal === undefined;
-    if (terminal === undefined) {
+    const isNew: boolean = Object.isUndefined(terminal);
+    if (Object.isUndefined(terminal)) {
       const shell: Shell | undefined = params.shellKinds.length === 0 ? await this.findFallbackShellAsync(params.shellId)
         : await this.findShellOfKindsAsync(params.shellKinds, params.shellId);
-      if (shell === undefined && params.shellKinds.length > 0)
+      if (Object.isUndefined(shell) && params.shellKinds.length > 0)
         return new TerminalRunResult(null, TerminalRunOutcome.NoShell);
       if (this.isClosing(place))
         return this.endForClose(params, client);
@@ -621,7 +624,7 @@ export class TerminalHost {
 
   private findRunTarget(sessionId: string, params: TerminalRunParams, client: RequestClient): HostedTerminal | null {
     const terminal: HostedTerminal | undefined = this.sessions.get(sessionId);
-    return terminal === undefined || !terminal.isReachedBy(client.connection, client.isApp) || terminal.ownerSessionId !== null
+    return Object.isUndefined(terminal) || !terminal.isReachedBy(client.connection, client.isApp) || !Object.isNull(terminal.ownerSessionId)
       || terminal.owner !== params.owner || params.shellKinds.length > 0 && !params.shellKinds.includes(terminal.shell.kind) ? null : terminal;
   }
 
@@ -638,8 +641,8 @@ export class TerminalHost {
         if (this.sessions.get(session.sessionId) !== terminal)
           return new TerminalRunResult(session.sessionId, TerminalRunOutcome.Ended);
       }
-      if (isBusy() && params.whenBusy === TerminalRunBusy.Interrupt && terminal.pendingCommand === null) {
-        const isStarted = (): boolean => isBusy() && session.commands.runningCommand !== null;
+      if (isBusy() && params.whenBusy === TerminalRunBusy.Interrupt && Object.isNull(terminal.pendingCommand)) {
+        const isStarted = (): boolean => isBusy() && !Object.isNull(session.commands.runningCommand);
         const signal: AbortSignal = terminal.beginInterrupt();
         const deadline: number = Date.now() + Resources.runInterruptWaitMilliseconds;
         await session.changes.waitUntilAsync(() => !isBusy() || isStarted(), Resources.runInterruptWaitMilliseconds, signal);
@@ -660,7 +663,7 @@ export class TerminalHost {
 
   private static readWindowsBuild(osRelease: string): number {
     const build: number | null = SystemRequirements.readWindowsBuild(osRelease);
-    if (build === null)
+    if (Object.isNull(build))
       throw new UnsupportedSystemException(SystemRequirement.WindowsBuild, osRelease);
     return build;
   }
@@ -671,8 +674,8 @@ export class TerminalHost {
       const foreground: ForegroundProcess | null = await session.readForegroundProcessAsync();
       if (!isStarted() || signal.aborted)
         return false;
-      const isCommand: boolean = foreground === null || foreground.group !== session.pid;
-      if (isCommand && (foreground === null || !foreground.isTerminalProgram))
+      const isCommand: boolean = Object.isNull(foreground) || foreground.group !== session.pid;
+      if (isCommand && (Object.isNull(foreground) || !foreground.isTerminalProgram))
         return true;
       if (Date.now() >= deadline)
         return isCommand;
@@ -689,9 +692,9 @@ export class TerminalHost {
     terminal.addRun(runId, session.anchorRunAsync());
     const ended: TerminalRunEnded[] = [];
     const previous: TerminalRunEnded | null = this.endRun(terminal, TerminalRunEndedBy.Command, terminal.waitingRun?.exitCode ?? null, client);
-    if (previous !== null)
+    if (!Object.isNull(previous))
       ended.push(previous);
-    if (session.commands.hasMarks && session.commands.promptEndOffset !== null)
+    if (session.commands.hasMarks && !Object.isNull(session.commands.promptEndOffset))
       terminal.waitingRun = new WaitingRun(runId, client.connection, client.window, terminal.typedEnds, session.text.endOffset,
         terminal.paste);
     else
@@ -701,12 +704,12 @@ export class TerminalHost {
 
   private countRunEnd(terminal: HostedTerminal, exitCode: number | null, isEndMark: boolean): void {
     const run: WaitingRun | null = terminal.waitingRun;
-    if (run === null)
+    if (Object.isNull(run))
       return;
     const text: OutputLog = terminal.session.text;
     const output: string = text.readRange(run.offset, text.endOffset);
     const echoEnd: number | null = run.paste.length === 0 ? 0 : TerminalHost.findEchoEnd(output, run.paste);
-    if (!isEndMark && (run.isAfterEndMark || echoEnd === null || !output.slice(echoEnd).includes(Resources.lineFeed))) {
+    if (!isEndMark && (run.isAfterEndMark || Object.isNull(echoEnd) || !output.slice(echoEnd).includes(Resources.lineFeed))) {
       run.isAfterEndMark = false;
       return;
     }
@@ -722,11 +725,11 @@ export class TerminalHost {
   private endRun(terminal: HostedTerminal, endedBy: TerminalRunEndedBy, exitCode: number | null, answered: RequestClient | null = null):
     TerminalRunEnded | null {
     const run: WaitingRun | null = terminal.waitingRun;
-    if (run === null)
+    if (Object.isNull(run))
       return null;
     terminal.waitingRun = null;
     const ended: TerminalRunEnded = new TerminalRunEnded(terminal.session.sessionId, run.runId, endedBy, endedBy === TerminalRunEndedBy.Command ? exitCode : null);
-    if (answered !== null && answered.connection === run.connection && answered.window === run.window)
+    if (!Object.isNull(answered) && answered.connection === run.connection && answered.window === run.window)
       return ended;
     this.events.runEnded.publishTo(run.connection, run.window, ended.toJson());
     return null;
@@ -734,23 +737,24 @@ export class TerminalHost {
 
   private async readRunOutputAsync(params: TerminalRunOutputParams, client: RequestClient): Promise<TerminalRunOutput | null> {
     const terminal: HostedTerminal | undefined = this.sessions.get(params.sessionId);
-    const runs: readonly (readonly [string, Promise<MirrorLine>])[] = terminal === undefined ? [] : [...terminal.runs];
-    const index: number = runs.findIndex(([runId]) => runId === params.runId);
-    const run: readonly [string, Promise<MirrorLine>] | undefined = runs[index];
-    if (terminal === undefined || run === undefined || !client.isApp || !terminal.isReachedBy(client.connection, true) || terminal.ownerSessionId !== null
+    const runIds: readonly string[] = Object.isUndefined(terminal) ? [] : [...terminal.runs.keys()];
+    const index: number = runIds.indexOf(params.runId);
+    const run: Promise<MirrorLine> | undefined = terminal?.runs.get(params.runId);
+    if (Object.isUndefined(terminal) || Object.isUndefined(run) || !client.isApp || !terminal.isReachedBy(client.connection, true) || !Object.isNull(terminal.ownerSessionId)
       || terminal.session.hasExited || terminal.isRestarting)
       return null;
-    const next: readonly [string, Promise<MirrorLine>] | undefined = runs[index + 1];
-    return terminal.session.readRunLinesAsync(await run[1], next === undefined ? null : await next[1], params.maximumLines);
+    const nextId: string | undefined = runIds[index + 1];
+    const next: Promise<MirrorLine> | undefined = Object.isUndefined(nextId) ? undefined : terminal.runs.get(nextId);
+    return terminal.session.readRunLinesAsync(await run, Object.isUndefined(next) ? null : await next, params.maximumLines);
   }
 
   private async findFallbackShellAsync(shellId: string | null): Promise<Shell | undefined> {
-    return (shellId === null ? undefined : await this.locator.findAsync(shellId)) ?? await this.locator.findAsync(null);
+    return (Object.isNull(shellId) ? undefined : await this.locator.findAsync(shellId)) ?? await this.locator.findAsync(null);
   }
 
   private async findShellOfKindsAsync(kinds: readonly TerminalShellKind[], shellId: string | null): Promise<Shell | undefined> {
     const fallback: Shell | undefined = await this.findFallbackShellAsync(shellId);
-    return fallback !== undefined && kinds.includes(fallback.kind) ? fallback : await this.locator.findKindAsync(kinds);
+    return !Object.isUndefined(fallback) && kinds.includes(fallback.kind) ? fallback : await this.locator.findKindAsync(kinds);
   }
 
   private openAsync(params: TerminalOpenParams, client: RequestClient): Promise<TerminalReference> {
@@ -762,10 +766,10 @@ export class TerminalHost {
       return this.openForPersonAsync(params, client);
     await Promise.allSettled([this.restoring]);
     const panel: HostedTerminal | undefined = this.terminals.findLast(t => t.isPanelTerminal && t.isReachedBy(client.connection, client.isApp));
-    if (panel !== undefined)
+    if (!Object.isUndefined(panel))
       return new TerminalReference(panel.session.sessionId);
     let opening: Promise<TerminalReference> | undefined = this.panelOpenings.get(client.connection);
-    if (opening === undefined) {
+    if (Object.isUndefined(opening)) {
       opening = this.openForPersonAsync(params, client).finally(() => {
         this.panelOpenings.delete(client.connection);
       });
@@ -780,15 +784,15 @@ export class TerminalHost {
 
   private async startForPersonAsync(params: TerminalOpenParams, client: RequestClient, startsAtFit: boolean = false,
     opensTab: boolean = true): Promise<HostedTerminal> {
-    if (params.folder !== null && !this.isAbsolute(params.folder))
+    if (!Object.isNull(params.folder) && !this.isAbsolute(params.folder))
       throw new ArgumentException(ProtocolResources.formatNotAbsolutePath(ProtocolResources.valueSubject), Resources.folderParameter);
-    const missing: string | null = params.folder !== null && !(await this.fileSystem.isFolderAsync(params.folder)) ? params.folder : null;
+    const missing: string | null = !Object.isNull(params.folder) && !(await this.fileSystem.isFolderAsync(params.folder)) ? params.folder : null;
     this.ensureRunning();
-    const folder: string = params.folder === null || missing !== null ? this.homeFolder : params.folder;
+    const folder: string = Object.isNull(params.folder) || !Object.isNull(missing) ? this.homeFolder : params.folder;
     const terminal: HostedTerminal = await this.openTerminalAsync(params.shellId, folder, params.size, null, params.storedLimit,
-      missing === null ? null : Resources.formatStartFolderNote(missing), params.isPanelTerminal, params.owner, client, randomUUID(), null, startsAtFit,
+      Object.isNull(missing) ? null : Resources.formatStartFolderNote(missing), params.isPanelTerminal, params.owner, client, randomUUID(), null, startsAtFit,
       opensTab);
-    if (missing !== null)
+    if (!Object.isNull(missing))
       this.log.write(Resources.formatStartFolderMissing(terminal.session.sessionId, missing, this.homeFolder));
     return terminal;
   }
@@ -828,7 +832,7 @@ export class TerminalHost {
     await Promise.all(restoring.map(t => this.restoreOrForgetAsync(t, params, client)));
     for (const terminal of restoring) {
       const hosted: HostedTerminal | undefined = this.sessions.get(terminal.sessionId);
-      if (hosted !== undefined) {
+      if (!Object.isUndefined(hosted)) {
         this.sessions.delete(terminal.sessionId);
         this.sessions.set(terminal.sessionId, hosted);
       }
@@ -847,8 +851,8 @@ export class TerminalHost {
   }
 
   private async restoreTerminalAsync(saved: SavedTerminal, params: TerminalRestoreParams, client: RequestClient): Promise<void> {
-    const hasShell: boolean = await this.locator.findAsync(saved.shellId) !== undefined;
-    const fallback: string | null = params.shellId !== null && await this.locator.findAsync(params.shellId) !== undefined ? params.shellId : null;
+    const hasShell: boolean = !Object.isUndefined(await this.locator.findAsync(saved.shellId));
+    const fallback: string | null = !Object.isNull(params.shellId) && !Object.isUndefined(await this.locator.findAsync(params.shellId)) ? params.shellId : null;
     const hasFolder: boolean = this.isAbsolute(saved.folder) && await this.fileSystem.isFolderAsync(saved.folder);
     this.ensureRunning();
     const note: string | null = hasShell
@@ -857,7 +861,7 @@ export class TerminalHost {
     const terminal: HostedTerminal = await this.openTerminalAsync(hasShell ? saved.shellId : fallback, hasFolder ? saved.folder : this.homeFolder,
       params.size, null, params.storedLimit, note, saved.isPanelTerminal, saved.owner, client, saved.sessionId, null, false, saved.opensTab, saved);
     const name: string | null = saved.name;
-    terminal.name = name !== null && name.trim() !== "" && name.length <= ProtocolResources.maximumTitleLength ? name : null;
+    terminal.name = !Object.isNull(name) && name.trim() !== "" && name.length <= ProtocolResources.maximumTitleLength ? name : null;
     if (!hasShell)
       this.log.write(Resources.formatRestoredShellMissing(saved.sessionId, saved.shellId));
     if (!hasFolder)
@@ -865,54 +869,54 @@ export class TerminalHost {
   }
 
   private toVariableKey(name: string): string {
-    return this.windowsPty === null ? name : name.toUpperCase();
+    return Object.isNull(this.windowsPty) ? name : name.toUpperCase();
   }
 
   private isAbsolute(folder: string): boolean {
-    return this.windowsPty === null ? folder.startsWith(Resources.posixRoot) : Resources.windowsAbsolutePath.test(folder);
+    return Object.isNull(this.windowsPty) ? folder.startsWith(Resources.posixRoot) : Resources.windowsAbsolutePath.test(folder);
   }
 
   private async findInFolderAsync(wanted: string | null, isOwned: (terminal: HostedTerminal) => boolean): Promise<ReadonlySet<HostedTerminal> | null> {
-    if (wanted === null)
+    if (Object.isNull(wanted))
       return null;
-    const matched: (readonly [HostedTerminal, string])[] = [];
+    const matched: Map<HostedTerminal, string> = new Map<HostedTerminal, string>();
     await Promise.all(this.terminals.filter(isOwned).map(async t => {
-      const known: readonly [string, string] | null = await this.toTerminalFolderKeyAsync(t);
-      if (known !== null && known[1] === wanted)
-        matched.push([t, known[0]]);
+      const known: TerminalFolderKey | null = await this.toTerminalFolderKeyAsync(t);
+      if (!Object.isNull(known) && known.key === wanted)
+        matched.set(t, known.folder);
     }));
-    return new Set(matched.filter(([t, folder]) => folder === this.currentFolderOf(t)).map(([t]) => t));
+    return new Set([...matched.keys()].filter(t => matched.get(t) === this.currentFolderOf(t)));
   }
 
   private async toRunFolderKeyAsync(folder: string): Promise<string> {
     const real: string | null | undefined = await this.readRealFolderAsync(folder);
-    if (real !== null || await this.readBoundedAsync(() => this.fileSystem.isFolderAsync(folder)) !== false)
+    if (!Object.isNull(real) || await this.readBoundedAsync(() => this.fileSystem.isFolderAsync(folder)) !== false)
       return this.toFolderKey(real ?? folder);
     return this.toFolderKey(await this.readRealFolderAsync(this.homeFolder) ?? this.homeFolder);
   }
 
-  private async toTerminalFolderKeyAsync(terminal: HostedTerminal): Promise<readonly [string, string] | null> {
+  private async toTerminalFolderKeyAsync(terminal: HostedTerminal): Promise<TerminalFolderKey | null> {
     const folder: string | null = this.currentFolderOf(terminal);
-    if (folder === null)
+    if (Object.isNull(folder))
       return null;
-    const known: readonly [string, string] | undefined = this.folderKeys.get(terminal);
-    if (known !== undefined && known[0] === folder)
+    const known: TerminalFolderKey | undefined = this.folderKeys.get(terminal);
+    if (!Object.isUndefined(known) && known.folder === folder)
       return known;
     const reading: Promise<string | null> = this.joinRealFolderRead(folder);
     void reading.then(real => {
       if (this.currentFolderOf(terminal) === folder)
-        this.folderKeys.set(terminal, [folder, this.toFolderKey(real ?? folder)]);
+        this.folderKeys.set(terminal, new TerminalFolderKey(folder, this.toFolderKey(real ?? folder)));
     }, () => undefined);
     const real: string | null | undefined = await this.readBoundedAsync(() => reading);
-    return [folder, this.toFolderKey(real ?? folder)];
+    return new TerminalFolderKey(folder, this.toFolderKey(real ?? folder));
   }
 
   private currentFolderOf(terminal: HostedTerminal): string | null {
     const cwd: string | null = terminal.session.cwd;
-    if (cwd === null)
+    if (Object.isNull(cwd))
       return terminal.folder;
     const local: string | null = this.completions.toLocalFolder(cwd, terminal.shell.kind, this.readCompletionEnvironment(terminal));
-    if (local === null)
+    if (Object.isNull(local))
       return null;
     return this.isAbsolute(local) ? local : terminal.folder;
   }
@@ -923,7 +927,7 @@ export class TerminalHost {
 
   private joinRealFolderRead(folder: string): Promise<string | null> {
     const running: Promise<string | null> | undefined = this.realFolderReads.get(folder);
-    if (running !== undefined)
+    if (!Object.isUndefined(running))
       return running;
     const reading: Promise<string | null> = this.fileSystem.readRealPathOrNullAsync(folder).finally(() => this.realFolderReads.delete(folder));
     this.realFolderReads.set(folder, reading);
@@ -943,7 +947,7 @@ export class TerminalHost {
 
   private toFolderKey(folder: string): string {
     const trimmed: string = folder.replace(Resources.trailingFolderSeparators, "");
-    return this.windowsPty === null ? trimmed : trimmed.replaceAll(Resources.posixRoot, Resources.windowsSeparator).toLowerCase();
+    return Object.isNull(this.windowsPty) ? trimmed : trimmed.replaceAll(Resources.posixRoot, Resources.windowsSeparator).toLowerCase();
   }
 
   private async closeAsync(sessionId: string, client: RequestClient): Promise<void> {
@@ -965,11 +969,11 @@ export class TerminalHost {
     const [completion, reply] = await Promise.all([
       this.completions.completeAsync(params.sessionId, terminal.shell.kind, params.line, params.cursor, terminal.session.cwd ?? terminal.folder,
         this.readCompletionEnvironment(terminal), terminal.session.shellNames, terminal.session.shellBuiltins),
-      keys === undefined ? Promise.resolve(ShellOptionsReply.none) : terminal.session.askOptionsAsync(keys)
+      Object.isUndefined(keys) ? Promise.resolve(ShellOptionsReply.none) : terminal.session.askOptionsAsync(keys)
     ]);
     if (reply.isTimedOut)
       return new TerminalCompletion(params.cursor, [], true);
-    return reply.options === null ? completion
+    return Object.isNull(reply.options) ? completion
       : this.completions.addOptions(completion, terminal.shell.kind, params.line, params.cursor, reply.options);
   }
 
@@ -986,12 +990,12 @@ export class TerminalHost {
 
   private readCompletionEnvironment(terminal: HostedTerminal): Readonly<Record<string, string>> {
     const replaced: Record<string, string> = {};
-    if (terminal.session.shellPath !== null)
+    if (!Object.isNull(terminal.session.shellPath))
       replaced[Resources.pathVariable] = terminal.session.shellPath;
-    if (terminal.session.shellModulePath !== null)
+    if (!Object.isNull(terminal.session.shellModulePath))
       replaced[Resources.modulePathVariable] = terminal.session.shellModulePath;
     const temporaryFolder: string | null = terminal.session.shellTemporaryFolder ?? terminal.startTemporaryFolder;
-    if (temporaryFolder !== null)
+    if (!Object.isNull(temporaryFolder))
       replaced[Resources.temporaryFolderVariable] = temporaryFolder;
     const keys: ReadonlySet<string> = new Set(Object.keys(replaced).map(t => this.toVariableKey(t)));
     return this.withVariables(TerminalHost.toTerminalEnvironment(this.environment.read()), {
@@ -1003,7 +1007,7 @@ export class TerminalHost {
   private async restartAsync(params: TerminalRestartParams, client: RequestClient): Promise<void> {
     const sessionId: string = params.sessionId;
     const terminal: HostedTerminal = this.findHosted(sessionId, client);
-    if (terminal.ownerSessionId !== null)
+    if (!Object.isNull(terminal.ownerSessionId))
       throw new AgentTerminalRestartException(sessionId);
     const restart: Promise<void> = terminal.restarts.then(() => this.restartNowAsync(sessionId, terminal, params.size));
     terminal.restarts = restart.then(() => undefined, () => undefined);
@@ -1042,7 +1046,7 @@ export class TerminalHost {
   private sendHeldExit(sessionId: string, terminal: HostedTerminal): void {
     const exited: TerminalExited | null = terminal.heldExit;
     terminal.heldExit = null;
-    if (exited === null || this.sessions.get(sessionId) !== terminal)
+    if (Object.isNull(exited) || this.sessions.get(sessionId) !== terminal)
       return;
     this.audience.publish(this.events.exited, terminal, exited.toJson());
     this.forgetOldestExited();
@@ -1071,14 +1075,14 @@ export class TerminalHost {
       return;
     this.commandHistory.add(shellId, command);
     for (const terminal of this.sessions.values())
-      if (terminal.shell.id === shellId && terminal.ownerSessionId === null)
+      if (terminal.shell.id === shellId && Object.isNull(terminal.ownerSessionId))
         this.audience.publish(this.events.commandAdded, terminal, new TerminalCommandAdded(terminal.session.sessionId, command).toJson());
   }
 
   private async attachAsync(reference: TerminalPaneReference, client: RequestClient): Promise<TerminalAttachment> {
     const terminal: HostedTerminal = this.findHosted(reference.sessionId, client);
     terminal.paneClients.set(reference.paneId, client);
-    const attachment: TerminalAttachment = await terminal.session.attachAsync(reference.paneId, terminal.ownerSessionId === null && this.isSuggesting()
+    const attachment: TerminalAttachment = await terminal.session.attachAsync(reference.paneId, Object.isNull(terminal.ownerSessionId) && this.isSuggesting()
       ? this.commandHistory.list(terminal.shell.id) : []);
     if (!terminal.paneClients.has(reference.paneId))
       terminal.session.detach(reference.paneId);
@@ -1118,7 +1122,7 @@ export class TerminalHost {
     const terminal: HostedTerminal | null = this.reachable(reference.sessionId, client);
     terminal?.paneClients.delete(reference.paneId);
     terminal?.session.detach(reference.paneId);
-    if (terminal !== null && !terminal.isSized)
+    if (!Object.isNull(terminal) && !terminal.isSized)
       this.startShell(terminal);
   }
 
@@ -1143,12 +1147,12 @@ export class TerminalHost {
     if (terminal.isSized)
       return;
     const fitWindow: RequestClient | null = terminal.fitWindow;
-    if (fitWindow === null ? !terminal.opensTab || !this.audience.shows(terminal) : !this.audience.isOpen(fitWindow) || this.audience.isHidden(fitWindow))
+    if (Object.isNull(fitWindow) ? !terminal.opensTab || !this.audience.shows(terminal) : !this.audience.isOpen(fitWindow) || this.audience.isHidden(fitWindow))
       this.startShell(terminal);
   }
 
   private startShell(terminal: HostedTerminal): void {
-    if (terminal.deferredShell === null || terminal.deferredShell.hasStarted)
+    if (Object.isNull(terminal.deferredShell) || terminal.deferredShell.hasStarted)
       return;
     terminal.deferredShell.start();
     terminal.session.changes.notify();
@@ -1160,14 +1164,14 @@ export class TerminalHost {
 
   private findHosted(sessionId: string, client: RequestClient): HostedTerminal {
     const terminal: HostedTerminal | null = this.reachable(sessionId, client);
-    if (terminal === null)
+    if (Object.isNull(terminal))
       throw new SessionNotFoundException(sessionId);
     return terminal;
   }
 
   private reachable(sessionId: string, client: RequestClient): HostedTerminal | null {
     const terminal: HostedTerminal | undefined = this.sessions.get(sessionId);
-    return terminal === undefined || !terminal.isReachedBy(client.connection, client.isApp) ? null : terminal;
+    return Object.isUndefined(terminal) || !terminal.isReachedBy(client.connection, client.isApp) ? null : terminal;
   }
 
   private async endAsync(session: TerminalSession): Promise<void> {
@@ -1206,15 +1210,15 @@ export class TerminalHost {
   private async startShellAsync(shell: Shell, folder: string, size: TerminalSize, note: string | null,
     variables: Readonly<Record<string, string>>, deferredSessionId: string | null = null): Promise<StartedShell> {
     const environment: Readonly<Record<string, string>> = this.withVariables(await this.readEnvironmentAsync(), variables);
-    const printedNote: string | null = note === null || this.windowsPty === null ? null
+    const printedNote: string | null = Object.isNull(note) || Object.isNull(this.windowsPty) ? null
       : note.split(Resources.lineBreaks).map(t => TerminalSession.toNote(t)).join("");
     const launch: ShellLaunch = await this.integration.prepareAsync(shell, randomUUID().replaceAll(Resources.terminalHostUuidSeparator, ""), environment, printedNote);
-    const inheritsCursor: boolean = note !== null && !launch.printsNote;
+    const inheritsCursor: boolean = !Object.isNull(note) && !launch.printsNote;
     let process: IPtyProcess;
     let deferred: DeferredPtyProcess | null = null;
     try {
       this.ensureRunning();
-      if (deferredSessionId === null)
+      if (Object.isNull(deferredSessionId))
         process = await this.spawnFromAsync(environment, launch.file, launch.args, folder, size, launch.environment, inheritsCursor);
       else {
         deferred = new DeferredPtyProcess(async (columns, rows) => {
@@ -1256,7 +1260,7 @@ export class TerminalHost {
   private static toTerminalEnvironment(environment: Readonly<Record<string, string | undefined>>): Readonly<Record<string, string>> {
     const terminalEnvironment: Record<string, string> = {};
     for (const [name, value] of Object.entries(environment)) {
-      if (value !== undefined && !Resources.hostVariables.includes(name.toUpperCase()))
+      if (!Object.isUndefined(value) && !Resources.hostVariables.includes(name.toUpperCase()))
         terminalEnvironment[name] = value;
     }
     terminalEnvironment[Resources.termVariable] = Resources.terminalName;

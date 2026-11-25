@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TerminalDockGrowth } from "../models/terminal-dock-growth.ts";
 
 export class TerminalDockGrowths {
@@ -24,7 +26,7 @@ export class TerminalDockGrowths {
 
   public static grow(sessionId: string, grow: (rows: number) => () => void): void {
     const growth: TerminalDockGrowth | undefined = TerminalDockGrowths.asks.get(sessionId);
-    if (growth !== undefined && growth.release === null)
+    if (!Object.isUndefined(growth) && Object.isNull(growth.release))
       growth.release = grow(growth.rows);
   }
 }

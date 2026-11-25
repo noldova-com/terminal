@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonValue } from "@noldova/context.json";
 import { ArgumentValidator, ProtocolReader, Resources as ProtocolResources } from "@noldova/terminal.protocol";
@@ -21,15 +23,15 @@ export class TerminalNewArguments {
 
   public constructor(folder: string | null, shellId: string | null, tabGroup: string | null = null, owner: string | null = null,
     takesNewOwner: boolean = false) {
-    if (folder !== null)
+    if (!Object.isNull(folder))
       ArgumentValidator.requireAbsolutePath(Resources.folderArgument, folder);
-    if (shellId !== null)
+    if (!Object.isNull(shellId))
       ArgumentValidator.requireIdentifier(Resources.shellIdArgument, shellId);
-    if (tabGroup !== null)
+    if (!Object.isNull(tabGroup))
       ArgumentValidator.requireNonBlank(Resources.tabGroupArgument, tabGroup, ProtocolResources.maximumIdentifierLength);
-    if (owner !== null)
+    if (!Object.isNull(owner))
       ArgumentValidator.requireNonBlank(Resources.ownerArgument, owner, ProtocolResources.maximumOwnerLength);
-    if (owner !== null && takesNewOwner)
+    if (!Object.isNull(owner) && takesNewOwner)
       throw new ArgumentException(Resources.ownerTakenTwice, Resources.takesNewOwnerArgument);
 
     this.folder = folder;
@@ -44,7 +46,7 @@ export class TerminalNewArguments {
   }
 
   public static fromJson(value: JsonValue): TerminalNewArguments {
-    if (value === null)
+    if (Object.isNull(value))
       return new TerminalNewArguments(null, null);
     const reader: ProtocolReader = ProtocolReader.fromValue(value);
     reader.allowOnly([Resources.folderArgument, Resources.shellIdArgument, Resources.tabGroupArgument, Resources.ownerArgument,

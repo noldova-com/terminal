@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { TerminalEvents } from "../../src/models/terminal-events.ts";
@@ -63,7 +65,7 @@ export class AgentHostFixture {
 
   public get process(): FakePtyProcess {
     const process: FakePtyProcess | undefined = this.spawner.spawned.at(-1);
-    assert.ok(process !== undefined, "Nothing was spawned.");
+    assert.ok(!Object.isUndefined(process), "Nothing was spawned.");
     return process;
   }
 
@@ -73,6 +75,6 @@ export class AgentHostFixture {
 
   public markFor(process: FakePtyProcess, kind: string, value?: string): string {
     const nonce: string = this.writer.nonceFor(this.spawner.environments[this.spawner.spawned.indexOf(process)]);
-    return `\u001b]6973;${kind};${nonce}${value === undefined ? "" : `;${value}`}\u0007`;
+    return `\u001b]6973;${kind};${nonce}${Object.isUndefined(value) ? "" : `;${value}`}\u0007`;
   }
 }

@@ -6,6 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
+import { OutputSpan } from "../models/output-span.ts";
 import type { TrackedCommand } from "../models/tracked-command.ts";
 import type { TypedLine } from "../models/typed-line.ts";
 import { Resources } from "../resources.ts";
@@ -20,7 +23,7 @@ export class ShellCommand implements IAgentCommand {
   private readonly line: TypedLine;
   private readonly run: number;
   private isKilled: boolean = false;
-  private givenUp: readonly [number, number] | null = null;
+  private givenUp: OutputSpan | null = null;
 
   public readonly method: RunMethod = RunMethod.InShell;
   public readonly logFile: string;
@@ -42,36 +45,36 @@ export class ShellCommand implements IAgentCommand {
   }
 
   public get status(): CommandStatus {
-    if (this.givenUp !== null)
+    if (!Object.isNull(this.givenUp))
       return CommandStatus.Killed;
-    if (this.tracked?.hasEnded === true || this.unmarkedEnd !== null)
+    if (this.tracked?.hasEnded === true || !Object.isNull(this.unmarkedEnd))
       return this.isKilled ? CommandStatus.Killed : CommandStatus.Exited;
-    if (this.restartEnd !== null || this.session.hasExited)
+    if (!Object.isNull(this.restartEnd) || this.session.hasExited)
       return CommandStatus.Killed;
     return this.session.text.isAwaitingSecret ? CommandStatus.AwaitingInput : CommandStatus.Running;
   }
 
   public get exitCode(): number | null {
-    return this.givenUp === null ? this.tracked?.exitCode ?? null : null;
+    return Object.isNull(this.givenUp) ? this.tracked?.exitCode ?? null : null;
   }
 
   public get cwd(): string | null {
-    return this.givenUp === null ? this.tracked?.cwd ?? null : null;
+    return Object.isNull(this.givenUp) ? this.tracked?.cwd ?? null : null;
   }
 
   private get hasEnded(): boolean {
-    return this.givenUp !== null || this.tracked?.hasEnded === true || this.unmarkedEnd !== null || this.restartEnd !== null || this.session.hasExited;
+    return !Object.isNull(this.givenUp) || this.tracked?.hasEnded === true || !Object.isNull(this.unmarkedEnd) || !Object.isNull(this.restartEnd) || this.session.hasExited;
   }
 
   private get outputStart(): number {
-    if (this.givenUp !== null)
-      return this.givenUp[0];
+    if (!Object.isNull(this.givenUp))
+      return this.givenUp.start;
     const tracked: TrackedCommand | null = this.tracked;
     return tracked?.hasOutputStart === true ? tracked.outputStart : this.line.startOffset;
   }
 
   private get outputEnd(): number {
-    return this.givenUp?.[1] ?? this.tracked?.outputEnd ?? this.unmarkedEnd ?? this.restartEnd ?? this.session.text.endOffset;
+    return this.givenUp?.end ?? this.tracked?.outputEnd ?? this.unmarkedEnd ?? this.restartEnd ?? this.session.text.endOffset;
   }
 
   private get restartEnd(): number | null {
@@ -106,7 +109,7 @@ export class ShellCommand implements IAgentCommand {
     setTimeout(() => {
       if (this.hasEnded)
         return;
-      this.givenUp = [this.outputStart, this.outputEnd];
+      this.givenUp = new OutputSpan(this.outputStart, this.outputEnd);
       this.session.changes.notify();
     }, Resources.graceMilliseconds).unref();
     return true;

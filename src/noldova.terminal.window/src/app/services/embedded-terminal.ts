@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ApplicationRef, computed, createComponent, effect, Injector, signal, type ComponentRef, type EnvironmentInjector, type Signal, type WritableSignal } from "@angular/core";
 import { WindowPartTokens, type IWindowPartContext } from "@noldova/desktop.window";
 import { Resources as ProtocolResources } from "@noldova/terminal.protocol";
@@ -53,7 +55,7 @@ export class EmbeddedTerminal {
   public static open(sessionId: string, injector: EnvironmentInjector, maximumRows: number): EmbeddedTerminal {
     EmbeddedTerminal.check(maximumRows);
     const context: IWindowPartContext | null = TerminalPart.context;
-    if (context === null)
+    if (Object.isNull(context))
       throw new TerminalNotActiveException();
     const shown: WritableSignal<boolean> = signal<boolean>(true);
     const element: HTMLElement = document.createElement(Resources.embeddedTerminalTag);

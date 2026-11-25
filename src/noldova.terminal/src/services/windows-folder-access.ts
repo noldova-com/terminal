@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import path from "node:path";
 
 import { CommandVariableNotSetException } from "../exceptions/command-variable-not-set.exception.ts";
@@ -23,7 +25,7 @@ export class WindowsFolderAccess implements IFolderAccess {
   }
 
   public async restrictAsync(folder: string): Promise<void> {
-    if (this.systemRoot === undefined || this.systemRoot.length === 0)
+    if (Object.isUndefined(this.systemRoot) || this.systemRoot.length === 0)
       throw new CommandVariableNotSetException(Resources.icaclsFile, Resources.systemRootVariable);
     await this.runner.runAsync(path.win32.join(this.systemRoot, ...Resources.icaclsPath), [folder, ...Resources.privateFolderGrants],
       Resources.folderAccessMilliseconds);

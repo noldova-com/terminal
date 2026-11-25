@@ -24,7 +24,7 @@ concurrency:
 jobs:
   build-and-test:
     name: Build and test
-    uses: noldova-com/.github/.github/workflows/build-and-test.yml@89c924c840fd63acab90b34bc12d6b47310ab23a # v2.45.1
+    uses: noldova-com/.github/.github/workflows/build-and-test.yml@7fab750bf7fef7c719f71443bacba643f76ce32f # v2.50.0
     permissions:
       contents: read
       packages: read
@@ -127,6 +127,9 @@ jobs:
           echo "::warning::npm ci failed with the network error $code, so it runs once more in 30 seconds."
           sleep 30
           npm ci --ignore-scripts
+
+      - name: Build and install the packages
+        run: npm run build
 
       - name: Run the shell tests
         run: >-

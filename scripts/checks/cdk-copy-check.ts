@@ -16,17 +16,16 @@ import type { NpmCommand } from "../services/npm-command.ts";
 
 export class CdkCopyCheck {
   private readonly root: string;
-  private readonly folder: string;
+  private readonly folder: string = Resources.modulesFolder;
   private readonly npm: NpmCommand;
 
-  public constructor(root: string, folder: string, npm: NpmCommand) {
+  public constructor(root: string, npm: NpmCommand) {
     this.root = root;
-    this.folder = folder;
     this.npm = npm;
   }
 
   public async runAsync(output: Writable): Promise<boolean> {
-    const result = await this.npm.runAsync(Resources.cdkListArguments, path.join(this.root, ...this.folder.split(Resources.posixSeparator)));
+    const result = await this.npm.runAsync(Resources.cdkListArguments, this.root);
     let tree: unknown;
     try {
       tree = JSON.parse(result.output);

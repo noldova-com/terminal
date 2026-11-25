@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { FocusTrapFactory, type FocusTrap } from "@angular/cdk/a11y";
 import { ErrorHandler, type Provider } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
@@ -28,7 +30,17 @@ import { FakeRuntime } from "../../../fixtures/fake-runtime.fixture.ts";
 import { PaneHost } from "../../../fixtures/pane-host.fixture.ts";
 import { SpecWait } from "../../../fixtures/spec-wait.fixture.ts";
 
-const SOON: { readonly interval: number; readonly timeout: number } = { interval: 1, timeout: SpecWait.milliseconds };
+class WaitOptions {
+  public readonly interval: number;
+  public readonly timeout: number;
+
+  public constructor(interval: number, timeout: number) {
+    this.interval = interval;
+    this.timeout = timeout;
+  }
+}
+
+const SOON: WaitOptions = new WaitOptions(1, SpecWait.milliseconds);
 
 function createSession(runtime: FakeRuntime = new FakeRuntime(), providers: readonly Provider[] = []): PaneHost<TerminalSessionComponent> {
   return new PaneHost(TerminalSessionComponent, true, { instance: "s1", title: "Terminal" }, runtime, providers);
@@ -48,7 +60,7 @@ function dock(host: PaneHost<TerminalSessionComponent>, side: DockSide | null): 
 
 function lastSize(host: PaneHost<TerminalSessionComponent>): TerminalSize | undefined {
   const sent: unknown = host.runtime.context.sent(TerminalNames.resizeMethod).at(-1);
-  return sent === undefined ? undefined : TerminalResizeParams.fromJson(sent).size;
+  return Object.isUndefined(sent) ? undefined : TerminalResizeParams.fromJson(sent).size;
 }
 
 function addField(): HTMLInputElement {
@@ -79,10 +91,10 @@ describe("TerminalSessionComponent", () => {
       await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime)).not.toBe(""), SOON);
 
       const screen: HTMLElement = PaneHost.find(host.element, ".nol-terminal-pane-screen", HTMLElement);
-      const minimum: number = host.runtime.context.grownDocks[0]?.[1] ?? 0;
+      const minimum: number = host.runtime.context.grownDocks[0]?.minimum ?? 0;
       host.element.style.blockSize = `calc(${minimum}rem + 0.5px)`;
       await vi.waitFor(() => expect(PaneHost.lastSize(host.runtime).split("x")[1]).toBe("30"), SOON);
-      expect(host.runtime.context.grownDocks.map(([tab]) => tab)).toEqual(["terminal.session/s1"]);
+      expect(host.runtime.context.grownDocks.map(t => t.tab)).toEqual(["terminal.session/s1"]);
       expect(Number.parseFloat(getComputedStyle(screen).paddingTop)).toBeGreaterThan(0);
       expect(host.runtime.context.releasedDocks).toEqual([]);
       release();
@@ -135,7 +147,7 @@ describe("TerminalSessionComponent", () => {
       dock(host, DockSide.Bottom);
 
       await vi.waitFor(() => expect(host.runtime.context.grownDocks).toHaveLength(1), SOON);
-      expect([beside, host.runtime.context.grownDocks.map(([tab]) => tab), host.runtime.context.callsOf("viewDockOf")]).toEqual([0, ["terminal.session/s1"], [["terminal.session", "s1"]]]);
+      expect([beside, host.runtime.context.grownDocks.map(t => t.tab), host.runtime.context.callsOf("viewDockOf")]).toEqual([0, ["terminal.session/s1"], [["terminal.session", "s1"]]]);
     }
     finally {
       release();
@@ -213,7 +225,7 @@ describe("TerminalSessionComponent", () => {
     host.runtime.exit = new TerminalExit(0, EndedBy.Exit);
     await host.attachedAsync();
 
-    await vi.waitFor(() => expect([host.element.querySelector(".nol-terminal-pane-ended") === null, host.element.querySelector(".nol-terminal-pane-ended button")]).toEqual([false, null]), SOON);
+    await vi.waitFor(() => expect([Object.isNull(host.element.querySelector(".nol-terminal-pane-ended")), host.element.querySelector(".nol-terminal-pane-ended button")]).toEqual([false, null]), SOON);
     expect(host.element.querySelector(".nol-terminal-pane-ended")?.textContent).toContain("The shell exited with code 0.");
   });
 
@@ -222,7 +234,7 @@ describe("TerminalSessionComponent", () => {
     host.runtime.context.handlers.set(TerminalNames.sessionsMethod, async () => { throw FakeRuntime.refusal("the runtime is restarting"); });
     await host.attachedAsync();
 
-    await vi.waitFor(() => expect([host.runtime.context.sent(TerminalNames.sessionsMethod).length, lastSize(host) === undefined]).toEqual([1, false]), SOON);
+    await vi.waitFor(() => expect([host.runtime.context.sent(TerminalNames.sessionsMethod).length, Object.isUndefined(lastSize(host))]).toEqual([1, false]), SOON);
     await host.settleAsync();
     expect(tabMenuTarget()?.canRestart()).toBe(false);
     expect(host.runtime.context.logs).toEqual(["terminal.sessions failed: the runtime is restarting"]);
@@ -241,7 +253,7 @@ describe("TerminalSessionComponent", () => {
       return new TerminalSessions(host.runtime.sessions).toJson();
     });
     await host.attachedAsync();
-    await vi.waitFor(() => expect([host.runtime.context.sent(TerminalNames.sessionsMethod).length, lastSize(host) === undefined]).toEqual([1, false]), SOON);
+    await vi.waitFor(() => expect([host.runtime.context.sent(TerminalNames.sessionsMethod).length, Object.isUndefined(lastSize(host))]).toEqual([1, false]), SOON);
 
     expect(tabMenuTarget()?.canRestart()).toBe(false);
     answer();

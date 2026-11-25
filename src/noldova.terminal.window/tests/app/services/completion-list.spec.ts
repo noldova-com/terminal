@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { EnvironmentInjector } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { TerminalCompletion, TerminalCompletionItem, TerminalCompletionKind } from "@noldova/terminal.protocol";
@@ -23,6 +25,16 @@ const LIST_STYLE: string = `.${Resources.completionListClass} { position: absolu
 
 const ARIA_STATE: readonly string[] = ["aria-activedescendant", "aria-controls", "aria-expanded", "aria-autocomplete"];
 
+class CompletionAsk {
+  public readonly line: string;
+  public readonly cursor: number;
+
+  public constructor(line: string, cursor: number) {
+    this.line = line;
+    this.cursor = cursor;
+  }
+}
+
 describe("CompletionList", () => {
   const options: readonly TerminalCompletionItem[] = ["--all", "--almost-all", "--author", "--and", "--any"]
     .map(t => new TerminalCompletionItem(t, t, TerminalCompletionKind.Option));
@@ -33,7 +45,7 @@ describe("CompletionList", () => {
   let list: CompletionList;
   let inputs: string[];
   let logs: string[];
-  let asked: [string, number][];
+  let asked: CompletionAsk[];
   let answerAsync: (line: string) => Promise<TerminalCompletion>;
 
   const writeAsync = (data: string): Promise<void> => new Promise<void>(resolve => terminal.write(data, resolve));
@@ -57,7 +69,7 @@ describe("CompletionList", () => {
     list = new CompletionList(terminal, host, suggestion, t => logs.push(t), TestBed.inject(EnvironmentInjector));
     terminal.onData(t => inputs.push(t));
     list.setCompleter(async (line, cursor) => {
-      asked.push([line, cursor]);
+      asked.push(new CompletionAsk(line, cursor));
       return answerAsync(line);
     });
     await writeAsync("$ ");
@@ -103,7 +115,7 @@ describe("CompletionList", () => {
 
     expect(tab.defaultPrevented).toBe(true);
     await vi.waitFor(() => expect(labels()).toEqual(["--all", "--almost-all", "--author", "--and", "--any"]), { timeout: SpecWait.milliseconds });
-    expect(asked).toEqual([["ls --a", 6]]);
+    expect(asked).toEqual([new CompletionAsk("ls --a", 6)]);
     expect(active()).toBe("--all");
     expect([listElement()?.role, listElement()?.ariaLabel, ...ARIA_STATE.map(t => terminal.textarea?.getAttribute(t))])
       .toEqual(["listbox", "Completions", rows()[0]?.id, listElement()?.id, "true", "list"]);
@@ -120,7 +132,7 @@ describe("CompletionList", () => {
     suggestion.startInput();
     expect(list.take(key("Tab"))).toBe(false);
     list.setCompleter(async (line, cursor) => {
-      asked.push([line, cursor]);
+      asked.push(new CompletionAsk(line, cursor));
       return new Promise<TerminalCompletion>(() => undefined);
     });
     suggestion.endInput();
@@ -135,7 +147,7 @@ describe("CompletionList", () => {
     expect(list.take(key("Tab", {}, "keyup"))).toBe(true);
     expect(asked).toEqual([]);
     expect([list.take(key("Tab")), list.take(key("Tab"))]).toEqual([true, true]);
-    expect(asked).toEqual([["", 0]]);
+    expect(asked).toEqual([new CompletionAsk("", 0)]);
   });
 
   it("leaves Tab to the shell for a line longer than a request takes", async () => {
@@ -322,7 +334,7 @@ describe("CompletionList", () => {
     releases.shift()?.();
 
     await vi.waitFor(() => expect(labels()).toEqual(["--all", "--almost-all"]), { timeout: SpecWait.milliseconds });
-    expect(asked).toEqual([["ls --a", 6], ["ls --al", 7]]);
+    expect(asked).toEqual([new CompletionAsk("ls --a", 6), new CompletionAsk("ls --al", 7)]);
     expect(inputs).toEqual([]);
   });
 
@@ -337,7 +349,7 @@ describe("CompletionList", () => {
 
     expect(keys.map(t => list.take(t))).toEqual([false, false, false]);
     expect(keys.map(t => t.defaultPrevented)).toEqual([false, false, false]);
-    expect([listElement() === null, active(), inputs]).toEqual([false, "--all", []]);
+    expect([Object.isNull(listElement()), active(), inputs]).toEqual([false, "--all", []]);
   });
 
   it("drops a reply that comes after the line changed, or after the list closed meanwhile", async () => {
@@ -357,7 +369,7 @@ describe("CompletionList", () => {
     releases.shift()?.();
     await writeAsync("");
 
-    expect([listElement(), inputs, asked]).toEqual([null, ["l"], [["ls --a", 6], ["ls --al", 7]]]);
+    expect([listElement(), inputs, asked]).toEqual([null, ["l"], [new CompletionAsk("ls --a", 6), new CompletionAsk("ls --al", 7)]]);
   });
 
   it("opens under the word's first cell, above the cursor's row when it doesn't fit below and there is more room above, and inside the pane", async () => {

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { EnvironmentExportInvalidException } from "../exceptions/environment-export-invalid.exception.ts";
 import { RegistryValue } from "../models/registry-value.ts";
 import { Resources } from "../resources.ts";
@@ -64,7 +66,7 @@ export class RegistryExport {
     this.index++;
     for (;;) {
       const character: string | undefined = this.text[this.index];
-      if (character === undefined)
+      if (Object.isUndefined(character))
         throw new EnvironmentExportInvalidException();
       if (character === Resources.registryExportQuote) {
         this.index++;
@@ -72,7 +74,7 @@ export class RegistryExport {
       }
       if (character === Resources.registryExportEscape) {
         const escaped: string | undefined = this.text[this.index + 1];
-        if (escaped === undefined)
+        if (Object.isUndefined(escaped))
           throw new EnvironmentExportInvalidException();
         value += escaped;
         this.index += 2;

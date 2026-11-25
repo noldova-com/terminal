@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IEnvironmentSource } from "../interfaces/i-environment-source.ts";
 
 export class LatestEnvironment {
@@ -22,7 +24,7 @@ export class LatestEnvironment {
 
   public async readAsync(): Promise<Readonly<Record<string, string | undefined>>> {
     const environment: Readonly<Record<string, string | undefined>> | null = await this.source.readAsync();
-    if (environment === null)
+    if (Object.isNull(environment))
       return this.inherited;
     this.latest = environment;
     return environment;

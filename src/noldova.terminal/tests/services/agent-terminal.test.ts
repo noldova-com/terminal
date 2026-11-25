@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import path from "node:path";
 
@@ -47,12 +49,22 @@ class AgentTerminalFixture extends AgentHostFixture {
   }
 }
 
+class SilentEnd {
+  public readonly ending: string;
+  public readonly end: (fixture: AgentTerminalFixture, terminal: AgentTerminal) => Promise<void>;
+
+  public constructor(ending: string, end: (fixture: AgentTerminalFixture, terminal: AgentTerminal) => Promise<void>) {
+    this.ending = ending;
+    this.end = end;
+  }
+}
+
 describe("AgentTerminal", () => {
   it("names its terminal by the hosted terminal's name and its shell's name, which differs from the shell's id", async () => {
     const fixture: AgentTerminalFixture = new AgentTerminalFixture();
     const opened: AgentTerminal = await fixture.openAsync(null);
     const found: HostedTerminal | undefined = fixture.host.findTerminal(opened.id);
-    assert.ok(found !== undefined);
+    assert.ok(!Object.isUndefined(found));
     const shell: Shell = new Shell("pwsh", "PowerShell", TerminalShellKind.PowerShell, "/usr/bin/pwsh", [], false);
     const hosted: HostedTerminal = new HostedTerminal(found.session, shell, "/work", "session-1", false, "example.chat/42", null);
     const terminal: AgentTerminal = new AgentTerminal(hosted, fixture.host, fixture.writer, LOGS, fixture.log);
@@ -163,11 +175,11 @@ describe("AgentTerminal", () => {
     }
   });
 
-  const silentEnds: readonly (readonly [string, (fixture: AgentTerminalFixture, terminal: AgentTerminal) => Promise<void>])[] = [
-    ["its shell exits", async fixture => fixture.process.exit(0)],
-    ["its terminal closes", (fixture, terminal) => fixture.host.closeTerminalAsync(terminal.id)]
+  const silentEnds: readonly SilentEnd[] = [
+    new SilentEnd("its shell exits", async fixture => fixture.process.exit(0)),
+    new SilentEnd("its terminal closes", (fixture, terminal) => fixture.host.closeTerminalAsync(terminal.id))
   ];
-  for (const [ending, end] of silentEnds)
+  for (const { ending, end } of silentEnds)
     it(`stops waiting at once when ${ending} at 20 seconds while it waits for a shell that shows no text yet`, async () => {
       const fixture: AgentTerminalFixture = new AgentTerminalFixture();
       const terminal: AgentTerminal = await fixture.openAsync(null);

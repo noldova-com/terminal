@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { isAbsolute, relative, sep } from "node:path";
 
 import { ArgumentException } from "@noldova/context.exceptions";
@@ -28,17 +30,17 @@ export class ToolCallContext {
     if (!isAbsolute(folder))
       throw new ArgumentException(Resources.formatNotAbsolutePath(ProtocolResources.valueSubject), Resources.folderBinding);
     const shared: JsonValue | undefined = new Map<string, JsonValue>(Object.entries(call.bindings)).get(Resources.sharedBinding);
-    if (shared !== undefined && !Array.isArray(shared))
+    if (!Object.isUndefined(shared) && !Array.isArray(shared))
       throw new ArgumentException(Resources.formatBindingNotList(ProtocolResources.valueSubject), Resources.sharedBinding);
     const boundTerminalIds: string[] = [];
     for (const terminalId of shared ?? []) {
-      if (typeof terminalId !== "string")
+      if (!Object.isString(terminalId))
         throw new ArgumentException(Resources.formatBindingNotList(ProtocolResources.valueSubject), Resources.sharedBinding);
       ArgumentValidator.requireIdentifier(Resources.sharedBinding, terminalId);
       boundTerminalIds.push(terminalId);
     }
     const owner: string | undefined = reader.readOptionalString(Resources.ownerBinding, ProtocolResources.maximumOwnerLength);
-    if (owner !== undefined)
+    if (!Object.isUndefined(owner))
       ArgumentValidator.requireNonBlank(Resources.ownerBinding, owner, ProtocolResources.maximumOwnerLength);
 
     this.call = call;

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ApplicationRef, createComponent, type ComponentRef, type EnvironmentInjector } from "@angular/core";
 import { Resources as ProtocolResources, type TerminalCompletion, type TerminalCompletionItem } from "@noldova/terminal.protocol";
 import { CompletionChoice, CompletionListComponent } from "@noldova/ui.components.angular";
@@ -70,7 +72,7 @@ export class CompletionList {
     const isTab: boolean = isPlain && event.key === Resources.completeKey;
     if (isDown && this.isAsking && !isTab && !Resources.modifierKeys.includes(event.key))
       this.close();
-    if (this.list !== null) {
+    if (!Object.isNull(this.list)) {
       if (isPlain && (Resources.completionMoveKeys.includes(event.key) || Resources.completionInsertKeys.includes(event.key)
         || event.key === Resources.completionCloseKey)) {
         event.preventDefault();
@@ -82,10 +84,10 @@ export class CompletionList {
         this.close();
       return false;
     }
-    if (!isTab || !this.isEnabled || this.completer === null)
+    if (!isTab || !this.isEnabled || Object.isNull(this.completer))
       return false;
     const line: string | null = this.suggestion.readLine();
-    if (line === null || line.length > ProtocolResources.maximumSuggestionLength)
+    if (Object.isNull(line) || line.length > ProtocolResources.maximumSuggestionLength)
       return false;
     event.preventDefault();
     if (isDown && !this.isAsking)
@@ -127,7 +129,7 @@ export class CompletionList {
     this.isAsking = false;
     if (completion?.isShellTab === true || this.suggestion.readLine() !== line)
       return;
-    if (completion === null || completion.items.length === 0) {
+    if (Object.isNull(completion) || completion.items.length === 0) {
       this.terminal.input(Resources.tabInput);
       return;
     }
@@ -153,7 +155,7 @@ export class CompletionList {
 
   private insert(item: TerminalCompletionItem): void {
     const line: string | null = this.suggestion.readLine();
-    if (line === null)
+    if (Object.isNull(line))
       return;
     const word: string = line.slice(this.prefix.length);
     const text: string = item.text.startsWith(word) ? item.text.slice(word.length)
@@ -167,7 +169,7 @@ export class CompletionList {
     if (this.items.length === 0)
       return;
     const line: string | null = this.suggestion.readTyped();
-    if (line === null || !line.startsWith(this.prefix)) {
+    if (Object.isNull(line) || !line.startsWith(this.prefix)) {
       this.close();
       return;
     }
@@ -179,13 +181,13 @@ export class CompletionList {
       return;
     }
     this.shown = shown;
-    this.active = current === undefined ? 0 : Math.max(shown.indexOf(current), 0);
+    this.active = Object.isUndefined(current) ? 0 : Math.max(shown.indexOf(current), 0);
     this.render(line.length - this.prefix.length);
   }
 
   private render(wordLength: number | null = null): void {
     const list: ComponentRef<CompletionListComponent> = this.list ?? this.create();
-    if (wordLength !== null) {
+    if (!Object.isNull(wordLength)) {
       this.choices = this.shown.map(t => new CompletionChoice(t.label, Resources.completionKinds[t.kind]));
       list.setInput(Resources.completionListInputs.choices, this.choices);
     }
@@ -195,7 +197,7 @@ export class CompletionList {
     this.terminal.textarea?.setAttribute(Resources.controlsAttribute, this.listId);
     this.terminal.textarea?.setAttribute(Resources.expandedAttribute, String(true));
     this.terminal.textarea?.setAttribute(Resources.autocompleteAttribute, Resources.listAutocomplete);
-    if (wordLength !== null)
+    if (!Object.isNull(wordLength))
       this.place(list, wordLength);
   }
 
@@ -221,7 +223,7 @@ export class CompletionList {
     const element: HTMLElement = list.location.nativeElement;
     const buffer: IBuffer = this.terminal.buffer.active;
     const screen: Element | null = this.container.querySelector(Resources.xtermScreenSelector);
-    if (screen === null)
+    if (Object.isNull(screen))
       return;
     const box: DOMRect = this.container.getBoundingClientRect();
     const cells: DOMRect = screen.getBoundingClientRect();

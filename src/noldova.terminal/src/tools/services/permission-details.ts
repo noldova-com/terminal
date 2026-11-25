@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { type IPermissionDetail, PermissionDetailKind } from "@noldova/desktop.runtime";
 
 import { Resources } from "../../resources.ts";
@@ -39,7 +41,7 @@ export class PermissionDetails {
 
   public static forFolder(folder: string | null, isInsideWorkingFolder: boolean): IPermissionDetail[] {
     return [
-      folder === null
+      Object.isNull(folder)
         ? PermissionDetails.text(Resources.folderLabel, Resources.unknownFolder)
         : PermissionDetails.code(Resources.folderLabel, TerminalTextEscaper.escapeUnseen(folder)),
       PermissionDetails.yesNo(Resources.insideWorkingFolderLabel, isInsideWorkingFolder)
@@ -47,6 +49,6 @@ export class PermissionDetails {
   }
 
   public static forExplanation(explanation: string | null): IPermissionDetail[] {
-    return explanation === null ? [] : [{ label: Resources.explanationLabel, kind: PermissionDetailKind.AgentText, value: explanation }];
+    return Object.isNull(explanation) ? [] : [{ label: Resources.explanationLabel, kind: PermissionDetailKind.AgentText, value: explanation }];
   }
 }

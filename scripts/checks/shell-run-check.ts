@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { readFileSync } from "node:fs";
 
 import { Resources } from "../resources.ts";
@@ -30,7 +32,7 @@ class ShellRunCheck {
   }
 
   private static field(value: unknown, name: string): unknown {
-    return typeof value === "object" && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value))[name] : undefined;
+    return Object.isObject(value) && !Array.isArray(value) ? Object.fromEntries(Object.entries(value))[name] : undefined;
   }
 
   private static list(value: unknown): readonly unknown[] {
@@ -63,7 +65,7 @@ class ShellRunCheck {
       for (const test of ShellRunCheck.list(ShellRunCheck.field(file, Resources.vitestTests))) {
         const name: unknown = ShellRunCheck.field(test, Resources.vitestName);
         const status: unknown = ShellRunCheck.field(test, Resources.vitestStatus);
-        if (typeof name === "string" && typeof status === "string")
+        if (Object.isString(name) && Object.isString(status))
           tests.push(new ReportedTest(name, status));
       }
     return tests;
@@ -71,7 +73,7 @@ class ShellRunCheck {
 }
 
 const [report, ...shells] = process.argv.slice(2);
-const problems: readonly string[] = report === undefined ? [Resources.shellRunUsage] : new ShellRunCheck(report, shells).run();
+const problems: readonly string[] = Object.isUndefined(report) ? [Resources.shellRunUsage] : new ShellRunCheck(report, shells).run();
 for (const problem of problems)
   console.error(problem);
 process.exitCode = problems.length > 0 ? 1 : 0;

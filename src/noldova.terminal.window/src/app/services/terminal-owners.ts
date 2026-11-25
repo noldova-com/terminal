@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { IWindowPartContext } from "@noldova/desktop.window";
 import { ArgumentValidator, Resources as ProtocolResources, TerminalNames, TerminalOwnerReference, TerminalRunBusy, TerminalRunOutcome, TerminalShellKind,
@@ -57,7 +59,7 @@ export class TerminalOwners {
   }
 
   public static provide(context: IWindowPartContext, newOwner: () => string | null): TerminalOwners {
-    if (TerminalOwners.current !== null)
+    if (!Object.isNull(TerminalOwners.current))
       throw new OwnersProvidedException();
     const owners: TerminalOwners = new TerminalOwners(context, newOwner);
     TerminalOwners.current = owners;
@@ -67,11 +69,11 @@ export class TerminalOwners {
 
   public static readNewOwner(): string | null {
     const owners: TerminalOwners | null = TerminalOwners.current;
-    if (owners === null)
+    if (Object.isNull(owners))
       return null;
     try {
       const owner: string | null = owners.newOwner();
-      if (owner !== null)
+      if (!Object.isNull(owner))
         ArgumentValidator.requireNonBlank(Resources.ownerArgument, owner, ProtocolResources.maximumOwnerLength);
       return owner;
     }
@@ -99,7 +101,7 @@ export class TerminalOwners {
 
   public async startRunAsync(owner: string, command: string, folder: string | null, shellKinds: readonly TerminalShellKind[],
     target: TerminalRunTarget | null, shown: ((sessionId: string) => void) | null = null): Promise<TerminalRun> {
-    if (shown === null)
+    if (Object.isNull(shown))
       return this.startRunNowAsync(owner, command, folder, shellKinds, target, null);
     const run: Promise<TerminalRun> = this.runsWithoutTab.then(() => this.startRunNowAsync(owner, command, folder, shellKinds, target, shown));
     this.runsWithoutTab = run.catch(() => undefined);
@@ -109,17 +111,17 @@ export class TerminalOwners {
   public async readRunOutputAsync(run: TerminalRun, maximumLines: number = TerminalOwners.defaultRunLines): Promise<TerminalRunOutput> {
     if (!(Number.isInteger(maximumLines) && maximumLines >= 1 && maximumLines <= TerminalOwners.maximumRunLines))
       throw new RunLinesRefusedException(maximumLines, TerminalOwners.maximumRunLines);
-    if (ArgumentValidator.findIdentifierProblem(Resources.sessionIdArgument, run.sessionId) !== null
-      || ArgumentValidator.findIdentifierProblem(Resources.runIdArgument, run.runId) !== null)
+    if (!Object.isNull(ArgumentValidator.findIdentifierProblem(Resources.sessionIdArgument, run.sessionId))
+      || !Object.isNull(ArgumentValidator.findIdentifierProblem(Resources.runIdArgument, run.runId)))
       throw new TerminalRunNotFoundException(run.sessionId, run.runId);
     const output: TerminalRunOutput | null = await this.client.readRunOutputAsync(run.sessionId, run.runId, maximumLines);
-    if (output === null)
+    if (Object.isNull(output))
       throw new TerminalRunNotFoundException(run.sessionId, run.runId);
     return output;
   }
 
   public showAsync(owner: string | null): Promise<void> {
-    if (owner !== null)
+    if (!Object.isNull(owner))
       ArgumentValidator.requireNonBlank(Resources.ownerArgument, owner, ProtocolResources.maximumOwnerLength);
     const showing: Promise<void> = this.showing.then(() => this.showNowAsync(owner));
     this.showing = showing.catch(() => undefined);
@@ -147,28 +149,28 @@ export class TerminalOwners {
     target: TerminalRunTarget | null): ArgumentProblem | null {
     return ArgumentValidator.findNonBlankProblem(Resources.ownerArgument, owner, ProtocolResources.maximumOwnerLength)
       ?? ArgumentValidator.findScriptProblem(Resources.commandArgument, command)
-      ?? (folder === null ? null : ArgumentValidator.findAbsolutePathProblem(Resources.folderArgument, folder))
+      ?? (Object.isNull(folder) ? null : ArgumentValidator.findAbsolutePathProblem(Resources.folderArgument, folder))
       ?? ArgumentValidator.findEachOneOfProblem(Resources.shellKindsArgument, shellKinds, Object.values(TerminalShellKind))
-      ?? (target === null ? null : ArgumentValidator.findIdentifierProblem(Resources.sessionIdArgument, target.sessionId)
+      ?? (Object.isNull(target) ? null : ArgumentValidator.findIdentifierProblem(Resources.sessionIdArgument, target.sessionId)
         ?? ArgumentValidator.findOneOfProblem(Resources.whenBusyArgument, target.whenBusy, Object.values(TerminalRunBusy)));
   }
 
   private async startRunNowAsync(owner: string, command: string, folder: string | null, shellKinds: readonly TerminalShellKind[],
     target: TerminalRunTarget | null, shown: ((sessionId: string) => void) | null): Promise<TerminalRun> {
     const part: IWindowPartContext | null = TerminalPart.context;
-    if (part === null)
+    if (Object.isNull(part))
       throw new RunPartInactiveException();
     const problem: ArgumentProblem | null = TerminalOwners.findRunProblem(owner, command, folder, shellKinds, target);
-    if (problem !== null)
+    if (!Object.isNull(problem))
       throw new RunArgumentRefusedException(problem.parameterName, problem.reason);
-    if (target !== null)
+    if (!Object.isNull(target))
       shown?.(target.sessionId);
-    else if (shown !== null)
+    else if (!Object.isNull(shown))
       this.noticed = shown;
     let result: TerminalRunResult;
     let missed: ((sessionId: string) => void) | null = null;
     try {
-      result = await this.client.runAsync(owner, command, folder, shellKinds, target, shown === null);
+      result = await this.client.runAsync(owner, command, folder, shellKinds, target, Object.isNull(shown));
     }
     finally {
       if (this.noticed === shown) {
@@ -177,14 +179,14 @@ export class TerminalOwners {
       }
     }
     const sessionId: string | null = result.sessionId;
-    if (sessionId === null)
+    if (Object.isNull(sessionId))
       throw new RunShellKindsMissingException(shellKinds);
     missed?.(sessionId);
-    const isShown: () => boolean = () => target === null && shown === null && TerminalPart.context === part && owner === TerminalOwners.shown;
+    const isShown: () => boolean = () => Object.isNull(target) && Object.isNull(shown) && TerminalPart.context === part && owner === TerminalOwners.shown;
     if (isShown() && await this.isListedAsync(result) && !await TerminalFocus.showAsync(sessionId))
       await new TerminalRuntimeClient(part).openTabsAsync([sessionId], null, isShown);
     const runId: string | null = result.runId;
-    if (runId === null)
+    if (Object.isNull(runId))
       throw new TerminalRunNotTypedException(sessionId, result.outcome);
     for (const ended of result.endedRuns)
       TerminalRunEnds.end(ended);
@@ -193,7 +195,7 @@ export class TerminalOwners {
 
   private notice(sessionId: string): void {
     const shown: ((sessionId: string) => void) | null = this.noticed;
-    if (shown === null)
+    if (Object.isNull(shown))
       return;
     this.noticed = null;
     shown(sessionId);
@@ -233,10 +235,10 @@ export class TerminalOwners {
       return;
     const part: IWindowPartContext | null = TerminalPart.context;
     const isServed: () => boolean = () => TerminalPart.context === part;
-    const owned: readonly TerminalSummary[] = part === null ? [] : (await this.client.listAsync()).filter(t => t.owner !== null);
+    const owned: readonly TerminalSummary[] = Object.isNull(part) ? [] : (await this.client.listAsync()).filter(t => !Object.isNull(t.owner));
     this.shownOwner = owner;
     await this.tellShownAsync();
-    if (part === null || !isServed())
+    if (Object.isNull(part) || !isServed())
       return;
     for (const terminal of owned)
       if (terminal.owner !== owner)

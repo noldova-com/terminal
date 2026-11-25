@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -66,9 +68,9 @@ export class ApiExampleCheck {
       const lines = ApiExampleCheck.readTagLines(source, tag);
       let opened: number | null = null;
       for (const [index, line] of lines.entries()) {
-        if (opened === null && ApiResources.exampleFenceStart.test(line.trim()))
+        if (Object.isNull(opened) && ApiResources.exampleFenceStart.test(line.trim()))
           opened = index + 1;
-        else if (opened !== null && ApiResources.exampleFenceEnd.test(line.trim())) {
+        else if (!Object.isNull(opened) && ApiResources.exampleFenceEnd.test(line.trim())) {
           examples.push(new ApiExample(ApiResources.formatExampleFile(ApiExampleCheck.toPosix(source.fileName), first + opened), first + opened,
             lines.slice(opened, index).join(Resources.lineEnd)));
           opened = null;
@@ -114,7 +116,7 @@ export class ApiExampleCheck {
       readFile: t => sources.get(t)?.code ?? base.readFile(t),
       getSourceFile: (fileName, language, onError, shouldCreate) => {
         const example = sources.get(fileName);
-        return example === undefined ? base.getSourceFile(fileName, language, onError, shouldCreate) : ts.createSourceFile(fileName, example.code, language);
+        return Object.isUndefined(example) ? base.getSourceFile(fileName, language, onError, shouldCreate) : ts.createSourceFile(fileName, example.code, language);
       }
     };
     const program = ts.createProgram({ rootNames: [...sources.keys()], options, host });
@@ -122,11 +124,11 @@ export class ApiExampleCheck {
     const problems: string[] = [...program.getOptionsDiagnostics(), ...program.getGlobalDiagnostics()].map(t => ApiProgram.describe(t));
     for (const example of examples) {
       const source = program.getSourceFile(example.file);
-      if (source === undefined)
+      if (Object.isUndefined(source))
         throw new ApiNotModuleException(example.file);
       for (const diagnostic of [...program.getSyntacticDiagnostics(source), ...program.getSemanticDiagnostics(source)])
         if (diagnostic.category === ts.DiagnosticCategory.Error) {
-          const line = diagnostic.start === undefined ? 0 : source.getLineAndCharacterOfPosition(diagnostic.start).line;
+          const line = Object.isUndefined(diagnostic.start) ? 0 : source.getLineAndCharacterOfPosition(diagnostic.start).line;
           problems.push(ApiResources.formatExampleProblem(shown, example.line + line, ApiProgram.describe(diagnostic)));
         }
     }

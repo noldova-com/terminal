@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { homedir, release, tmpdir } from "node:os";
 
 import type { IRuntimePart, IRuntimePartContext, Migration } from "@noldova/desktop.runtime";
@@ -48,7 +50,7 @@ export class RuntimePart implements IRuntimePart {
 
   public async activateAsync(context: IRuntimePartContext): Promise<void> {
     const shortfall: SystemShortfall | null = SystemRequirements.findShortfall(process.platform, release(), process.report.getReport());
-    if (shortfall !== null) {
+    if (!Object.isNull(shortfall)) {
       const error: UnsupportedSystemException = new UnsupportedSystemException(shortfall.requirement, shortfall.found);
       context.log.write(error.message);
       throw error;

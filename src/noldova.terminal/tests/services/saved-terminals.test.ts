@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 
@@ -59,7 +61,7 @@ describe("SavedTerminals", () => {
 
   it("gives the terminals an earlier version kept no owner, a tab and no name", () => {
     const [create, ...later] = SavedTerminals.migrations;
-    assert.ok(create !== undefined);
+    assert.ok(!Object.isUndefined(create));
     const database: FakeModuleDatabase = databaseOf([create]);
     database.run("INSERT INTO terminals (session_id, shell_id, folder, is_panel_terminal, position) VALUES ('s1', 'bash', '/work', 0, 1)");
 

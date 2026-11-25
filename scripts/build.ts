@@ -7,6 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import path from "node:path";
 
 import { AngularPackageBuilder } from "../src/noldova.terminal.window/scripts/angular-package-builder.ts";
@@ -40,7 +41,7 @@ class Build {
 
   private async hasOneCdkCopyAsync(): Promise<boolean> {
     try {
-      return await new CdkCopyCheck(Build.root, Resources.windowFolder, this.npm).runAsync(process.stderr);
+      return await new CdkCopyCheck(Build.root, this.npm).runAsync(process.stderr);
     }
     catch (error) {
       if (!(error instanceof ProcessException))
@@ -87,11 +88,7 @@ class Build {
       return installed;
     if (!await this.hasOneCdkCopyAsync())
       return 1;
-    for (const project of Resources.compiledProjects) {
-      const compiled: number = await this.runner.runAsync(process.execPath, [path.join(Build.root, ...Resources.typeScriptCompiler), Resources.projectOption, project], Build.root);
-      if (compiled !== 0)
-        return compiled;
-    }
+    await rm(path.join(Build.root, ...Resources.compiledSegments), { recursive: true, force: true });
     return await this.packer.runAsync();
   }
 }

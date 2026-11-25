@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 
@@ -27,7 +29,7 @@ function runToExitAsync(process: IPtyProcess): Promise<string> {
 }
 
 function readEnvironment(): Record<string, string> {
-  return Object.fromEntries(Object.entries(process.env).filter((t): t is [string, string] => t[1] !== undefined));
+  return Object.fromEntries(Object.entries(process.env).filter((t): t is [string, string] => !Object.isUndefined(t[1])));
 }
 
 describe("ContextPtySpawner", () => {

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonObject } from "@noldova/context.json";
 
 import { TerminalRunBusy } from "../enums/terminal-run-busy.ts";
@@ -32,13 +34,13 @@ export class TerminalRunParams {
     whenBusy: TerminalRunBusy = TerminalRunBusy.Refuse, opensTab: boolean = true) {
     ArgumentValidator.requireNonBlank(Resources.ownerField, owner, Resources.maximumOwnerLength);
     ArgumentValidator.requireScript(Resources.commandField, command);
-    if (folder !== null)
+    if (!Object.isNull(folder))
       ArgumentValidator.requireAbsolutePath(Resources.folderField, folder);
     ArgumentValidator.requireEachOneOf(Resources.shellKindsField, shellKinds, Object.values(TerminalShellKind));
-    if (shellId !== null)
+    if (!Object.isNull(shellId))
       ArgumentValidator.requireIdentifier(Resources.shellIdField, shellId);
     ArgumentValidator.requireIntegerInRange(Resources.storedLimitField, storedLimit, Resources.minimumStoredLimit, Resources.maximumStoredLimit);
-    if (sessionId !== null)
+    if (!Object.isNull(sessionId))
       ArgumentValidator.requireIdentifier(Resources.sessionIdField, sessionId);
     ArgumentValidator.requireOneOf(Resources.whenBusyField, whenBusy, Object.values(TerminalRunBusy));
 

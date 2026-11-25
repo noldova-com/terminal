@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IPtyProcess } from "../../src/interfaces/i-pty-process.ts";
 import type { IPtySpawner } from "../../src/interfaces/i-pty-spawner.ts";
 import { FakePtyProcess } from "./fake-pty-process.fixture.ts";
@@ -36,16 +38,16 @@ export class FakePtySpawner implements IPtySpawner {
     rows: number,
     environment: Readonly<Record<string, string>>,
     inheritCursor: boolean): Promise<IPtyProcess> {
-    if (this.failure !== null)
+    if (!Object.isNull(this.failure))
       throw this.failure;
-    if (this.hold !== null) {
+    if (!Object.isNull(this.hold)) {
       this.holding++;
       this.held.resolve();
       await this.hold;
     }
     const process: FakePtyProcess = new FakePtyProcess(1_000 + this.spawned.length);
     process.isEndable = this.isEndable;
-    this.calls.push(`${file} [${typeof args === "string" ? args : args.join(" ")}] in ${folder} at ${columns}x${rows}`);
+    this.calls.push(`${file} [${Object.isString(args) ? args : args.join(" ")}] in ${folder} at ${columns}x${rows}`);
     this.environments.push(environment);
     this.inheritsCursor.push(inheritCursor);
     this.spawned.push(process);

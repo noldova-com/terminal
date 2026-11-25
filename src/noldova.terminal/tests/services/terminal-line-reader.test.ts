@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { TerminalTextStyle, type TerminalLine } from "@noldova/terminal.protocol";
@@ -23,7 +25,7 @@ async function readAsync(text: string, columns: number): Promise<readonly Termin
   const lines: TerminalLine[] = [];
   for (let y: number = 0; y <= buffer.cursorY; y++) {
     const line: IBufferLine | undefined = buffer.getLine(y);
-    if (line !== undefined)
+    if (!Object.isUndefined(line))
       lines.push(reader.read(line, false));
   }
   terminal.dispose();
@@ -86,7 +88,7 @@ describe("TerminalLineReader", () => {
     const reader: TerminalLineReader = new TerminalLineReader(buffer.getNullCell());
     const first: IBufferLine | undefined = buffer.getLine(0);
     const second: IBufferLine | undefined = buffer.getLine(1);
-    assert.ok(first !== undefined && second !== undefined);
+    assert.ok(!Object.isUndefined(first) && !Object.isUndefined(second));
 
     const continued: TerminalLine = reader.read(first, true);
     const next: TerminalLine = reader.read(second, false);

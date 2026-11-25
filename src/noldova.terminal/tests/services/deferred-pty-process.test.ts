@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import type { ForegroundProcess } from "@noldova/desktop.runtime";
@@ -18,26 +20,38 @@ import { FakePtyProcess } from "../fixtures/fake-pty-process.fixture.ts";
 
 class Starter {
   public readonly sizes: string[] = [];
+  public readonly data: string[] = [];
+  public readonly exits: IPtyExitEvent[] = [];
   public readonly process: FakePtyProcess = new FakePtyProcess(7);
   public held: PromiseWithResolvers<IPtyProcess> | null = null;
   public failure: Error | null = null;
 
   public readonly startAsync = (columns: number, rows: number): Promise<IPtyProcess> => {
     this.sizes.push(`${columns}x${rows}`);
-    return this.failure !== null ? Promise.reject(this.failure) : this.held?.promise ?? Promise.resolve(this.process);
+    return !Object.isNull(this.failure) ? Promise.reject(this.failure) : this.held?.promise ?? Promise.resolve(this.process);
   };
 
   public startedAsync(): Promise<void> {
     return this.process.waitUntilReadAsync();
   }
 
-  public create(): [DeferredPtyProcess, string[], IPtyExitEvent[]] {
+  public create(): DeferredPtyProcess {
     const deferred: DeferredPtyProcess = new DeferredPtyProcess(this.startAsync, 80, 24);
-    const data: string[] = [];
-    const exits: IPtyExitEvent[] = [];
-    deferred.onData(t => data.push(t));
-    deferred.onExit(t => exits.push(t));
-    return [deferred, data, exits];
+    deferred.onData(t => this.data.push(t));
+    deferred.onExit(t => this.exits.push(t));
+    return deferred;
+  }
+}
+
+class SizeCase {
+  public readonly label: string;
+  public readonly lastColumns: number;
+  public readonly sizes: readonly string[];
+
+  public constructor(label: string, lastColumns: number, sizes: readonly string[]) {
+    this.label = label;
+    this.lastColumns = lastColumns;
+    this.sizes = sizes;
   }
 }
 
@@ -48,7 +62,9 @@ describe("DeferredPtyProcess", () => {
 
   it("starts its shell at its first resize's size, then passes on its output, exit, writes and sizes, and drops what was written before", async () => {
     const starter: Starter = new Starter();
-    const [deferred, data, exits] = starter.create();
+    const deferred: DeferredPtyProcess = starter.create();
+    const data: string[] = starter.data;
+    const exits: IPtyExitEvent[] = starter.exits;
     const dropped: string[] = [];
     deferred.onData(t => dropped.push(t)).dispose();
     deferred.onExit(t => dropped.push(String(t.exitCode))).dispose();
@@ -69,7 +85,7 @@ describe("DeferredPtyProcess", () => {
 
   it("has no foreground process until its shell starts, then its shell's", async () => {
     const starter: Starter = new Starter();
-    const [deferred] = starter.create();
+    const deferred: DeferredPtyProcess = starter.create();
     starter.process.foregroundProcessGroup = 42;
 
     const before: ForegroundProcess | null = await deferred.readForegroundProcessAsync();
@@ -83,21 +99,23 @@ describe("DeferredPtyProcess", () => {
   it("waits for a resize or a start however long it takes, then starts its shell at the size it opened with, once", async () => {
     vi.useFakeTimers();
     const starter: Starter = new Starter();
-    const [deferred] = starter.create();
+    const deferred: DeferredPtyProcess = starter.create();
 
     await vi.advanceTimersByTimeAsync(60_000);
-    const before: [readonly string[], boolean, number] = [[...starter.sizes], deferred.hasStarted, vi.getTimerCount()];
+    const sizesBefore: readonly string[] = [...starter.sizes];
+    const startedBefore: boolean = deferred.hasStarted;
+    const timersBefore: number = vi.getTimerCount();
     deferred.start();
     deferred.start();
 
-    assert.deepEqual([before, starter.sizes, deferred.hasStarted], [[[], false, 0], ["80x24"], true]);
+    assert.deepEqual([sizesBefore, startedBefore, timersBefore, starter.sizes, deferred.hasStarted], [[], false, 0, ["80x24"], true]);
   });
 
   it("holds a pause until its shell starts, but not one a resume lifted, and passes on later ones", async () => {
     const paused: Starter = new Starter();
-    const [pausedProcess] = paused.create();
+    const pausedProcess: DeferredPtyProcess = paused.create();
     const resumed: Starter = new Starter();
-    const [resumedProcess] = resumed.create();
+    const resumedProcess: DeferredPtyProcess = resumed.create();
 
     pausedProcess.pause();
     resumedProcess.pause();
@@ -110,11 +128,11 @@ describe("DeferredPtyProcess", () => {
     assert.deepEqual([pausedProcess.pid, resumedProcess.pid, paused.process.pauses, paused.process.resumes, resumed.process.pauses, resumed.process.resumes], [7, 7, 1, 1, 0, 0]);
   });
 
-  for (const [label, lastColumns, sizes] of [["another size", 100, ["100x30"]], ["the size it started at", 120, []]] as const)
+  for (const { label, lastColumns, sizes } of [new SizeCase("another size", 100, ["100x30"]), new SizeCase("the size it started at", 120, [])])
     it(`starts its shell once, and gives it ${label} that came while it started once it has`, async () => {
       const starter: Starter = new Starter();
       starter.held = Promise.withResolvers<IPtyProcess>();
-      const [deferred] = starter.create();
+      const deferred: DeferredPtyProcess = starter.create();
 
       deferred.resize(120, 30);
       deferred.resize(lastColumns, 30);
@@ -127,7 +145,8 @@ describe("DeferredPtyProcess", () => {
 
   it("never starts its shell once ended first, exiting at once with no code, once", async () => {
     const starter: Starter = new Starter();
-    const [deferred, , exits] = starter.create();
+    const deferred: DeferredPtyProcess = starter.create();
+    const exits: IPtyExitEvent[] = starter.exits;
 
     const ended: boolean = await deferred.endAsync();
     deferred.resize(120, 30);
@@ -139,7 +158,8 @@ describe("DeferredPtyProcess", () => {
   it("ends a shell that was starting as it ended, once it has started", async () => {
     const starter: Starter = new Starter();
     starter.held = Promise.withResolvers<IPtyProcess>();
-    const [deferred, , exits] = starter.create();
+    const deferred: DeferredPtyProcess = starter.create();
+    const exits: IPtyExitEvent[] = starter.exits;
 
     deferred.resize(120, 30);
     const ending: Promise<boolean> = deferred.endAsync();
@@ -151,7 +171,8 @@ describe("DeferredPtyProcess", () => {
   it("exits with no code, once, when its shell can't start", async () => {
     const starter: Starter = new Starter();
     starter.failure = new Error("spawn failed");
-    const [deferred, , exits] = starter.create();
+    const deferred: DeferredPtyProcess = starter.create();
+    const exits: IPtyExitEvent[] = starter.exits;
     const exited: Promise<void> = new Promise<void>(resolve => deferred.onExit(() => resolve()));
 
     deferred.resize(120, 30);

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IWindowPartContext } from "@noldova/desktop.window";
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonValue } from "@noldova/context.json";
@@ -418,7 +420,7 @@ describe("TerminalOwners", () => {
       for (const cleanupAsync of cleanups.splice(0).reverse())
         await cleanupAsync();
       const served: IWindowPartContext | null = TerminalPart.context;
-      if (served !== null)
+      if (!Object.isNull(served))
         TerminalPart.serve(served)();
     });
 
@@ -535,7 +537,7 @@ describe("TerminalOwners", () => {
         const stopped: Promise<string> = owners.runAsync("example.chat/7", "ls", "/work", []);
         await vi.waitFor(() => expect(runs(runtime)).toHaveLength(2), { timeout: SpecWait.milliseconds });
         const served: IWindowPartContext | null = TerminalPart.context;
-        if (served !== null)
+        if (!Object.isNull(served))
           TerminalPart.serve(served)();
         runtime.releaseOpens();
 

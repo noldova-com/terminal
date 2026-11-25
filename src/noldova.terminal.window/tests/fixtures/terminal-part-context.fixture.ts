@@ -6,13 +6,17 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { signal, type WritableSignal } from "@angular/core";
 import type { JsonValue } from "@noldova/context.json";
 import { QualifiedName, SettingEntry } from "@noldova/desktop.protocol";
 import { UnansweredCallException } from "@noldova/desktop.protocol/testing";
-import { LinkPlace, type CommandContribution, type DockSide, type IInAppBrowser, type ISelectionSource, type IViewInstanceOptions, type IViewUpdate, type IWindowPartContext, type ViewContribution } from "@noldova/desktop.window";
+import { LinkPlace, type CommandContribution, type DockSide, type IInAppBrowser, type ISelectionSource, type IViewInstanceOptions, type IWindowPartContext, type ViewContribution } from "@noldova/desktop.window";
 import { FakeWindowPartContext } from "@noldova/desktop.window/testing";
 import { LinkGesture } from "@noldova/ui.components.angular";
+import { GrownDock } from "./grown-dock.fixture.ts";
+import { UpdatedView } from "./updated-view.fixture.ts";
 
 type MenuProvider = Parameters<IWindowPartContext["provideMenuGroup"]>[1];
 type OptionsProvider = Parameters<IWindowPartContext["provideSettingOptions"]>[1];
@@ -58,10 +62,10 @@ export class TerminalPartContext extends FakeWindowPartContext {
   public readonly closed: string[] = [];
   public readonly shownViews: string[] = [];
   public readonly hiddenDocks: string[] = [];
-  public readonly grownDocks: [string, number][] = [];
+  public readonly grownDocks: GrownDock[] = [];
   public readonly releasedDocks: string[] = [];
   public readonly dock: WritableSignal<DockSide | null> = signal<DockSide | null>(null);
-  public readonly updates: [string, IViewUpdate][] = [];
+  public readonly updates: UpdatedView[] = [];
   public readonly logs: string[] = [];
   public readonly links: string[] = [];
   public readonly linkGestures: (LinkGesture | undefined)[] = [];
@@ -108,7 +112,7 @@ export class TerminalPartContext extends FakeWindowPartContext {
   public override readonly growViewDock: IWindowPartContext["growViewDock"] = (name, minimum, instance) => {
     this.requireOwn(name);
     const tab: string = TerminalPartContext.tabOf(name, instance);
-    this.grownDocks.push([tab, minimum]);
+    this.grownDocks.push(new GrownDock(tab, minimum));
     const release: () => void = this.track("growViewDock", [name, minimum, instance]);
     return () => {
       release();
@@ -142,7 +146,7 @@ export class TerminalPartContext extends FakeWindowPartContext {
     });
     this.answer("updateView", (name, instance, update) => {
       this.requireOwn(name);
-      this.updates.push([instance, update]);
+      this.updates.push(new UpdatedView(instance, update));
     });
     this.answer("refreshSettingOptions", setting => void this.refreshedSettings.push(setting));
     this.answer("log", message => void this.logs.push(message));
@@ -156,13 +160,13 @@ export class TerminalPartContext extends FakeWindowPartContext {
       this.links.push(url);
       this.linkGestures.push(options?.gesture);
       this.linkPlaces.push(options?.place ?? this.inAppBrowser?.placeFor(url, options?.gesture ?? LinkGesture.Plain) ?? LinkPlace.System);
-      if (this.linkFailure !== null)
+      if (!Object.isNull(this.linkFailure))
         throw this.linkFailure;
     });
     this.answer("requestAsync", async (method, parameters) => {
       this.requests.push(new SentRequest(method, parameters));
       const handlerAsync: ((parameters: JsonValue) => Promise<JsonValue>) | undefined = this.handlers.get(method);
-      if (handlerAsync === undefined)
+      if (Object.isUndefined(handlerAsync))
         throw new UnansweredCallException(`requestAsync(${method})`);
       return handlerAsync(parameters);
     });
@@ -170,15 +174,15 @@ export class TerminalPartContext extends FakeWindowPartContext {
 
   public entryOf(name: string): SettingEntry {
     const value: JsonValue | undefined = this.settings.get(name);
-    return new SettingEntry(QualifiedName.parse(name), value ?? TerminalPartContext.defaultOf(name), value !== undefined);
+    return new SettingEntry(QualifiedName.parse(name), value ?? TerminalPartContext.defaultOf(name), !Object.isUndefined(value));
   }
 
   public changeSetting(name: string, value: JsonValue | undefined): void {
-    if (value === undefined)
+    if (Object.isUndefined(value))
       this.settings.delete(name);
     else
       this.settings.set(name, value);
-    this.raiseSettingChanged(name, value ?? TerminalPartContext.defaultOf(name), null, value !== undefined);
+    this.raiseSettingChanged(name, value ?? TerminalPartContext.defaultOf(name), null, !Object.isUndefined(value));
   }
 
   public closeTab(name: string, instance: string): void {
@@ -202,17 +206,17 @@ export class TerminalPartContext extends FakeWindowPartContext {
   }
 
   private requireOwn(name: string): void {
-    if (this.moduleId !== null && !name.startsWith(`${this.moduleId}.`))
+    if (!Object.isNull(this.moduleId) && !name.startsWith(`${this.moduleId}.`))
       throw new Error(`TerminalPartContext's own guard for Noldova Desktop's ForeignNameException: the module ${this.moduleId} may contribute only names of its own, not ${name}.`);
   }
 
   private static tabOf(name: string, instance: string | undefined): string {
-    return instance === undefined ? name : `${name}/${instance}`;
+    return Object.isUndefined(instance) ? name : `${name}/${instance}`;
   }
 
   private static defaultOf(name: string): JsonValue {
     const value: JsonValue | undefined = TerminalPartContext.defaults.get(name);
-    if (value === undefined)
+    if (Object.isUndefined(value))
       throw new UnansweredCallException(`the default of the setting ${name}`);
     return value;
   }

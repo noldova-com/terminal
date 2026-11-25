@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import assert from "node:assert/strict";
 
 import { ProcessExit } from "@noldova/desktop.runtime";
@@ -36,7 +38,7 @@ describe("WslDistributionReader", () => {
     runner.answers.set(POWERSHELL, [line("docker-desktop", false), line("Ubuntu", true), line("Débian 日本", false), "End", ""].join("\r\n"));
 
     assert.deepEqual(await new WslDistributionReader(runner, "C:\\Windows").readAsync(), ["Ubuntu", "docker-desktop", "Débian 日本"]);
-    assert.deepEqual(runner.runs.map(t => [t[0], t[1].slice(0, 4), Buffer.from(t[1][4] ?? "", "base64").toString("utf16le"), t[2]]),
+    assert.deepEqual(runner.runs.map(t => [t.file, t.args.slice(0, 4), Buffer.from(t.args[4] ?? "", "base64").toString("utf16le"), t.timeoutMilliseconds]),
       [[POWERSHELL, ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand"], Resources.wslDistributionScript, 60_000]]);
   });
 
@@ -54,7 +56,7 @@ describe("WslDistributionReader", () => {
 
     for (const output of outputs)
       await assert.rejects(readAsync(output), (error: unknown) => error instanceof WslDistributionsUnreadableException && error.message === UNREADABLE
-        && error.cause === undefined);
+        && Object.isUndefined(error.cause));
   });
 
   it("reports Windows PowerShell's failure, keeping it as the cause", async () => {

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonObject } from "@noldova/context.json";
 
 import { TerminalShellKind } from "../enums/terminal-shell-kind.ts";
@@ -28,15 +30,15 @@ export class TerminalLaunchParams {
   public constructor(shellId: string | null, folder: string | null, size: TerminalSize, storedLimit: number = Resources.defaultStoredLimit,
     environment: Readonly<Record<string, string>> = {}, notice: string | null = null, command: string | null = null, opensTab: boolean = true,
     shellKinds: readonly TerminalShellKind[] = []) {
-    if (shellId !== null)
+    if (!Object.isNull(shellId))
       ArgumentValidator.requireIdentifier(Resources.shellIdField, shellId);
-    if (folder !== null)
+    if (!Object.isNull(folder))
       ArgumentValidator.requireAbsolutePath(Resources.folderField, folder);
     ArgumentValidator.requireIntegerInRange(Resources.storedLimitField, storedLimit, Resources.minimumStoredLimit, Resources.maximumStoredLimit);
     ArgumentValidator.requireEnvironment(Resources.environmentField, environment);
-    if (notice !== null)
+    if (!Object.isNull(notice))
       ArgumentValidator.requireNonBlank(Resources.noticeField, notice, Resources.maximumNoticeLength);
-    if (command !== null)
+    if (!Object.isNull(command))
       ArgumentValidator.requireCommand(Resources.commandField, command);
     ArgumentValidator.requireEachOneOf(Resources.shellKindsField, shellKinds, Object.values(TerminalShellKind));
 

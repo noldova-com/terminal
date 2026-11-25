@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonObject } from "@noldova/context.json";
 
@@ -53,7 +55,7 @@ export class TerminalAttachment {
     ArgumentValidator.requireMaximumLength(Resources.pendingField, pending, Resources.maximumOutputLength);
     ArgumentValidator.requireIntegerInRange(Resources.offsetField, offset, 0, Resources.maximumOffset);
     ArgumentValidator.requireMaximumLength(Resources.titleField, title, Resources.maximumTitleLength);
-    if (cwd !== null)
+    if (!Object.isNull(cwd))
       ArgumentValidator.requireNonBlank(Resources.cwdField, cwd, Resources.maximumPathLength);
     if (commands.length > Resources.maximumSuggestedCommands)
       throw new ArgumentException(Resources.commandsTooMany, Resources.commandsField);
@@ -103,10 +105,10 @@ export class TerminalAttachment {
       TerminalSize.fromReader(reader.readObject(Resources.sizeField)),
       reader.readString(Resources.titleField, Resources.maximumTitleLength),
       reader.readNullableNonBlankString(Resources.cwdField, Resources.maximumPathLength),
-      exit === null ? null : TerminalExit.fromReader(exit),
-      windowsPty === null ? null : WindowsPty.fromReader(windowsPty),
+      Object.isNull(exit) ? null : TerminalExit.fromReader(exit),
+      Object.isNull(windowsPty) ? null : WindowsPty.fromReader(windowsPty),
       TerminalLineRange.fromReader(reader.readObject(Resources.storedField)),
-      input === null ? null : TerminalInputStart.fromReader(input),
+      Object.isNull(input) ? null : TerminalInputStart.fromReader(input),
       reader.readNonBlankStringArray(Resources.commandsField, Resources.maximumSuggestionLength, Resources.maximumSuggestedCommands),
       reader.readOneOf(Resources.shellKindField, Object.values(TerminalShellKind))));
   }
@@ -120,10 +122,10 @@ export class TerminalAttachment {
       size: this.size.toJson(),
       title: this.title,
       cwd: this.cwd,
-      exit: this.exit === null ? null : this.exit.toJson(),
-      windowsPty: this.windowsPty === null ? null : this.windowsPty.toJson(),
+      exit: Object.isNull(this.exit) ? null : this.exit.toJson(),
+      windowsPty: Object.isNull(this.windowsPty) ? null : this.windowsPty.toJson(),
       stored: this.stored.toJson(),
-      input: this.input === null ? null : this.input.toJson(),
+      input: Object.isNull(this.input) ? null : this.input.toJson(),
       commands: [...this.commands],
       shellKind: this.shellKind
     };

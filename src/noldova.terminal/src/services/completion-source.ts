@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import path from "node:path";
 
 import type { IModuleLog } from "@noldova/desktop.runtime";
@@ -88,13 +90,13 @@ export class CompletionSource {
 
   public async findMissingAsync(key: string, shell: CommandTracker, prompt: number, kind: TerminalShellKind, folder: string, names: readonly string[],
     shellNames: ReadonlySet<string> | null, environment: Readonly<Record<string, string>>): Promise<TerminalMissingCommands> {
-    if (kind === TerminalShellKind.PowerShell || !Resources.completedShellKinds.includes(kind) || shellNames === null || this.stuck.includes(key))
+    if (kind === TerminalShellKind.PowerShell || !Resources.completedShellKinds.includes(kind) || Object.isNull(shellNames) || this.stuck.includes(key))
       return new TerminalMissingCommands([]);
     const takesBareNames: boolean = this.isWindows && kind === TerminalShellKind.Bash;
     const search: string = JSON.stringify([kind, this.readVariable(environment, Resources.pathVariable),
       this.readVariable(environment, Resources.pathExtensionsVariable)]);
     const last: CommandListing | undefined = this.listed.get(shell);
-    const listed: readonly string[] | null = last !== undefined && last.prompt === prompt && last.search === search ? last.commands : null;
+    const listed: readonly string[] | null = !Object.isUndefined(last) && last.prompt === prompt && last.search === search ? last.commands : null;
     return this.readAsync(key, async reads => {
       const commands: readonly string[] = listed ?? (await this.listCommandsAsync(reads, [], environment, takesBareNames)).map(t => t.value);
       if (reads.wasCutShort)
@@ -112,7 +114,7 @@ export class CompletionSource {
 
   public async findMissingPowerShellAsync(shell: CommandTracker, program: string, names: readonly string[], shellNames: ReadonlySet<string> | null,
     environment: Readonly<Record<string, string>>): Promise<TerminalMissingCommands> {
-    if (shellNames === null) {
+    if (Object.isNull(shellNames)) {
       const reason: string = shell.isPathReset ? Resources.powerShellLookupPathReset : shell.isModulePathReset ? Resources.powerShellLookupModulePathReset
         : shell.isNamesReset ? Resources.powerShellLookupNamesTooLong : Resources.powerShellLookupNamesUnreported;
       if (this.skipped.get(shell) !== reason)
@@ -124,11 +126,11 @@ export class CompletionSource {
     const variables: Readonly<Record<string, string>> = await this.toLongModulePathsAsync(Object.fromEntries([Resources.pathVariable,
       Resources.pathExtensionsVariable, Resources.modulePathVariable].flatMap(t => {
       const value: string | undefined = this.readVariable(environment, this.isWindows ? t.toUpperCase() : t);
-      return value === undefined ? [] : [[t, value]];
+      return Object.isUndefined(value) ? [] : [[t, value]];
     })));
     const search: string = JSON.stringify([program, variables]);
     const last: PowerShellLookup | undefined = this.looked.get(shell);
-    const answers: Map<string, boolean> = last !== undefined && last.shellNames === shellNames && last.search === search ? last.answers : new Map<string, boolean>();
+    const answers: Map<string, boolean> = !Object.isUndefined(last) && last.shellNames === shellNames && last.search === search ? last.answers : new Map<string, boolean>();
     this.looked.set(shell, new PowerShellLookup(shellNames, search, answers));
     const known: ReadonlySet<string> = new Set([...shellNames].map(t => t.toLowerCase()));
     const asked: readonly string[] = [...new Set(names)].filter(t => !this.isPath(t) && Resources.powerShellLookupNamePattern.test(t)
@@ -166,7 +168,7 @@ export class CompletionSource {
   private async dropFoldersAsync(reads: BoundedReads, kind: TerminalShellKind, folder: string, environment: Readonly<Record<string, string>>,
     names: readonly string[]): Promise<readonly string[]> {
     const workFolder: string | null = this.toLocalFolder(folder, kind, environment);
-    if (workFolder === null)
+    if (Object.isNull(workFolder))
       return names;
     const folders: ReadonlySet<string> = new Set((await reads.readEntriesAsync(workFolder)).filter(t => t.isFolder)
       .map(t => this.isWindows ? t.name.toLowerCase() : t.name));
@@ -203,10 +205,13 @@ export class CompletionSource {
       .filter(t => (ignoresCase ? t.value.toLowerCase() : t.value).startsWith(prefix));
     const items: TerminalCompletionItem[] = [...new Map(candidates.map(t => [t.value, t])).values()]
       .sort((a, b) => a.label.localeCompare(b.label, Resources.sortLocale))
-      .map((t): [string, CompletionCandidate] => [ShellWords.write(t.value, shellLine.quote, isPowerShell, t.closesQuote,
-        escapesWildcards && (t.kind === TerminalCompletionKind.File || t.kind === TerminalCompletionKind.Folder), keepsHome), t])
-      .filter(([t]) => t.length <= ProtocolResources.maximumPathLength && !ProtocolResources.controlCharacters.test(t))
-      .map(([text, t]) => new TerminalCompletionItem(text, t.label, t.kind));
+      .flatMap(t => {
+        const text: string = ShellWords.write(t.value, shellLine.quote, isPowerShell, t.closesQuote,
+          escapesWildcards && (t.kind === TerminalCompletionKind.File || t.kind === TerminalCompletionKind.Folder), keepsHome);
+        return text.length <= ProtocolResources.maximumPathLength && !ProtocolResources.controlCharacters.test(text)
+          ? [new TerminalCompletionItem(text, t.label, t.kind)]
+          : [];
+      });
     return new TerminalCompletion(shellLine.start, items.slice(0, ProtocolResources.maximumCompletionItems));
   }
 
@@ -217,9 +222,9 @@ export class CompletionSource {
       return this.listCommandsAsync(reads, builtins, environment);
     const temporaryFolder: string | null = this.readVariable(environment, Resources.temporaryFolderVariable) ?? null;
     const workFolder: string | null = this.toLocalPath(folder, kind, temporaryFolder);
-    if (workFolder !== null && words.length === Resources.subcommandWordCount && words[0] === Resources.gitCommand && Resources.gitBranchCommands.some(t => shellLine.words[1] === t))
+    if (!Object.isNull(workFolder) && words.length === Resources.subcommandWordCount && words[0] === Resources.gitCommand && Resources.gitBranchCommands.some(t => shellLine.words[1] === t))
       return this.listBranchesAsync(reads, workFolder, environment);
-    if (workFolder !== null && words.length === Resources.subcommandWordCount && words[0] === Resources.npmCommand && Resources.npmRunCommands.some(t => shellLine.words[1] === t))
+    if (!Object.isNull(workFolder) && words.length === Resources.subcommandWordCount && words[0] === Resources.npmCommand && Resources.npmRunCommands.some(t => shellLine.words[1] === t))
       return this.listScriptsAsync(reads, workFolder);
     return this.listPathsAsync(reads, kind, shellLine.value, workFolder, expandsHome, temporaryFolder);
   }
@@ -228,8 +233,8 @@ export class CompletionSource {
     expandsHome: boolean, temporaryFolder: string | null): Promise<readonly CompletionCandidate[]> {
     const end: number = Math.max(value.lastIndexOf(Resources.posixSeparator), this.isWindows ? value.lastIndexOf(Resources.windowsSeparator) : -1);
     const typedFolder: string = value.slice(0, end + 1);
-    const folder: string | null = workFolder === null ? null : this.toFolder(kind, typedFolder, workFolder, expandsHome, temporaryFolder);
-    if (folder === null)
+    const folder: string | null = Object.isNull(workFolder) ? null : this.toFolder(kind, typedFolder, workFolder, expandsHome, temporaryFolder);
+    if (Object.isNull(folder))
       return [];
     const separator: string = end >= 0 ? value.charAt(end)
       : this.isWindows && kind === TerminalShellKind.PowerShell ? Resources.windowsSeparator : Resources.posixSeparator;
@@ -251,8 +256,8 @@ export class CompletionSource {
     const names: string[] = [...builtins];
     for (const entry of entries.flat()) {
       const extension: string = this.paths.extname(entry.name).toLowerCase();
-      if (!entry.isFolder && (extensions === null || extensions.includes(extension) || takesBareNames && extension === ""))
-        names.push(extensions === null ? entry.name : entry.name.slice(0, entry.name.length - extension.length));
+      if (!entry.isFolder && (Object.isNull(extensions) || extensions.includes(extension) || takesBareNames && extension === ""))
+        names.push(Object.isNull(extensions) ? entry.name : entry.name.slice(0, entry.name.length - extension.length));
     }
     return names.map(t => new CompletionCandidate(t, t, TerminalCompletionKind.Command, true));
   }
@@ -260,7 +265,7 @@ export class CompletionSource {
   private async listBranchesAsync(reads: BoundedReads, folder: string,
     environment: Readonly<Record<string, string>>): Promise<readonly CompletionCandidate[]> {
     const git: string | null = await this.findProgramAsync(reads, this.isWindows ? Resources.gitExecutableFile : Resources.gitCommand, environment);
-    if (git === null)
+    if (Object.isNull(git))
       return [];
     let output: string;
     try {
@@ -282,11 +287,11 @@ export class CompletionSource {
   private async listScriptsAsync(reads: BoundedReads, folder: string): Promise<readonly CompletionCandidate[]> {
     let current: string = folder;
     let text: string | null = await reads.readTextOrNullAsync(this.paths.join(current, Resources.packageFile));
-    while (text === null && this.paths.dirname(current) !== current) {
+    while (Object.isNull(text) && this.paths.dirname(current) !== current) {
       current = this.paths.dirname(current);
       text = await reads.readTextOrNullAsync(this.paths.join(current, Resources.packageFile));
     }
-    if (text === null)
+    if (Object.isNull(text))
       return [];
     let parsed: unknown;
     try {
@@ -297,10 +302,10 @@ export class CompletionSource {
         throw error;
       return [];
     }
-    if (typeof parsed !== "object" || parsed === null || !(Resources.packageScriptsField in parsed))
+    if (!Object.isObject(parsed) || !(Resources.packageScriptsField in parsed))
       return [];
     const scripts: unknown = parsed[Resources.packageScriptsField];
-    if (typeof scripts !== "object" || scripts === null || Array.isArray(scripts))
+    if (!Object.isObject(scripts) || Array.isArray(scripts))
       return [];
     return Object.keys(scripts).map(t => new CompletionCandidate(t, t, TerminalCompletionKind.Script, true));
   }
@@ -320,7 +325,7 @@ export class CompletionSource {
 
   private async toLongModulePathsAsync(variables: Readonly<Record<string, string>>): Promise<Readonly<Record<string, string>>> {
     const modulePath: string | undefined = variables[Resources.modulePathVariable];
-    if (!this.isWindows || modulePath === undefined || !modulePath.includes(Resources.shortNameMark))
+    if (!this.isWindows || Object.isUndefined(modulePath) || !modulePath.includes(Resources.shortNameMark))
       return variables;
     const reads: BoundedReads = new BoundedReads(this.shared, Resources.completionReadMilliseconds);
     try {
@@ -339,14 +344,14 @@ export class CompletionSource {
 
   private toFolder(kind: TerminalShellKind, typedFolder: string, workFolder: string, expandsHome: boolean, temporaryFolder: string | null): string | null {
     const folder: string | null = expandsHome && this.isHome(typedFolder) ? this.paths.join(this.homeFolder, typedFolder.slice(Resources.homePrefix.length)) : this.toLocalPath(typedFolder, kind, temporaryFolder);
-    return folder === null ? null : this.paths.resolve(workFolder, folder);
+    return Object.isNull(folder) ? null : this.paths.resolve(workFolder, folder);
   }
 
   private toLocalPath(value: string, kind: TerminalShellKind, temporaryFolder: string | null): string | null {
     if (!this.isWindows || kind !== TerminalShellKind.Bash || !value.startsWith(Resources.posixSeparator))
       return value;
     const temporary: string = Resources.gitBashTemporaryFolder;
-    if (temporaryFolder !== null && path.win32.isAbsolute(temporaryFolder)
+    if (!Object.isNull(temporaryFolder) && path.win32.isAbsolute(temporaryFolder)
       && (value === temporary || value.startsWith(`${temporary}${Resources.posixSeparator}`)))
       return path.win32.join(temporaryFolder, value.slice(temporary.length));
     if (!Resources.gitBashDrivePath.test(value))

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import path from "node:path";
 
 import { CommandFailedException } from "../exceptions/command-failed.exception.ts";
@@ -44,7 +46,7 @@ export class WslDistributionReader {
     const others: string[] = [];
     for (const line of lines) {
       const [name, flag, ...rest] = line.split(Resources.wslDistributionReaderFieldSeparator);
-      if (name === undefined || name.length === 0 || !Resources.base64Pattern.test(name) || rest.length > 0 ||
+      if (Object.isUndefined(name) || name.length === 0 || !Resources.base64Pattern.test(name) || rest.length > 0 ||
           (flag !== Resources.wslDefaultFlag && flag !== Resources.wslOtherFlag))
         throw new WslDistributionsUnreadableException();
       (flag === Resources.wslDefaultFlag ? defaults : others).push(Buffer.from(name, Resources.base64Encoding).toString(Resources.utf8Encoding));

@@ -6,13 +6,15 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { CommandContribution, IWindowPartContext, MenuRowContribution } from "@noldova/desktop.window";
 import { ArgumentException } from "@noldova/context.exceptions";
 import { JsonException, type JsonValue } from "@noldova/context.json";
 import { EndedBy, TerminalExit, TerminalName, TerminalNames, TerminalShellKind, TerminalSummary } from "@noldova/terminal.protocol";
 import { afterEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
-import menus from "../../../../noldova.terminal/menus.json" with { type: "json" };
+import menus from "@noldova/terminal/menus.json" with { type: "json" };
 
 import { TerminalPanelComponent } from "../../../src/app/components/terminal-panel/terminal-panel.component.ts";
 import { TerminalSessionComponent } from "../../../src/app/components/terminal-session/terminal-session.component.ts";
@@ -36,9 +38,10 @@ import chatsModule from "../../fixtures/chats-module/module.json" with { type: "
 import { FakeRuntime } from "../../fixtures/fake-runtime.fixture.ts";
 import { HeldAnswer } from "../../fixtures/held-answer.fixture.ts";
 import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
+import { UpdatedView } from "../../fixtures/updated-view.fixture.ts";
 
 const PLUS_ROW = menus.groups[0]?.items?.[0];
-const PLUS_ARGUMENTS: Readonly<Record<string, JsonValue>> | undefined = PLUS_ROW !== undefined && "arguments" in PLUS_ROW ? PLUS_ROW.arguments : undefined;
+const PLUS_ARGUMENTS: Readonly<Record<string, JsonValue>> | undefined = !Object.isUndefined(PLUS_ROW) && "arguments" in PLUS_ROW ? PLUS_ROW.arguments : undefined;
 
 describe("TerminalWindowPart", () => {
   const parts: TerminalWindowPart[] = [];
@@ -53,7 +56,7 @@ describe("TerminalWindowPart", () => {
     for (const part of parts.splice(0))
       await part.deactivateAsync();
     const served: IWindowPartContext | null = TerminalPart.context;
-    if (served !== null)
+    if (!Object.isNull(served))
       TerminalPart.serve(served)();
   });
 
@@ -858,7 +861,7 @@ describe("TerminalWindowPart", () => {
     runtime.rename(new TerminalName("s1", null));
     await vi.waitFor(() => expect(runtime.context.updates).toHaveLength(2), { timeout: SpecWait.milliseconds });
 
-    expect(runtime.context.updates).toEqual([["s1", { title: "Server" }], ["s1", { title: "Bash", icon: "attach_money" }]]);
+    expect(runtime.context.updates).toEqual([new UpdatedView("s1", { title: "Server" }), new UpdatedView("s1", { title: "Bash", icon: "attach_money" })]);
     expect(() => runtime.context.emit(TerminalNames.renamedEvent, { sessionId: "s1" })).toThrow(JsonException);
   });
 
@@ -885,7 +888,7 @@ describe("TerminalWindowPart", () => {
     await vi.waitFor(() => expect(runtime.context.updates).toHaveLength(2), { timeout: SpecWait.milliseconds });
 
     expect(runtime.context.sent(TerminalNames.renameMethod)).toEqual([{ sessionId: "s1", name: "Server" }, { sessionId: "s1", name: null }]);
-    expect(runtime.context.updates).toEqual([["s1", { title: "Server" }], ["s1", { title: "Bash", icon: "attach_money" }]]);
+    expect(runtime.context.updates).toEqual([new UpdatedView("s1", { title: "Server" }), new UpdatedView("s1", { title: "Bash", icon: "attach_money" })]);
     expect(menus.groups.filter(t => t.place === "desktop.tab").map(t => [t.name, t.items?.map(u => ["command" in u ? u.command : null, "label" in u ? u.label : null])]))
       .toEqual([["terminal.tabActions", [["terminal.restartShell", "Restart"]]]]);
   });
@@ -922,7 +925,7 @@ describe("TerminalWindowPart", () => {
     }
 
     expect(runtime.context.opened.map(t => [t.instance, t.title])).toEqual([["s1", "Terminal"]]);
-    expect(runtime.context.updates).toEqual([["s1", { title: "Bash", icon: "attach_money" }]]);
+    expect(runtime.context.updates).toEqual([new UpdatedView("s1", { title: "Bash", icon: "attach_money" })]);
   });
 
   it("goes on after the runtime reconnects, and deactivates without work of its own", async () => {

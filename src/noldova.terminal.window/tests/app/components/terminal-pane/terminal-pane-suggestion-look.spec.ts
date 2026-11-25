@@ -6,8 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TestBed } from "@angular/core/testing";
-import { Resources as ProtocolResources, TerminalInputEdge, TerminalInputMark, TerminalNames } from "@noldova/terminal.protocol";
+import { Resources as ProtocolResources, TerminalInputEdge, TerminalInputMark, TerminalNames, TerminalResizeParams, type TerminalSize } from "@noldova/terminal.protocol";
 import { AppearanceService, ModePreference, Typography } from "@noldova/ui.components.angular";
 import { AppearanceFixture, KitStylesheetFixture } from "@noldova/ui.components.angular/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -29,11 +31,11 @@ describe("TerminalPaneComponent's suggestion of an earlier command", () => {
 
   const rem = (pixels: number): number => pixels / Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
   const paneOf = (shown: PaneHost<TerminalPanelComponent>): HTMLElement => shown.element.querySelector<HTMLElement>("nol-terminal-pane") ?? shown.element;
-  const sizeOf = (shown: PaneHost<TerminalPanelComponent>): { cols: number; rows: number } => {
-    const size: unknown = shown.runtime.context.sent(TerminalNames.resizeMethod).at(-1);
-    return typeof size === "object" && size !== null && "size" in size && typeof size.size === "object" && size.size !== null
-      && "cols" in size.size && "rows" in size.size && typeof size.size.cols === "number" && typeof size.size.rows === "number"
-      ? { cols: size.size.cols, rows: size.size.rows } : { cols: 0, rows: 0 };
+  const sizeOf = (shown: PaneHost<TerminalPanelComponent>): TerminalSize => {
+    const sent: unknown = shown.runtime.context.sent(TerminalNames.resizeMethod).at(-1);
+    if (Object.isUndefined(sent))
+      throw new Error("The pane has sent no size yet.");
+    return TerminalResizeParams.fromJson(sent).size;
   };
   const shownOf = (shown: PaneHost<TerminalPanelComponent>): HTMLElement | null => shown.element.querySelector<HTMLElement>(`.${Resources.suggestionClass}`);
   const rgbOf = (color: string): string => {
@@ -56,7 +58,7 @@ describe("TerminalPaneComponent's suggestion of an earlier command", () => {
     appearance.setTypography(new Typography());
     TestBed.tick();
     await shown.attachedAsync();
-    await vi.waitFor(() => expect(sizeOf(shown).cols).toBeGreaterThan(0), { timeout: DrawnWait.milliseconds });
+    await vi.waitFor(() => expect(sizeOf(shown).columns).toBeGreaterThan(0), { timeout: DrawnWait.milliseconds });
     shown.runtime.output("mine", 0, "$ ", [new TerminalInputMark(2, TerminalInputEdge.Start)]);
     shown.runtime.output("mine", 2, "git st");
     await vi.waitFor(() => expect(shownOf(shown)?.textContent).toBe("atus"), { timeout: DrawnWait.milliseconds });
@@ -67,12 +69,12 @@ describe("TerminalPaneComponent's suggestion of an earlier command", () => {
     const shown: PaneHost<TerminalPanelComponent> = await openAsync(mode);
     const element: HTMLElement | null = shownOf(shown);
     expect(element).not.toBeNull();
-    if (element === null)
+    if (Object.isNull(element))
       return;
 
     const screen: DOMRect = shown.screen.getBoundingClientRect();
-    const size: { cols: number; rows: number } = sizeOf(shown);
-    const cellWidth: number = screen.width / size.cols;
+    const size: TerminalSize = sizeOf(shown);
+    const cellWidth: number = screen.width / size.columns;
     const cellHeight: number = screen.height / size.rows;
     const box: DOMRect = element.getBoundingClientRect();
     expect(rem(box.left - screen.left)).toBeCloseTo(rem(8 * cellWidth), 2);

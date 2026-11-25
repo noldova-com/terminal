@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources as ProtocolResources, TerminalLine, TerminalTextRun, TerminalTextStyle } from "@noldova/terminal.protocol";
 import type { IBufferCell, IBufferLine } from "@xterm/headless";
 
@@ -39,7 +41,7 @@ export class TerminalLineReader {
     let style: number = 0;
     for (let x: number = 0; x < end; x++) {
       const cell: IBufferCell | undefined = line.getCell(x, this.cell);
-      if (cell === undefined || cell.getWidth() === 0)
+      if (Object.isUndefined(cell) || cell.getWidth() === 0)
         continue;
       const chars: string = cell.getChars() || Resources.blankCell;
       const isPlain: boolean = cell.isAttributeDefault();
@@ -74,7 +76,7 @@ export class TerminalLineReader {
   }
 
   private isBlank(cell: IBufferCell | undefined): boolean {
-    return cell !== undefined && ((cell.getCode() === 0 && cell.isAttributeDefault()) || (cell.getChars().trim().length === 0 && cell.isBgDefault() &&
+    return !Object.isUndefined(cell) && ((cell.getCode() === 0 && cell.isAttributeDefault()) || (cell.getChars().trim().length === 0 && cell.isBgDefault() &&
       !cell.isInverse() && !cell.isUnderline() && !cell.isStrikethrough() && !cell.isOverline()));
   }
 

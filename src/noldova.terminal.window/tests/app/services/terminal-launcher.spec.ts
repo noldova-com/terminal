@@ -7,7 +7,7 @@
  */
 
 import type { JsonValue } from "@noldova/context.json";
-import { EndedBy, TerminalCommandEnded, TerminalExited, TerminalNames, TerminalShellKind } from "@noldova/terminal.protocol";
+import { EndedBy, TerminalCommandEnded, TerminalExited, TerminalLaunchParams, TerminalNames, TerminalReference, TerminalShellKind } from "@noldova/terminal.protocol";
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
 import { LaunchArgumentRefusedException } from "../../../src/app/exceptions/launch-argument-refused.exception.ts";
@@ -36,6 +36,22 @@ async function rejectionAsync<T extends Error>(promise: Promise<unknown>, type: 
   if (!(caught instanceof type))
     throw new Error(`Expected a ${type.name}, not ${String(caught)}.`);
   return caught;
+}
+
+class RefusalCase {
+  public readonly what: string;
+  public readonly type: abstract new (...args: never[]) => TerminalLaunchRefusedException;
+  public readonly launch: TerminalLaunch;
+  public readonly parameter: string;
+  public readonly message: string;
+
+  public constructor(what: string, type: abstract new (...args: never[]) => TerminalLaunchRefusedException, launch: TerminalLaunch, parameter: string, message: string) {
+    this.what = what;
+    this.type = type;
+    this.launch = launch;
+    this.parameter = parameter;
+    this.message = message;
+  }
 }
 
 describe("TerminalLauncher", () => {
@@ -86,7 +102,7 @@ describe("TerminalLauncher", () => {
 
   it("opens no tab for a launch that asks for none, and closes that terminal through the runtime alone", async () => {
     app.context.handlers.set(TerminalNames.closeMethod, async t => {
-      app.exitSession((t as { sessionId: string }).sessionId, null, EndedBy.Close);
+      app.exitSession(TerminalReference.fromJson(t).sessionId, null, EndedBy.Close);
       return null;
     });
     const launched: LaunchedTerminal = await TerminalLauncher.openAsync(app.context,
@@ -95,7 +111,7 @@ describe("TerminalLauncher", () => {
     const sent: readonly JsonValue[] = app.context.sent(TerminalNames.launchMethod);
     await launched.closeAsync();
 
-    expect([launched.sessionId, sent.map(t => (t as { opensTab: boolean }).opensTab), part.context.opened, app.context.opened])
+    expect([launched.sessionId, sent.map(t => TerminalLaunchParams.fromJson(t).opensTab), part.context.opened, app.context.opened])
       .toEqual(["launched-1", [false], [], []]);
     expect(part.context.closed).toEqual([]);
     expect(app.context.sent(TerminalNames.closeMethod)).toEqual([{ sessionId: "launched-1" }]);
@@ -132,7 +148,7 @@ describe("TerminalLauncher", () => {
 
   it("asks its tab's dock for the launch's minimum rows, and releases the growth when its terminal ends or closes", async () => {
     app.context.handlers.set(TerminalNames.closeMethod, async t => {
-      app.exitSession((t as { sessionId: string }).sessionId, null, EndedBy.Close);
+      app.exitSession(TerminalReference.fromJson(t).sessionId, null, EndedBy.Close);
       return null;
     });
     const events: string[] = [];
@@ -280,7 +296,7 @@ describe("TerminalLauncher", () => {
 
   it("closes a launched terminal's tab and ends it as closing the tab does, so its end is Close", async () => {
     app.context.handlers.set(TerminalNames.closeMethod, async t => {
-      app.exitSession((t as { sessionId: string }).sessionId, null, EndedBy.Close);
+      app.exitSession(TerminalReference.fromJson(t).sessionId, null, EndedBy.Close);
       return null;
     });
     const launched: LaunchedTerminal = await TerminalLauncher.openAsync(app.context, new TerminalLaunch("/work", {}, null, "Sign in", "agent login"));
@@ -294,7 +310,7 @@ describe("TerminalLauncher", () => {
 
   it("closes a launched terminal once when it is asked to close again before the first close ends", async () => {
     app.context.handlers.set(TerminalNames.closeMethod, async t => {
-      const sessionId: string = (t as { sessionId: string }).sessionId;
+      const sessionId: string = TerminalReference.fromJson(t).sessionId;
       const index: number = app.sessions.findIndex(u => u.sessionId === sessionId);
       if (index < 0)
         throw new Error(`The session ${sessionId} was not found.`);
@@ -313,7 +329,7 @@ describe("TerminalLauncher", () => {
   it("has closed a launched terminal the runtime no longer has when it refuses the close, as when the person closed the tab, and passes on any other refusal", async () => {
     const refusal: Error = new Error("The runtime is busy.");
     app.context.handlers.set(TerminalNames.closeMethod, async t => {
-      const sessionId: string = (t as { sessionId: string }).sessionId;
+      const sessionId: string = TerminalReference.fromJson(t).sessionId;
       if (sessionId === "launched-2")
         throw refusal;
       app.sessions.splice(app.sessions.findIndex(u => u.sessionId === sessionId), 1);
@@ -360,45 +376,43 @@ describe("TerminalLauncher", () => {
     expect([app.context.listenerCount(TerminalNames.exitedEvent), app.context.listenerCount(TerminalNames.launchCommandEndedEvent)]).toEqual([0, 0]);
   });
 
-  for (const [what, type, launch, parameter, message] of [
-    ["a relative folder", LaunchArgumentRefusedException, new TerminalLaunch("work"), "folder", "folder must be an absolute path."],
-    ["TERM", LaunchArgumentRefusedException, new TerminalLaunch("/work", { TERM: "secret-value" }), "environment.TERM", "environment.TERM is set by the terminal itself, so it can't be given."],
-    ["COLORTERM", LaunchArgumentRefusedException, new TerminalLaunch("/work", { colorterm: "secret-value" }), "environment.colorterm",
-      "environment.colorterm is set by the terminal itself, so it can't be given."],
-    ["ZDOTDIR", LaunchArgumentRefusedException, new TerminalLaunch("/work", { ZDOTDIR: "secret-value" }), "environment.ZDOTDIR", "environment.ZDOTDIR is set by the terminal itself, so it can't be given."],
-    ["a NOLDOVA_TERMINAL_ name", LaunchArgumentRefusedException, new TerminalLaunch("/work", { NOLDOVA_TERMINAL_NONCE: "secret-value" }), "environment.NOLDOVA_TERMINAL_NONCE",
-      "environment.NOLDOVA_TERMINAL_NONCE is set by the terminal itself, so it can't be given."],
-    ["a name that isn't portable", LaunchArgumentRefusedException, new TerminalLaunch("/work", { "A-B": "secret-value" }), "environment",
-      "environment holds a name that isn't a portable variable name: a letter or _, then letters, digits or _."],
-    ["names and values too long in all", LaunchArgumentRefusedException, new TerminalLaunch("/work", { A: "secret-value".repeat(2_730), B: "secret-value".repeat(2_730),
+  for (const { what, type, launch, parameter, message } of [
+    new RefusalCase("a relative folder", LaunchArgumentRefusedException, new TerminalLaunch("work"), "folder", "folder must be an absolute path."),
+    new RefusalCase("TERM", LaunchArgumentRefusedException, new TerminalLaunch("/work", { TERM: "secret-value" }), "environment.TERM", "environment.TERM is set by the terminal itself, so it can't be given."),
+    new RefusalCase("COLORTERM", LaunchArgumentRefusedException, new TerminalLaunch("/work", { colorterm: "secret-value" }), "environment.colorterm",
+      "environment.colorterm is set by the terminal itself, so it can't be given."),
+    new RefusalCase("ZDOTDIR", LaunchArgumentRefusedException, new TerminalLaunch("/work", { ZDOTDIR: "secret-value" }), "environment.ZDOTDIR", "environment.ZDOTDIR is set by the terminal itself, so it can't be given."),
+    new RefusalCase("a NOLDOVA_TERMINAL_ name", LaunchArgumentRefusedException, new TerminalLaunch("/work", { NOLDOVA_TERMINAL_NONCE: "secret-value" }), "environment.NOLDOVA_TERMINAL_NONCE",
+      "environment.NOLDOVA_TERMINAL_NONCE is set by the terminal itself, so it can't be given."),
+    new RefusalCase("a name that isn't portable", LaunchArgumentRefusedException, new TerminalLaunch("/work", { "A-B": "secret-value" }), "environment",
+      "environment holds a name that isn't a portable variable name: a letter or _, then letters, digits or _."),
+    new RefusalCase("names and values too long in all", LaunchArgumentRefusedException, new TerminalLaunch("/work", { A: "secret-value".repeat(2_730), B: "secret-value".repeat(2_730),
       C: "secret-value".repeat(2_730), D: "secret-value".repeat(2_730), E: "secret-value".repeat(3) }), "environment",
-      "environment must have at most 131072 characters of names and values in all."],
-    ["a blank notice", LaunchArgumentRefusedException, new TerminalLaunch("/work", {}, " "), "notice", "notice must not be blank."],
-    ["a blank title", LaunchTitleRefusedException, new TerminalLaunch("/work", {}, null, " "), "title", "title must not be blank and must have at most 200 characters."],
-    ["an over-long title", LaunchTitleRefusedException, new TerminalLaunch("/work", {}, null, "t".repeat(201)), "title", "title must not be blank and must have at most 200 characters."],
-    ["a blank command", LaunchArgumentRefusedException, new TerminalLaunch("/work", {}, null, null, " "), "command", "command must not be blank."],
-    ["a command of two lines", LaunchArgumentRefusedException, new TerminalLaunch("/work", {}, null, null, "npm install\nnpm test"), "command",
-      "command must not hold a control character, such as a line break, since the terminal types it as one line and enters it."],
-    ["no minimum rows", LaunchRowsRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, 0), "minimumRows", "minimumRows must be a whole number from 1 to 100."],
-    ["a part of a row", LaunchRowsRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, 1.5), "minimumRows", "minimumRows must be a whole number from 1 to 100."],
-    ["more rows than a terminal takes", LaunchRowsRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, 101), "minimumRows",
-      "minimumRows must be a whole number from 1 to 100."],
-    ["rows that aren't a number", LaunchRowsRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, Number.NaN), "minimumRows",
-      "minimumRows must be a whole number from 1 to 100."],
-    ["minimum rows without a tab", LaunchRowsWithoutTabException, new TerminalLaunch("/work", {}, null, null, null, false, 16), "minimumRows",
-      "minimumRows needs the launch's tab; an embedded terminal takes its rows from EmbeddedTerminal.open."],
-    ["a shell kind that isn't one", LaunchArgumentRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, null, [TerminalShellKind.Bash, "Tcsh" as TerminalShellKind]),
-      "shellKinds.1", "shellKinds.1 must be one of PowerShell, CommandPrompt, Bash, Zsh, Fish, Wsl, Other."]
-  ] as const)
+      "environment must have at most 131072 characters of names and values in all."),
+    new RefusalCase("a blank notice", LaunchArgumentRefusedException, new TerminalLaunch("/work", {}, " "), "notice", "notice must not be blank."),
+    new RefusalCase("a blank title", LaunchTitleRefusedException, new TerminalLaunch("/work", {}, null, " "), "title", "title must not be blank and must have at most 200 characters."),
+    new RefusalCase("an over-long title", LaunchTitleRefusedException, new TerminalLaunch("/work", {}, null, "t".repeat(201)), "title", "title must not be blank and must have at most 200 characters."),
+    new RefusalCase("a blank command", LaunchArgumentRefusedException, new TerminalLaunch("/work", {}, null, null, " "), "command", "command must not be blank."),
+    new RefusalCase("a command of two lines", LaunchArgumentRefusedException, new TerminalLaunch("/work", {}, null, null, "npm install\nnpm test"), "command",
+      "command must not hold a control character, such as a line break, since the terminal types it as one line and enters it."),
+    new RefusalCase("no minimum rows", LaunchRowsRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, 0), "minimumRows", "minimumRows must be a whole number from 1 to 100."),
+    new RefusalCase("a part of a row", LaunchRowsRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, 1.5), "minimumRows", "minimumRows must be a whole number from 1 to 100."),
+    new RefusalCase("more rows than a terminal takes", LaunchRowsRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, 101), "minimumRows",
+      "minimumRows must be a whole number from 1 to 100."),
+    new RefusalCase("rows that aren't a number", LaunchRowsRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, Number.NaN), "minimumRows",
+      "minimumRows must be a whole number from 1 to 100."),
+    new RefusalCase("minimum rows without a tab", LaunchRowsWithoutTabException, new TerminalLaunch("/work", {}, null, null, null, false, 16), "minimumRows",
+      "minimumRows needs the launch's tab; an embedded terminal takes its rows from EmbeddedTerminal.open."),
+    new RefusalCase("a shell kind that isn't one", LaunchArgumentRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, null, [TerminalShellKind.Bash, "Tcsh" as TerminalShellKind]),
+      "shellKinds.1", "shellKinds.1 must be one of PowerShell, CommandPrompt, Bash, Zsh, Fish, Wsl, Other.")
+  ])
     it(`refuses ${what} before anything opens, never naming a value`, async () => {
-      const refusal: unknown = await TerminalLauncher.openAsync(app.context, launch).catch((error: unknown) => error);
+      const refusal: TerminalLaunchRefusedException = await rejectionAsync(TerminalLauncher.openAsync(app.context, launch), type);
 
-      expect(refusal).toBeInstanceOf(TerminalLaunchRefusedException);
-      expect(refusal).toBeInstanceOf(type);
-      expect((refusal as TerminalLaunchRefusedException).parameter).toBe(parameter);
-      expect((refusal as TerminalLaunchRefusedException).message).toBe(`The terminal wasn't launched, and nothing opened: ${message}`);
-      expect((refusal as TerminalLaunchRefusedException).message).not.toContain("secret-value");
-      expect((refusal as TerminalLaunchRefusedException).message).not.toContain("(Parameter");
+      expect(refusal.parameter).toBe(parameter);
+      expect(refusal.message).toBe(`The terminal wasn't launched, and nothing opened: ${message}`);
+      expect(refusal.message).not.toContain("secret-value");
+      expect(refusal.message).not.toContain("(Parameter");
       expect(app.context.requests).toEqual([]);
       expect(app.context.listenerCount(TerminalNames.exitedEvent)).toBe(0);
     });
