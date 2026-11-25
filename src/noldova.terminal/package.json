@@ -16,6 +16,7 @@
   "exports": {
     "./runtime": "./src/api/index.ts",
     "./window": "./src/api/window.ts",
+    "./menus.json": "./menus.json",
     "./package.json": "./package.json"
   },
   "files": [

@@ -56,6 +56,7 @@ export class Resources {
   public static readonly archiveExtension: string = ".tgz";
   public static readonly entryDeclaration: string = `index${Resources.declarationExtension}`;
   public static readonly manifestExport: string = `./${Resources.manifestFile}`;
+  public static readonly fileExports: readonly string[] = [Resources.manifestExport, "./menus.json"];
   public static readonly declarationImportPattern: RegExp = /(from\s+"\.{1,2}\/[^"]*)\.d\.ts"/g;
   public static readonly declarationImportReplacement: string = `$1${Resources.scriptExtension}"`;
   public static readonly scope: string = "@noldova";

@@ -94,7 +94,7 @@ export class PackagePacker {
     if (typeof exports !== "object" || exports === null || Array.isArray(exports))
       throw new ExportsInvalidException(file);
     const mapped = Object.entries(exports).map(([subpath, target]) => {
-      if (target === Resources.manifestExport)
+      if (typeof target === "string" && Resources.fileExports.includes(target))
         return [subpath, target] as const;
       if (typeof target !== "string" || !target.endsWith(Resources.sourceExtension) || target.endsWith(Resources.declarationExtension))
         throw new ExportSourceInvalidException(file, subpath);
