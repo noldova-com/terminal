@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { JsonException } from "@noldova/context.json";
 import type { IWindowPartContext } from "@noldova/desktop.window";
 import { ArgumentValidator, type ArgumentProblem, Resources as ProtocolResources, TerminalCommandEnded, TerminalExited, TerminalNames, TerminalShellKind, type TerminalLaunched } from "@noldova/terminal.protocol";
@@ -50,7 +52,7 @@ export class TerminalLauncher {
     let onCommandEnd: (sessionId: string, exitCode: number | null) => void = (sessionId, exitCode) => {
       earlyCommands.set(sessionId, exitCode);
     };
-    const stopCommands: () => void = request.command === null ? () => undefined : context.onEvent(TerminalNames.launchCommandEndedEvent, t => {
+    const stopCommands: () => void = Object.isNull(request.command) ? () => undefined : context.onEvent(TerminalNames.launchCommandEndedEvent, t => {
       let ended: TerminalCommandEnded;
       try {
         ended = TerminalCommandEnded.fromJson(t);
@@ -73,7 +75,7 @@ export class TerminalLauncher {
       throw error;
     }
     const sessionId: string | null = launched.sessionId;
-    if (sessionId === null) {
+    if (Object.isNull(sessionId)) {
       stopListening();
       stopCommands();
       throw new LaunchFolderMissingException(String(launched.missingFolder));
@@ -90,7 +92,7 @@ export class TerminalLauncher {
           finish(end);
       };
       const end: TerminalEnd | undefined = early.get(sessionId);
-      if (end !== undefined)
+      if (!Object.isUndefined(end))
         finish(end);
     });
     const commandEnded: Promise<number | null> = new Promise<number | null>(resolve => {
@@ -103,11 +105,11 @@ export class TerminalLauncher {
           finish(exitCode);
       };
       void ended.then(() => finish(null));
-      const exitCode: number | null | undefined = request.command === null ? null : earlyCommands.get(sessionId);
-      if (exitCode !== undefined)
+      const exitCode: number | null | undefined = Object.isNull(request.command) ? null : earlyCommands.get(sessionId);
+      if (!Object.isUndefined(exitCode))
         finish(exitCode);
     });
-    if (request.minimumRows !== null)
+    if (!Object.isNull(request.minimumRows))
       void ended.then(TerminalDockGrowths.ask(sessionId, request.minimumRows));
     if (request.opensTab)
       await new TerminalRuntimeClient(part).openTabsAsync([sessionId], null, () => TerminalPart.context === part, true, request.title);
@@ -128,22 +130,22 @@ export class TerminalLauncher {
 
   private static check(request: TerminalLaunch): IWindowPartContext {
     const part: IWindowPartContext | null = TerminalPart.context;
-    if (part === null)
+    if (Object.isNull(part))
       throw new LaunchPartInactiveException();
-    if (request.title !== null && (request.title.trim() === "" || request.title.length > Resources.maximumTitleLength))
+    if (!Object.isNull(request.title) && (request.title.trim() === "" || request.title.length > Resources.maximumTitleLength))
       throw new LaunchTitleRefusedException(Resources.maximumTitleLength);
     const rows: number | null = request.minimumRows;
-    if (rows !== null && !(Number.isInteger(rows) && rows >= 1 && rows <= Resources.maximumMinimumRows))
+    if (!Object.isNull(rows) && !(Number.isInteger(rows) && rows >= 1 && rows <= Resources.maximumMinimumRows))
       throw new LaunchRowsRefusedException(Resources.maximumMinimumRows);
-    if (rows !== null && !request.opensTab)
+    if (!Object.isNull(rows) && !request.opensTab)
       throw new LaunchRowsWithoutTabException();
     const problem: ArgumentProblem | null =
-      (request.folder === null ? null : ArgumentValidator.findAbsolutePathProblem(Resources.folderArgument, request.folder))
+      (Object.isNull(request.folder) ? null : ArgumentValidator.findAbsolutePathProblem(Resources.folderArgument, request.folder))
       ?? ArgumentValidator.findEnvironmentProblem(Resources.environmentArgument, request.environment)
-      ?? (request.notice === null ? null : ArgumentValidator.findNonBlankProblem(Resources.noticeArgument, request.notice, ProtocolResources.maximumNoticeLength))
-      ?? (request.command === null ? null : ArgumentValidator.findCommandProblem(Resources.commandArgument, request.command))
+      ?? (Object.isNull(request.notice) ? null : ArgumentValidator.findNonBlankProblem(Resources.noticeArgument, request.notice, ProtocolResources.maximumNoticeLength))
+      ?? (Object.isNull(request.command) ? null : ArgumentValidator.findCommandProblem(Resources.commandArgument, request.command))
       ?? ArgumentValidator.findEachOneOfProblem(Resources.shellKindsArgument, request.shellKinds, Object.values(TerminalShellKind));
-    if (problem !== null)
+    if (!Object.isNull(problem))
       throw new LaunchArgumentRefusedException(problem.parameterName, problem.reason);
     return part;
   }

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { WebglAddon } from "@xterm/addon-webgl";
 import type { Terminal } from "@xterm/xterm";
 
@@ -23,11 +25,11 @@ export class RendererSwitch {
   }
 
   public get isWebgl(): boolean {
-    return this.webgl !== null;
+    return !Object.isNull(this.webgl);
   }
 
   public show(): void {
-    if (this.webgl !== null || this.hasFailed)
+    if (!Object.isNull(this.webgl) || this.hasFailed)
       return;
     try {
       const addon: WebglAddon = new WebglAddon();

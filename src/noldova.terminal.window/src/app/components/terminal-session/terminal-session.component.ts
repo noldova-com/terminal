@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Component, computed, DestroyRef, effect, ElementRef, ErrorHandler, inject, input, signal, untracked, viewChild, type InputSignal, type Signal, type WritableSignal } from "@angular/core";
 import { DockSide, WindowPartTokens, type IWindowPartContext } from "@noldova/desktop.window";
 import { TerminalNames, type TerminalSize } from "@noldova/terminal.protocol";
@@ -62,7 +64,7 @@ export class TerminalSessionComponent implements ITerminalRestartTarget, ITermin
     effect(() => {
       const sessionId: string = this.instance();
       const pane: TerminalPaneComponent | undefined = this.pane();
-      if (pane !== undefined && pane.rowHeight() > 0 && this.dock()() === DockSide.Bottom)
+      if (!Object.isUndefined(pane) && pane.rowHeight() > 0 && this.dock()() === DockSide.Bottom)
         untracked(() => TerminalDockGrowths.grow(sessionId, rows => this.context.growViewDock(Resources.sessionView,
           pane.heightFor(rows) / Number.parseFloat(getComputedStyle(document.documentElement).fontSize), sessionId)));
     });
@@ -88,12 +90,12 @@ export class TerminalSessionComponent implements ITerminalRestartTarget, ITermin
   }
 
   public canRestart(): boolean {
-    return untracked(this.isOwnTerminal) && (this.pane()?.size ?? null) !== null;
+    return untracked(this.isOwnTerminal) && !Object.isNull((this.pane()?.size ?? null));
   }
 
   public async restartAsync(): Promise<void> {
     const size: TerminalSize | null = this.pane()?.size ?? null;
-    if (size === null)
+    if (Object.isNull(size))
       return;
     await this.restartAtAsync(size);
     this.pane()?.focus();

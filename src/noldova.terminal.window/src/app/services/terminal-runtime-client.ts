@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { JsonException, type JsonValue } from "@noldova/context.json";
 import { FailureCode } from "@noldova/desktop.protocol";
 import type { IWindowPartContext } from "@noldova/desktop.window";
@@ -30,13 +32,13 @@ export class TerminalRuntimeClient {
   public constructor(context: IWindowPartContext) {
     this.context = context;
     let unnamed: Set<string> | undefined = TerminalRuntimeClient.unnamedByWindow.get(context);
-    if (unnamed === undefined) {
+    if (Object.isUndefined(unnamed)) {
       unnamed = new Set<string>();
       TerminalRuntimeClient.unnamedByWindow.set(context, unnamed);
     }
     this.unnamed = unnamed;
     let launchTitles: Map<string, string> | undefined = TerminalRuntimeClient.launchTitlesByWindow.get(context);
-    if (launchTitles === undefined) {
+    if (Object.isUndefined(launchTitles)) {
       launchTitles = new Map<string, string>();
       TerminalRuntimeClient.launchTitlesByWindow.set(context, launchTitles);
     }
@@ -49,7 +51,7 @@ export class TerminalRuntimeClient {
       return await this.openWithAsync(chosen, folder, isPanelTerminal, owner);
     }
     catch (error) {
-      if (shellId !== null || chosen === null || !TerminalRuntimeClient.isNotFound(error))
+      if (!Object.isNull(shellId) || Object.isNull(chosen) || !TerminalRuntimeClient.isNotFound(error))
         throw error;
       this.context.log(Resources.formatDefaultShellFailed(chosen, error));
       return this.openWithAsync(null, folder, isPanelTerminal, owner);
@@ -63,7 +65,7 @@ export class TerminalRuntimeClient {
       return await this.launchWithAsync(chosen, folder, environment, notice, command, opensTab, shellKinds);
     }
     catch (error) {
-      if (chosen === null || shellKinds.length > 0 || !TerminalRuntimeClient.isNotFound(error))
+      if (Object.isNull(chosen) || shellKinds.length > 0 || !TerminalRuntimeClient.isNotFound(error))
         throw error;
       this.context.log(Resources.formatDefaultShellFailed(chosen, error));
       return this.launchWithAsync(null, folder, environment, notice, command, opensTab, shellKinds);
@@ -80,7 +82,7 @@ export class TerminalRuntimeClient {
   public async readRunOutputAsync(sessionId: string, runId: string, maximumLines: number): Promise<TerminalRunOutput | null> {
     const output: JsonValue = await this.context.requestAsync(TerminalNames.runOutputMethod,
       new TerminalRunOutputParams(sessionId, runId, maximumLines).toJson());
-    return output === null ? null : TerminalRunOutput.fromJson(output);
+    return Object.isNull(output) ? null : TerminalRunOutput.fromJson(output);
   }
 
   public async restartAsync(sessionId: string, size: TerminalSize, isPanelTerminal: boolean = false): Promise<string> {
@@ -95,7 +97,7 @@ export class TerminalRuntimeClient {
     this.launchTitles.delete(sessionId);
     this.retitles.delete(sessionId);
     const terminal: TerminalSummary | undefined = (await this.listAsync()).find(t => t.sessionId === sessionId);
-    if (terminal === undefined || terminal.isAgentTerminal && terminal.owner === null)
+    if (Object.isUndefined(terminal) || terminal.isAgentTerminal && Object.isNull(terminal.owner))
       return;
     await this.context.requestAsync(TerminalNames.closeMethod, new TerminalReference(sessionId).toJson());
   }
@@ -138,17 +140,17 @@ export class TerminalRuntimeClient {
       if (!isWanted() || closed.has(sessionId))
         continue;
       const label: TerminalTabLabel | undefined = labels?.get(sessionId);
-      if (title !== null)
+      if (!Object.isNull(title))
         this.launchTitles.set(sessionId, title);
       const launchTitle: string | null = this.launchTitles.get(sessionId) ?? null;
       if (!isAsked && !TerminalRestartTargets.has(Resources.sessionView, sessionId))
         TerminalFocus.openUnasked(sessionId);
       this.context.openView(Resources.sessionView, sessionId, label?.name ?? launchTitle ?? label?.shellName ?? Resources.panelTitle,
-        { ...this.iconOf(label), ...(tabGroup === null ? {} : { tabGroup }) });
-      if (labels === null && launchTitle === null)
+        { ...this.iconOf(label), ...(Object.isNull(tabGroup) ? {} : { tabGroup }) });
+      if (Object.isNull(labels) && Object.isNull(launchTitle))
         this.unnamed.add(sessionId);
     }
-    if (labels !== null)
+    if (!Object.isNull(labels))
       this.nameTabs(labels);
   }
 
@@ -175,7 +177,7 @@ export class TerminalRuntimeClient {
     const retitle: number = (this.retitles.get(name.sessionId) ?? 0) + 1;
     this.retitles.set(name.sessionId, retitle);
     const title: string | undefined = name.name ?? this.launchTitles.get(name.sessionId);
-    if (title !== undefined) {
+    if (!Object.isUndefined(title)) {
       this.context.updateView(Resources.sessionView, name.sessionId, { title });
       return;
     }
@@ -196,7 +198,7 @@ export class TerminalRuntimeClient {
   }
 
   public async listTabTerminalsAsync(shown: string | null): Promise<readonly string[]> {
-    return (await this.listAsync()).filter(t => !t.isPanelTerminal && t.opensTab && (t.owner === null ? !t.isAgentTerminal : t.owner === shown))
+    return (await this.listAsync()).filter(t => !t.isPanelTerminal && t.opensTab && (Object.isNull(t.owner) ? !t.isAgentTerminal : t.owner === shown))
       .map(t => t.sessionId);
   }
 
@@ -217,7 +219,7 @@ export class TerminalRuntimeClient {
   }
 
   public static isRefusal(error: unknown): boolean {
-    return error instanceof Error && "code" in error && typeof error.code === "string";
+    return error instanceof Error && "code" in error && Object.isString(error.code);
   }
 
   private static cut(text: string, maximumLength: number): string {
@@ -245,12 +247,12 @@ export class TerminalRuntimeClient {
 
   private readDefaultShell(): string | null {
     const chosen: JsonValue | undefined = this.context.readSetting(Resources.defaultShellSetting);
-    return typeof chosen === "string" && chosen.trim() !== "" && chosen.length <= ProtocolResources.maximumIdentifierLength ? chosen : null;
+    return Object.isString(chosen) && chosen.trim() !== "" && chosen.length <= ProtocolResources.maximumIdentifierLength ? chosen : null;
   }
 
   private readStoredLimit(): number {
     const limit: JsonValue | undefined = this.context.readSetting(Resources.outputLimitSetting);
-    const bytes: number = typeof limit === "number" && Number.isInteger(limit) ? limit * ProtocolResources.storedLimitUnit : Number.NaN;
+    const bytes: number = Object.isNumber(limit) && Number.isInteger(limit) ? limit * ProtocolResources.storedLimitUnit : Number.NaN;
     return bytes >= ProtocolResources.minimumStoredLimit && bytes <= ProtocolResources.maximumStoredLimit ? bytes : ProtocolResources.defaultStoredLimit;
   }
 
@@ -258,14 +260,14 @@ export class TerminalRuntimeClient {
     for (const sessionId of this.unnamed) {
       const label: TerminalTabLabel | undefined = labels.get(sessionId);
       const title: string | null | undefined = label?.name ?? label?.shellName;
-      if (title !== undefined && title !== null)
+      if (!Object.isUndefined(title) && !Object.isNull(title))
         this.context.updateView(Resources.sessionView, sessionId, { title, ...this.iconOf(label) });
     }
     this.unnamed.clear();
   }
 
   private iconOf(label: TerminalTabLabel | undefined): { readonly icon: string } {
-    return { icon: label === undefined || label.shellName === null ? Resources.panelIcon : Resources.shellKindIcons[label.shellKind] };
+    return { icon: Object.isUndefined(label) || Object.isNull(label.shellName) ? Resources.panelIcon : Resources.shellKindIcons[label.shellKind] };
   }
 
   private async listLabelsAsync(): Promise<ReadonlyMap<string, TerminalTabLabel>> {

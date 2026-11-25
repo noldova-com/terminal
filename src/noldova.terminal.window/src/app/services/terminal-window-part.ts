@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { Type } from "@angular/core";
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { JsonValue } from "@noldova/context.json";
@@ -57,11 +59,11 @@ export class TerminalWindowPart implements IWindowPart {
     }));
     context.registerCommand(new CommandContribution(Resources.newWithShellCommand, Resources.newWithShellTitle, Resources.newIcon, null, async commandArguments => {
       const parsed: TerminalNewArguments = TerminalNewArguments.fromJson(commandArguments);
-      if (parsed.shellId === null)
+      if (Object.isNull(parsed.shellId))
         throw new ArgumentException(Resources.shellIdRequired, Resources.shellIdArgument);
       await TerminalWindowPart.openNewAsync(context, client, shells, parsed);
       return null;
-    }, t => TerminalNewArguments.fromJson(t).shellId !== null));
+    }, t => !Object.isNull(TerminalNewArguments.fromJson(t).shellId)));
     context.registerCommand(new CommandContribution(Resources.toggleCommand, Resources.toggleTitle, Resources.toggleIcon, Resources.toggleKey, async () => {
       if (!await TerminalFocus.toggleAsync())
         await TerminalWindowPart.openNewAsync(context, client, shells, TerminalNewArguments.forNewOwner());
@@ -117,24 +119,24 @@ export class TerminalWindowPart implements IWindowPart {
       sessionId = await client.openAsync(options.shellId, options.folder, false, owner);
     }
     catch (error) {
-      if (options.shellId !== null) {
+      if (!Object.isNull(options.shellId)) {
         context.log(Resources.formatShellOpenFailed(options.shellId, error));
         void shells.loadAsync();
       }
       throw error;
     }
-    if (owner !== null && owner !== TerminalOwners.shown) {
+    if (!Object.isNull(owner) && owner !== TerminalOwners.shown) {
       if (options.takesNewOwner)
         context.log(Resources.formatNewOwnerHidden(owner));
       return;
     }
-    await client.openTabsAsync([sessionId], options.tabGroup, () => owner === null || owner === TerminalOwners.shown);
+    await client.openTabsAsync([sessionId], options.tabGroup, () => Object.isNull(owner) || owner === TerminalOwners.shown);
   }
 
   private static async openOwnedAsync(client: TerminalRuntimeClient, payload: JsonValue): Promise<void> {
     const summary: TerminalSummary = TerminalSummary.fromJson(payload);
     const owner: string | null = summary.owner;
-    if (owner !== null && owner === TerminalOwners.shown && summary.opensTab)
+    if (!Object.isNull(owner) && owner === TerminalOwners.shown && summary.opensTab)
       await client.openTabsAsync([summary.sessionId], null, () => owner === TerminalOwners.shown, false);
   }
 

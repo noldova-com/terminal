@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { LiveAnnouncer } from "@angular/cdk/a11y";
 import { ErrorHandler, type Provider } from "@angular/core";
 import { TestBed, type ComponentFixture } from "@angular/core/testing";
@@ -365,11 +367,11 @@ describe("TerminalPaneComponent", () => {
     await host.startAsync();
     await vi.waitFor(() => expect(host.text).toContain("copy me"), { timeout: SpecWait.milliseconds });
     const source: ISelectionSource | undefined = host.runtime.context.selectionSources.get(host.element);
-    const unselected: readonly [boolean, string] | undefined = source === undefined ? undefined : [source.hasSelection(), source.readSelection()];
+    const unselected: readonly [boolean, string] | undefined = Object.isUndefined(source) ? undefined : [source.hasSelection(), source.readSelection()];
 
     host.pointAt("mousedown", 2, 1, { detail: 3, button: 0 });
     host.pointAt("mouseup", 2, 1, { detail: 3, button: 0 });
-    const selected: readonly [boolean, string] | undefined = source === undefined ? undefined : [source.hasSelection(), source.readSelection()];
+    const selected: readonly [boolean, string] | undefined = Object.isUndefined(source) ? undefined : [source.hasSelection(), source.readSelection()];
     host.fixture.destroy();
 
     expect(unselected).toEqual([false, ""]);
@@ -454,7 +456,7 @@ describe("TerminalPaneComponent", () => {
     narrow.detectChanges();
     PaneHost.fill(element);
     await narrow.whenStable();
-    await vi.waitFor(() => expect([element.querySelector("textarea") !== null, wide.runtime.context.sent(TerminalNames.visibilityMethod).length >= 2]).toEqual([true, true]),
+    await vi.waitFor(() => expect([!Object.isNull(element.querySelector("textarea")), wide.runtime.context.sent(TerminalNames.visibilityMethod).length >= 2]).toEqual([true, true]),
       { timeout: SpecWait.milliseconds });
     const drawnBy = (offset: number): number => new Set(wide.runtime.context.sent(TerminalNames.ackMethod).map(t => TerminalAckParams.fromJson(t))
       .filter(t => t.offset === offset).map(t => t.paneId)).size;
@@ -610,7 +612,7 @@ describe("TerminalPaneComponent", () => {
     host.runtime.exit = new TerminalExit(0, EndedBy.Exit);
     await host.startAsync();
     PaneHost.fill(host.element);
-    await vi.waitFor(() => expect([host.element.querySelector(".nol-terminal-pane-ended") === null, host.text]).toEqual([false, expect.stringContaining("last words")]),
+    await vi.waitFor(() => expect([Object.isNull(host.element.querySelector(".nol-terminal-pane-ended")), host.text]).toEqual([false, expect.stringContaining("last words")]),
       { timeout: SpecWait.milliseconds });
     const resizes: number = host.runtime.context.sent(TerminalNames.resizeMethod).length;
     const rows: number = host.fixture.componentInstance.size?.rows ?? 0;
@@ -1226,7 +1228,7 @@ describe("TerminalPaneComponent", () => {
     const host: PaneHost<TerminalPaneComponent> = createPane(true);
     const columns = (): number => {
       const sent: unknown = host.runtime.context.sent(TerminalNames.resizeMethod).at(-1);
-      return sent === undefined ? 0 : TerminalResizeParams.fromJson(sent).size.columns;
+      return Object.isUndefined(sent) ? 0 : TerminalResizeParams.fromJson(sent).size.columns;
     };
     await host.startAsync();
     await vi.waitFor(() => expect(columns()).toBeGreaterThan(0), { timeout: SpecWait.milliseconds });
@@ -1258,7 +1260,7 @@ describe("TerminalPaneComponent", () => {
     host.runtime.offset = host.runtime.snapshot.length;
     const pale = (): string => {
       const cell: Element | undefined = [...host.element.querySelectorAll(".xterm-rows span")].find(t => t.textContent === "pale");
-      return cell === undefined ? "" : getComputedStyle(cell).color;
+      return Object.isUndefined(cell) ? "" : getComputedStyle(cell).color;
     };
 
     await host.startAsync();

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { TerminalSize } from "@noldova/terminal.protocol";
 
 import type { ISizedPane } from "../interfaces/i-sized-pane.ts";
@@ -61,7 +63,7 @@ export class SessionSizing {
     const next: ISizedPane | undefined = panes.findLast(t => t.isShown()) ?? panes.at(-1);
     if (next === SessionSizing.sizers.get(sessionId))
       return;
-    if (next === undefined)
+    if (Object.isUndefined(next))
       SessionSizing.sizers.delete(sessionId);
     else {
       SessionSizing.sizers.set(sessionId, next);

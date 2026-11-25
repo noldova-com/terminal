@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { IBuffer, IBufferCell, IBufferCellPosition, IBufferLine, ILink, ILinkProvider, Terminal } from "@xterm/xterm";
 
 import { Resources } from "../../resources.ts";
@@ -53,7 +55,7 @@ export class UrlLinkProvider implements ILinkProvider {
     let length: number = 0;
     for (let y: number = first; length < Resources.linkScanLength; y++) {
       const line: IBufferLine | undefined = buffer.getLine(y);
-      if (line === undefined || y > first && !line.isWrapped)
+      if (Object.isUndefined(line) || y > first && !line.isWrapped)
         return;
       for (let x: number = 0; x < line.length; x++) {
         line.getCell(x, cell);

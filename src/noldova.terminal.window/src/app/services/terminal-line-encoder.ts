@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources as ProtocolResources, type TerminalLine, type TerminalTextRun } from "@noldova/terminal.protocol";
 
 import { Resources } from "../../resources.ts";
@@ -21,7 +23,7 @@ export class TerminalLineEncoder {
       }
       text += Resources.resetAttributes;
       const next: TerminalLine | undefined = lines[index + 1];
-      if (next === undefined ? endsBroken : !next.isWrapped)
+      if (Object.isUndefined(next) ? endsBroken : !next.isWrapped)
         text += Resources.lineBreak;
     }
     return text;

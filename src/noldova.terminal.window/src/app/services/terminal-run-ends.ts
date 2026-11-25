@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TerminalRunEndedBy, type TerminalRunEnded } from "@noldova/terminal.protocol";
 
 import { Resources } from "../../resources.ts";
@@ -18,13 +20,13 @@ export class TerminalRunEnds {
   public static waitAsync(runId: string): Promise<TerminalRunEnd> {
     const end: TerminalRunEnd | undefined = TerminalRunEnds.early.get(runId);
     TerminalRunEnds.early.delete(runId);
-    return end !== undefined ? Promise.resolve(end) : new Promise<TerminalRunEnd>(resolve => TerminalRunEnds.waiting.set(runId, resolve));
+    return !Object.isUndefined(end) ? Promise.resolve(end) : new Promise<TerminalRunEnd>(resolve => TerminalRunEnds.waiting.set(runId, resolve));
   }
 
   public static end(ended: TerminalRunEnded): void {
     const end: TerminalRunEnd = new TerminalRunEnd(ended.endedBy, ended.exitCode);
     const resolve: ((end: TerminalRunEnd) => void) | undefined = TerminalRunEnds.waiting.get(ended.runId);
-    if (resolve !== undefined) {
+    if (!Object.isUndefined(resolve)) {
       TerminalRunEnds.waiting.delete(ended.runId);
       resolve(end);
       return;

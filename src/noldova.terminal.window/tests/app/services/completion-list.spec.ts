@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { EnvironmentInjector } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { TerminalCompletion, TerminalCompletionItem, TerminalCompletionKind } from "@noldova/terminal.protocol";
@@ -337,7 +339,7 @@ describe("CompletionList", () => {
 
     expect(keys.map(t => list.take(t))).toEqual([false, false, false]);
     expect(keys.map(t => t.defaultPrevented)).toEqual([false, false, false]);
-    expect([listElement() === null, active(), inputs]).toEqual([false, "--all", []]);
+    expect([Object.isNull(listElement()), active(), inputs]).toEqual([false, "--all", []]);
   });
 
   it("drops a reply that comes after the line changed, or after the list closed meanwhile", async () => {

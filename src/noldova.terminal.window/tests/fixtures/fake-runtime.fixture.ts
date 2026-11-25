@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonValue } from "@noldova/context.json";
 import { FailureCode } from "@noldova/desktop.protocol";
 import { EndedBy, TerminalAttachment, TerminalCommandAdded, TerminalCwd, TerminalExit, TerminalExited, TerminalLinePage, TerminalLaunched, TerminalLaunchParams, TerminalLineRange, TerminalLinesParams, TerminalName, TerminalNames, TerminalOpenParams, TerminalOutput, TerminalOwnerReference, TerminalPaneReference, TerminalReference, TerminalRestartParams, TerminalRestoreParams, TerminalRunOutcome, TerminalRunOutputParams, TerminalRunParams, TerminalRunResult, TerminalSessions, TerminalShell, TerminalShellKind, TerminalShells, TerminalSize, TerminalSummary, TerminalTitle, type TerminalInputMark, type TerminalInputStart, type TerminalLine, type TerminalRunEnded, type TerminalRunOutput, type WindowsPty } from "@noldova/terminal.protocol";
@@ -112,7 +114,7 @@ export class FakeRuntime {
   public rename(name: TerminalName): JsonValue {
     const index: number = this.sessions.findIndex(t => t.sessionId === name.sessionId);
     const terminal: TerminalSummary | undefined = this.sessions[index];
-    if (terminal !== undefined)
+    if (!Object.isUndefined(terminal))
       this.sessions[index] = new TerminalSummary(terminal.sessionId, terminal.shellId, terminal.folder, terminal.title, terminal.exit,
         terminal.isAgentTerminal, terminal.isPanelTerminal, terminal.owner, terminal.opensTab, name.name, terminal.shellName, terminal.shellKind);
     this.context.emit(TerminalNames.renamedEvent, name.toJson());
@@ -182,7 +184,7 @@ export class FakeRuntime {
     const failure: Error | null = this.attachFailure;
     if (this.isHoldingAttaches)
       await new Promise<void>(resolve => this.attaches.push(resolve));
-    if (failure !== null)
+    if (!Object.isNull(failure))
       throw failure;
     return new TerminalAttachment(pane.sessionId, this.snapshot, this.pending, this.offset, this.size, this.title, this.cwd, this.exit, this.windowsPty, this.stored,
       this.input, this.commands, this.shellKind).toJson();
@@ -191,7 +193,7 @@ export class FakeRuntime {
   private async readLinesAsync(params: TerminalLinesParams): Promise<JsonValue> {
     if (this.isHoldingLines)
       await new Promise<void>(resolve => this.linesReads.push(resolve));
-    if (this.linesFailure !== null)
+    if (!Object.isNull(this.linesFailure))
       throw this.linesFailure;
     const first: number = Math.min(Math.max(params.start, this.stored.start), this.stored.end);
     return new TerminalLinePage(first, this.storedLines.slice(first, Math.min(first + params.limit, this.stored.end)), this.stored).toJson();
@@ -201,19 +203,19 @@ export class FakeRuntime {
     const listing: number = ++this.listings;
     if (this.isListingHeld(listing))
       await this.heldListing.promise;
-    if (this.sessionsFailure !== null && listing >= this.sessionsFailureFrom)
+    if (!Object.isNull(this.sessionsFailure) && listing >= this.sessionsFailureFrom)
       throw this.sessionsFailure;
     return new TerminalSessions(this.sessions).toJson();
   }
 
   private listShells(): JsonValue {
-    if (this.shellsFailure !== null)
+    if (!Object.isNull(this.shellsFailure))
       throw this.shellsFailure;
     return new TerminalShells(this.shells).toJson();
   }
 
   private restart(params: TerminalRestartParams): JsonValue {
-    if (this.restartFailure !== null)
+    if (!Object.isNull(this.restartFailure))
       throw this.restartFailure;
     this.exit = null;
     this.restartSession(params.sessionId);
@@ -237,9 +239,9 @@ export class FakeRuntime {
   private async launchAsync(params: TerminalLaunchParams): Promise<JsonValue> {
     if (this.isHoldingOpens)
       await new Promise<void>(resolve => this.opens.push(resolve));
-    if (this.openFailure !== null)
+    if (!Object.isNull(this.openFailure))
       throw this.openFailure;
-    if (params.shellId !== null && !this.shells.some(t => t.id === params.shellId))
+    if (!Object.isNull(params.shellId) && !this.shells.some(t => t.id === params.shellId))
       throw Object.assign(new Error(`The shell ${params.shellId} was not found.`), { code: FailureCode.NotFound });
     const folder: string = params.folder ?? "/home/a";
     if (this.missingFolders.has(folder))
@@ -252,13 +254,13 @@ export class FakeRuntime {
   private async runAsync(params: TerminalRunParams): Promise<JsonValue> {
     if (this.isHoldingOpens)
       await new Promise<void>(resolve => this.opens.push(resolve));
-    if (params.sessionId !== null && !this.sessions.some(t => t.sessionId === params.sessionId && t.owner === params.owner))
+    if (!Object.isNull(params.sessionId) && !this.sessions.some(t => t.sessionId === params.sessionId && t.owner === params.owner))
       return new TerminalRunResult(params.sessionId, TerminalRunOutcome.Ended).toJson();
-    if (params.sessionId !== null)
+    if (!Object.isNull(params.sessionId))
       return this.answerRun(params.sessionId);
     const free: TerminalSummary | undefined = this.sessions.findLast(t => t.owner === params.owner && this.freeSessions.has(t.sessionId));
     const sessionId: string = free?.sessionId ?? `run-${++this.openedCount}`;
-    if (free === undefined)
+    if (Object.isUndefined(free))
       this.addSession(sessionId, params.shellId ?? "bash", params.folder ?? "/home/a", null, false, false, params.owner, params.opensTab);
     if (!params.opensTab && this.announcesRuns)
       this.context.emit(TerminalNames.runOpenedEvent, new TerminalReference(sessionId).toJson());
@@ -267,7 +269,7 @@ export class FakeRuntime {
 
   private answerRun(sessionId: string): JsonValue {
     const runId: string | null = this.runOutcome === TerminalRunOutcome.Typed ? `run-id-${++this.runCount}` : null;
-    return new TerminalRunResult(sessionId, this.runOutcome, runId, runId === null ? [] : this.answerEnds).toJson();
+    return new TerminalRunResult(sessionId, this.runOutcome, runId, Object.isNull(runId) ? [] : this.answerEnds).toJson();
   }
 
   private readRunOutput(parameters: JsonValue): JsonValue {
@@ -278,12 +280,12 @@ export class FakeRuntime {
   private async openAsync(params: TerminalOpenParams): Promise<JsonValue> {
     if (this.isHoldingOpens)
       await new Promise<void>(resolve => this.opens.push(resolve));
-    if (this.openFailure !== null)
+    if (!Object.isNull(this.openFailure))
       throw this.openFailure;
-    if (params.shellId !== null && !this.shells.some(t => t.id === params.shellId))
+    if (!Object.isNull(params.shellId) && !this.shells.some(t => t.id === params.shellId))
       throw Object.assign(new Error(`The shell ${params.shellId} was not found.`), { code: FailureCode.NotFound });
     const panel: TerminalSummary | undefined = params.isPanelTerminal ? this.sessions.findLast(t => t.isPanelTerminal) : undefined;
-    if (panel !== undefined)
+    if (!Object.isUndefined(panel))
       return new TerminalReference(panel.sessionId).toJson();
     const sessionId: string = `opened-${++this.openedCount}`;
     this.addSession(sessionId, params.shellId ?? "bash", params.folder ?? "/home/a", null, false, params.isPanelTerminal, params.owner);

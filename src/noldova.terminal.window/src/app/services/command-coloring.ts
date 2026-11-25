@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources as ProtocolResources, TerminalShellKind } from "@noldova/terminal.protocol";
 import type { IBuffer, IBufferCell, IBufferLine, IDisposable, IMarker, Terminal } from "@xterm/xterm";
 
@@ -75,7 +77,7 @@ export class CommandColoring {
 
   public resumeFinder(): void {
     this.resumes++;
-    if (this.find !== null || this.given === null)
+    if (!Object.isNull(this.find) || Object.isNull(this.given))
       return;
     this.find = this.given;
     this.update();
@@ -98,7 +100,7 @@ export class CommandColoring {
     const isNormal: boolean = this.terminal.buffer.active.type !== Resources.alternateBuffer;
     this.start = isNormal ? this.terminal.registerMarker(-rowsAbove) : null;
     this.startColumn = column;
-    this.rightPrompt = isNormal && rightPrompt !== null ? this.terminal.registerMarker(-rowsAbove) : null;
+    this.rightPrompt = isNormal && !Object.isNull(rightPrompt) ? this.terminal.registerMarker(-rowsAbove) : null;
     this.rightPromptColumn = rightPrompt ?? 0;
     this.update();
   }
@@ -106,7 +108,7 @@ export class CommandColoring {
   public markRightPrompt(): void {
     const start: IMarker | null = this.start;
     const buffer: IBuffer = this.terminal.buffer.active;
-    if (start === null || start.isDisposed || buffer.baseY + buffer.cursorY !== start.line)
+    if (Object.isNull(start) || start.isDisposed || buffer.baseY + buffer.cursorY !== start.line)
       return;
     this.rightPrompt?.dispose();
     this.rightPrompt = this.terminal.registerMarker(0);
@@ -117,7 +119,7 @@ export class CommandColoring {
   public continueInput(): void {
     const start: IMarker | null = this.start;
     const buffer: IBuffer = this.terminal.buffer.active;
-    if (start === null || start.isDisposed || buffer.baseY + buffer.cursorY <= (this.continuations.at(-1)?.marker ?? start).line)
+    if (Object.isNull(start) || start.isDisposed || buffer.baseY + buffer.cursorY <= (this.continuations.at(-1)?.marker ?? start).line)
       return;
     this.continuations.push(new CommandContinuation(this.terminal.registerMarker(0), buffer.cursorX));
     this.update();
@@ -177,12 +179,12 @@ export class CommandColoring {
       if (open?.continuesAt(row, x, kind) === true)
         open.extend(width, characters);
       else {
-        if (open !== null)
+        if (!Object.isNull(open))
           found.push(open);
-        open = kind === undefined ? null : new CommandColorSpan(row, x, width, kind, characters);
+        open = Object.isUndefined(kind) ? null : new CommandColorSpan(row, x, width, kind, characters);
       }
     });
-    if (open !== null)
+    if (!Object.isNull(open))
       found.push(open);
     return found;
   }
@@ -190,21 +192,21 @@ export class CommandColoring {
   private walk(visit: (row: number, x: number, width: number, isPlain: boolean, characters: string) => void): boolean {
     const start: IMarker | null = this.start;
     const buffer: IBuffer = this.terminal.buffer.active;
-    if (!this.isEnabled || start === null || start.isDisposed || buffer.type === Resources.alternateBuffer)
+    if (!this.isEnabled || Object.isNull(start) || start.isDisposed || buffer.type === Resources.alternateBuffer)
       return false;
     for (const [index, { marker, column }] of [new CommandContinuation(start, this.startColumn), ...this.continuations].entries()) {
       if (index > 0)
         visit(marker.line, column, 0, false, Resources.commandLineBreak);
       for (let row: number = marker.line; ; row++) {
         const line: IBufferLine | undefined = buffer.getLine(row);
-        if (line === undefined || row > marker.line && !line.isWrapped)
+        if (Object.isUndefined(line) || row > marker.line && !line.isWrapped)
           break;
         const first: number = row === marker.line ? column : 0;
         const limit: number = Math.min(line.length, this.findRightPrompt(row));
         const end: number = buffer.getLine(row + 1)?.isWrapped === true ? limit : this.findTextEnd(line, first, limit);
         for (let x: number = first; x < end; x++) {
           const cell: IBufferCell | undefined = line.getCell(x);
-          if (cell !== undefined && cell.getWidth() > 0) {
+          if (!Object.isUndefined(cell) && cell.getWidth() > 0) {
             const characters: string = cell.getChars();
             visit(row, x, cell.getWidth(), cell.isFgDefault(), characters.length > 0 ? characters : Resources.emptyCellText);
           }
@@ -216,7 +218,7 @@ export class CommandColoring {
 
   private ask(names: readonly string[]): void {
     const find: ((names: readonly string[]) => Promise<readonly string[]>) | null = this.find;
-    if (find === null || this.isAsking || names.length === 0)
+    if (Object.isNull(find) || this.isAsking || names.length === 0)
       return;
     const asked: readonly string[] = names.slice(0, ProtocolResources.maximumLookedUpCommands);
     const missing: Map<string, boolean> = this.missing;
@@ -241,7 +243,7 @@ export class CommandColoring {
   private findTextEnd(line: IBufferLine, first: number, limit: number): number {
     for (let x: number = limit - 1; x >= first; x--) {
       const cell: IBufferCell | undefined = line.getCell(x);
-      if (cell !== undefined && cell.getChars().trim() !== "")
+      if (!Object.isUndefined(cell) && cell.getChars().trim() !== "")
         return x + cell.getWidth();
     }
     return first;
@@ -249,13 +251,13 @@ export class CommandColoring {
 
   private findRightPrompt(row: number): number {
     const marker: IMarker | null = this.rightPrompt;
-    return marker !== null && !marker.isDisposed && marker.line === row ? this.rightPromptColumn : this.terminal.cols;
+    return !Object.isNull(marker) && !marker.isDisposed && marker.line === row ? this.rightPromptColumn : this.terminal.cols;
   }
 
   private paint(run: CommandColorRun): void {
     run.decoration?.dispose();
     const color: string | undefined = this.colors.colorOf(run.kind);
-    run.decoration = color === undefined || run.marker.isDisposed ? undefined
+    run.decoration = Object.isUndefined(color) || run.marker.isDisposed ? undefined
       : this.terminal.registerDecoration({ marker: run.marker, x: run.x, width: run.width, foregroundColor: color, layer: Resources.commandColorDecorationLayer });
   }
 

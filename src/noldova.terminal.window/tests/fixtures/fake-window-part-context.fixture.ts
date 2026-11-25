@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { signal, type Signal, type WritableSignal } from "@angular/core";
 import { QualifiedName, SettingEntry } from "@noldova/desktop.protocol";
 import type { CommandContribution, DockSide, ILinkOpenOptions, ISelectionSource, IViewInstanceOptions, IViewUpdate, IWindowPartContext, ViewContribution } from "@noldova/desktop.window";
@@ -157,12 +159,12 @@ export class FakeWindowPartContext implements IWindowPartContext {
 
   public hideViewDock(name: string, instance?: string): void {
     this.requireOwn(name);
-    this.hiddenDocks.push(instance === undefined ? name : `${name}/${instance}`);
+    this.hiddenDocks.push(Object.isUndefined(instance) ? name : `${name}/${instance}`);
   }
 
   public growViewDock(name: string, minimum: number, instance?: string): () => void {
     this.requireOwn(name);
-    const tab: string = instance === undefined ? name : `${name}/${instance}`;
+    const tab: string = Object.isUndefined(instance) ? name : `${name}/${instance}`;
     this.grownDocks.push([tab, minimum]);
     return () => this.releasedDocks.push(tab);
   }
@@ -194,7 +196,7 @@ export class FakeWindowPartContext implements IWindowPartContext {
     await Promise.resolve();
     await this.settingAnswerAsync();
     const value: JsonValue | undefined = this.settings.get(name);
-    return new SettingEntry(QualifiedName.parse(name), value ?? FakeWindowPartContext.defaultOf(name), value !== undefined);
+    return new SettingEntry(QualifiedName.parse(name), value ?? FakeWindowPartContext.defaultOf(name), !Object.isUndefined(value));
   }
 
   public onSettingChanged(name: string, listener: SettingListener): () => void {
@@ -205,12 +207,12 @@ export class FakeWindowPartContext implements IWindowPartContext {
   }
 
   public changeSetting(name: string, value: JsonValue | undefined): void {
-    if (value === undefined)
+    if (Object.isUndefined(value))
       this.settings.delete(name);
     else
       this.settings.set(name, value);
     for (const listener of [...this.settingListeners.get(name) ?? []])
-      listener(value ?? FakeWindowPartContext.defaultOf(name), null, value !== undefined);
+      listener(value ?? FakeWindowPartContext.defaultOf(name), null, !Object.isUndefined(value));
   }
 
   public updateView(name: string, instance: string, update: IViewUpdate): void {
@@ -255,7 +257,7 @@ export class FakeWindowPartContext implements IWindowPartContext {
   public async requestAsync(method: string, parameters: JsonValue): Promise<JsonValue> {
     this.requests.push(new SentRequest(method, parameters));
     const handlerAsync: ((parameters: JsonValue) => Promise<JsonValue>) | undefined = this.handlers.get(method);
-    return handlerAsync === undefined ? null : handlerAsync(parameters);
+    return Object.isUndefined(handlerAsync) ? null : handlerAsync(parameters);
   }
 
   public onEvent(event: string, listener: (payload: JsonValue) => void): () => void {
@@ -279,7 +281,7 @@ export class FakeWindowPartContext implements IWindowPartContext {
   }
 
   private requireOwn(name: string): void {
-    if (this.moduleId !== null && !name.startsWith(`${this.moduleId}.`))
+    if (!Object.isNull(this.moduleId) && !name.startsWith(`${this.moduleId}.`))
       throw new Error(`The module ${this.moduleId} may contribute only names of its own, not ${name}.`);
   }
 

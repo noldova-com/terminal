@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources } from "../../resources.ts";
 import { CommandTokenKind } from "../enums/command-token-kind.ts";
 import { CommandColors } from "../models/command-colors.ts";
@@ -40,8 +42,8 @@ export class TerminalThemeReader {
         scrollbarSliderBackground: Resources.hiddenColor,
         scrollbarSliderHoverBackground: Resources.hiddenColor,
         scrollbarSliderActiveBackground: Resources.hiddenColor,
-        ...(selection === null ? {} : { selectionBackground: selection }),
-        ...(forced && selection !== null ? { selectionInactiveBackground: TerminalThemeReader.fade(selection,
+        ...(Object.isNull(selection) ? {} : { selectionBackground: selection }),
+        ...(forced && !Object.isNull(selection) ? { selectionInactiveBackground: TerminalThemeReader.fade(selection,
           matchMedia(Resources.darkPaletteQuery).matches ? Resources.darkInactiveSelectionOpacity : Resources.lightInactiveSelectionOpacity) } : {}),
         ...(selectedText.length > 0 ? { selectionForeground: system(selectedText) } : {}),
         ...colors
@@ -66,7 +68,7 @@ export class TerminalThemeReader {
 
   public static readBackground(element: HTMLElement): string {
     const style: CSSStyleDeclaration = getComputedStyle(element);
-    for (let current: HTMLElement | null = element; current !== null; current = current.parentElement) {
+    for (let current: HTMLElement | null = element; !Object.isNull(current); current = current.parentElement) {
       const background: string = getComputedStyle(current).backgroundColor;
       if (!Resources.unpaintedPattern.test(background))
         return background;
@@ -97,7 +99,7 @@ export class TerminalThemeReader {
 
   private static fade(computed: string, share: number): string {
     const match: RegExpExecArray | null = Resources.computedColorPattern.exec(computed);
-    return match === null ? computed : Resources.formatRgba(match[1], match[2], match[3], Number(match[4] ?? Resources.opaqueAlpha) * share);
+    return Object.isNull(match) ? computed : Resources.formatRgba(match[1], match[2], match[3], Number(match[4] ?? Resources.opaqueAlpha) * share);
   }
 
   private static readToken(style: CSSStyleDeclaration, name: string, fallback: string): string {

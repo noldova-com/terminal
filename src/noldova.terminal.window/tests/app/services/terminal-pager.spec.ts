@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TerminalLine, TerminalLineRange, TerminalLinesParams, TerminalNames, TerminalTextRun, TerminalTextStyle } from "@noldova/terminal.protocol";
 import { Terminal, type IBuffer, type IModes } from "@xterm/xterm";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -75,7 +77,7 @@ describe("TerminalPager", () => {
     pager = new TerminalPager(terminal, connection, size => {
       const failure: Error | null = resetFailure;
       resetFailure = null;
-      if (failure !== null)
+      if (!Object.isNull(failure))
         throw failure;
       terminal.reset();
       terminal.resize(size.columns, size.rows);
@@ -94,7 +96,7 @@ describe("TerminalPager", () => {
     const held: (() => void)[] = [];
     const write: Terminal["write"] = terminal.write.bind(terminal);
     vi.spyOn(terminal, "write").mockImplementation((data: string | Uint8Array, callback?: () => void) => {
-      if (data === "" && callback !== undefined)
+      if (data === "" && !Object.isUndefined(callback))
         held.push(callback);
       else
         write(data, callback);

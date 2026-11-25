@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { ArgumentException } from "@noldova/context.exceptions";
 import type { TerminalLinePage, TerminalLineRange } from "@noldova/terminal.protocol";
 
@@ -35,7 +37,7 @@ export class StoredLinesWindow {
 
   public get last(): number {
     const last: TerminalLinePage | undefined = this.loaded.at(-1);
-    return last === undefined ? this.range.end : last.start + last.lines.length;
+    return Object.isUndefined(last) ? this.range.end : last.start + last.lines.length;
   }
 
   public get hasOlder(): boolean {

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { TestBed } from "@angular/core/testing";
 import { TerminalInputEdge, TerminalInputMark, TerminalMissingCommands, TerminalNames, TerminalResizeParams, TerminalShellKind, type TerminalSize } from "@noldova/terminal.protocol";
 import { AppearanceService, ModePreference, Typography } from "@noldova/ui.components.angular";
@@ -94,7 +96,7 @@ describe("TerminalPaneComponent's colors for a typed command", () => {
     await KitStylesheetFixture.ensureAsync();
     const runtime: FakeRuntime = new FakeRuntime();
     runtime.context.settings.set(Resources.fontSizeSetting, 24);
-    if (setting !== null)
+    if (!Object.isNull(setting))
       runtime.context.settings.set(Resources.commandColorsSetting, setting);
     prepare(runtime);
     runtime.shellKind = shellKind;

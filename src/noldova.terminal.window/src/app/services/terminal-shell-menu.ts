@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import type { JsonValue } from "@noldova/context.json";
 import { SettingOption } from "@noldova/desktop.protocol";
 import { MenuRowContribution, type IWindowPartContext } from "@noldova/desktop.window";
@@ -42,11 +44,11 @@ export class TerminalShellMenu {
   }
 
   public listOptions(): readonly SettingOption[] | null {
-    if (this.shells === null)
+    if (Object.isNull(this.shells))
       return null;
     const systemDefault: TerminalShell | undefined = this.shells.find(t => t.isDefault);
     return [
-      new SettingOption("", systemDefault === undefined ? Resources.systemDefaultShell : Resources.formatSystemDefaultShell(systemDefault.name)),
+      new SettingOption("", Object.isUndefined(systemDefault) ? Resources.systemDefaultShell : Resources.formatSystemDefaultShell(systemDefault.name)),
       ...this.shells.map(t => new SettingOption(t.id, t.name))
     ];
   }

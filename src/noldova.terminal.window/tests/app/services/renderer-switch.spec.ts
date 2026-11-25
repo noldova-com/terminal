@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Terminal } from "@xterm/xterm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -30,7 +32,7 @@ class RendererHarness {
   }
 
   public contextLostAsync(): Promise<void> {
-    if (this.host.querySelector("canvas") === null)
+    if (Object.isNull(this.host.querySelector("canvas")))
       throw new Error("The terminal drew no canvas to lose.");
     return new Promise<void>(resolve => this.host.addEventListener("webglcontextlost", () => resolve(), { capture: true, once: true }));
   }

@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import "@noldova/context.core";
+
 import { Resources as ProtocolResources, TerminalSize } from "@noldova/terminal.protocol";
 import type { FitAddon } from "@xterm/addon-fit";
 import type { Terminal } from "@xterm/xterm";
@@ -31,7 +33,7 @@ export class PaneFitter {
   }
 
   public request(): void {
-    if (this.frame === null)
+    if (Object.isNull(this.frame))
       this.frame = requestAnimationFrame(() => this.fitNow());
   }
 
@@ -41,7 +43,7 @@ export class PaneFitter {
   }
 
   public dispose(): void {
-    if (this.frame !== null)
+    if (!Object.isNull(this.frame))
       cancelAnimationFrame(this.frame);
     this.frame = null;
   }
@@ -51,8 +53,8 @@ export class PaneFitter {
     if (!this.isSizing())
       return;
     const proposed: { cols: number; rows: number } | undefined = this.fit.proposeDimensions();
-    const rows: number = proposed === undefined ? Number.NaN : this.fixedRows() ?? proposed.rows;
-    if (proposed === undefined || !Number.isFinite(proposed.cols) || !Number.isFinite(rows)) {
+    const rows: number = Object.isUndefined(proposed) ? Number.NaN : this.fixedRows() ?? proposed.rows;
+    if (Object.isUndefined(proposed) || !Number.isFinite(proposed.cols) || !Number.isFinite(rows)) {
       if (!this.hasReported && !this.isShown())
         this.report(new TerminalSize(this.terminal.cols, this.terminal.rows));
       return;
