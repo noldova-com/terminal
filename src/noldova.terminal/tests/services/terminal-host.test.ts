@@ -48,6 +48,7 @@ import { ShellLocator } from "../../src/services/shell-locator.ts";
 import { TerminalHistoryFolder } from "../../src/services/terminal-history-folder.ts";
 import { TerminalHost } from "../../src/services/terminal-host.ts";
 import { TerminalSession } from "../../src/services/terminal-session.ts";
+import { CodedError } from "../fixtures/coded-error.fixture.ts";
 import { FakeCommandRunner } from "../fixtures/fake-command-runner.fixture.ts";
 import { FakeFileSystemReader } from "../fixtures/fake-file-system-reader.fixture.ts";
 import { FakeFileSystemWriter } from "../fixtures/fake-file-system-writer.fixture.ts";
@@ -72,6 +73,49 @@ const OWNED_OLD: Record<string, JsonValue> = { shellId: "bash", folder: "/work/o
 
 function ownedOpen(owner: string): JsonValue {
   return { shellId: "bash", folder: "/work", size: { cols: 80, rows: 24 }, storedLimit: 104_857_600, owner };
+}
+
+class NamedCase<T> {
+  public readonly name: string;
+  public readonly value: T;
+
+  public constructor(name: string, value: T) {
+    this.name = name;
+    this.value = value;
+  }
+}
+
+class RequestCase<T> {
+  public readonly name: string;
+  public readonly act: (fixture: HostFixture) => Promise<T>;
+  public readonly request: Record<string, JsonValue>;
+
+  public constructor(name: string, act: (fixture: HostFixture) => Promise<T>, request: Record<string, JsonValue>) {
+    this.name = name;
+    this.act = act;
+    this.request = request;
+  }
+}
+
+class PastedLineCase {
+  public readonly name: string;
+  public readonly lastLine: string;
+  public readonly echoed: string;
+
+  public constructor(name: string, lastLine: string, echoed: string) {
+    this.name = name;
+    this.lastLine = lastLine;
+    this.echoed = echoed;
+  }
+}
+
+class FileThreads {
+  public free: number;
+  public readonly waiting: (() => void)[] = [];
+
+  public constructor(free: number) {
+    this.free = free;
+  }
 }
 
 class OpenedTerminal {
@@ -392,7 +436,7 @@ describe("TerminalHost", () => {
     ]);
   });
 
-  for (const [failure, reason] of [[new Error("busy"), "busy"], ["gone", "gone"]] as const) {
+  for (const { name: reason, value: failure } of [new NamedCase<Error | string>("busy", new Error("busy")), new NamedCase<Error | string>("gone", "gone")]) {
     it(`logs shell integration scripts it can't remove when it ends, and ends anyway (${reason})`, async () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       await fixture.openAsync();
@@ -781,7 +825,7 @@ describe("TerminalHost", () => {
   });
 
   it("starts a shell, whose environment read needs one of the four file threads, while two of a completion's folder reads hold theirs past the deadline", async () => {
-    const threads: { free: number; readonly waiting: (() => void)[] } = { free: 4, waiting: [] };
+    const threads: FileThreads = new FileThreads(4);
     const takeThreadAsync = async (): Promise<void> => {
       if (threads.free > 0) {
         threads.free--;
@@ -1716,7 +1760,7 @@ describe("TerminalHost", () => {
       assert.deepEqual([...await listFromAsync(fixture, last)].sort(), [persons, opened].sort());
     });
 
-    for (const [kind, open] of [["tab", OPEN], ["panel", panelOpen]] as const) {
+    for (const { name: kind, value: open } of [new NamedCase("tab", OPEN), new NamedCase("panel", panelOpen)]) {
       it(`ends a ${kind} terminal whose connection closed while its open checked the folder, and keeps it for the next app connection to restore`, async () => {
         const fixture: HostFixture = await HostFixture.createAsync();
         const checked: PromiseWithResolvers<void> = Promise.withResolvers<void>();
@@ -2336,10 +2380,10 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    for (const [leaving, leave] of [
-      ["its window's next page starts", (fixture: HostFixture) => fixture.host.handleAsync("terminal.windowStarted", null, new RequestClient(1, 1, true, 2))],
-      ["its window closes", (fixture: HostFixture) => fixture.host.closeConnectionAsync(1, 1)]
-    ] as const)
+    for (const { name: leaving, value: leave } of [
+      new NamedCase("its window's next page starts", (fixture: HostFixture) => fixture.host.handleAsync("terminal.windowStarted", null, new RequestClient(1, 1, true, 2))),
+      new NamedCase("its window closes", (fixture: HostFixture) => fixture.host.closeConnectionAsync(1, 1))
+    ])
       it(`detaches a pane whose attach was under way when ${leaving}, once the attach is done`, async () => {
         const flowDetach = vi.spyOn(FlowController.prototype, "detach");
         const fixture: HostFixture = await HostFixture.createAsync();
@@ -2362,9 +2406,9 @@ describe("TerminalHost", () => {
       const fixture: HostFixture = await HostFixture.createAsync();
       const sessionId: string = await fixture.openAsync();
       const otherWindow: RequestClient = new RequestClient(1, 2, true, 1);
-      const panes: readonly (readonly [string, RequestClient])[] = [["p1", new RequestClient(1, 1, true, 1)], ["p2", new RequestClient(1, 1, true, 2)],
-        ["p3", otherWindow]];
-      for (const [paneId, client] of panes)
+      const panes: readonly NamedCase<RequestClient>[] = [new NamedCase("p1", new RequestClient(1, 1, true, 1)), new NamedCase("p2", new RequestClient(1, 1, true, 2)),
+        new NamedCase("p3", otherWindow)];
+      for (const { name: paneId, value: client } of panes)
         await fixture.host.handleAsync("terminal.attach", { sessionId, paneId }, client);
 
       await fixture.host.handleAsync("terminal.windowStarted", null, new RequestClient(1, 1, true, 2));
@@ -3110,7 +3154,7 @@ describe("TerminalHost", () => {
       showPrompt(fixture, fixture.process);
       const stall: PromiseWithResolvers<void> = Promise.withResolvers<void>();
       fixture.fileSystem.stalled.set("/work/slow", stall.promise);
-      fixture.fileSystem.realPathFailures.set("/work", Object.assign(new Error("i/o error"), { code: "EIO" }));
+      fixture.fileSystem.realPathFailures.set("/work", new CodedError("i/o error", "EIO"));
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       try {
         const result: Promise<TerminalRunResult> = runAsync(fixture, { folder: "/work" });
@@ -3617,13 +3661,13 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    for (const [label, leave] of [
-      ["shows another owner", (fixture: HostFixture): Promise<unknown> => fixture.host.handleAsync("terminal.showOwner", { owner: "example.chat/7" }, APP)],
-      ["closes", (fixture: HostFixture): Promise<unknown> => fixture.host.closeConnectionAsync(APP.connection, APP.window)],
-      ["disconnects", (fixture: HostFixture): Promise<unknown> => fixture.host.closeConnectionAsync(APP.connection, null)],
-      ["detaches the terminal's pane", (fixture: HostFixture, sessionId: string): Promise<unknown> =>
-        fixture.host.handleAsync("terminal.detach", { sessionId, paneId: "p1" }, APP)]
-    ] as const)
+    for (const { name: label, value: leave } of [
+      new NamedCase("shows another owner", (fixture: HostFixture): Promise<unknown> => fixture.host.handleAsync("terminal.showOwner", { owner: "example.chat/7" }, APP)),
+      new NamedCase("closes", (fixture: HostFixture): Promise<unknown> => fixture.host.closeConnectionAsync(APP.connection, APP.window)),
+      new NamedCase("disconnects", (fixture: HostFixture): Promise<unknown> => fixture.host.closeConnectionAsync(APP.connection, null)),
+      new NamedCase("detaches the terminal's pane", (fixture: HostFixture, sessionId: string): Promise<unknown> =>
+        fixture.host.handleAsync("terminal.detach", { sessionId, paneId: "p1" }, APP))
+    ])
       it(`starts a new terminal's shell at its opening size once the window that shows its owner ${label} before its pane fits`, async () => {
         const fixture: HostFixture = await HostFixture.createAsync();
         const { sessionId, spawning } = await openNewAsync(fixture);
@@ -3664,10 +3708,10 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    for (const [label, end] of [
-      ["its pane closes", (fixture: HostFixture, sessionId: string): Promise<unknown> => fixture.host.handleAsync("terminal.close", { sessionId }, APP)],
-      ["the host ends", (fixture: HostFixture): Promise<unknown> => fixture.host.endAllAsync()]
-    ] as const)
+    for (const { name: label, value: end } of [
+      new NamedCase("its pane closes", (fixture: HostFixture, sessionId: string): Promise<unknown> => fixture.host.handleAsync("terminal.close", { sessionId }, APP)),
+      new NamedCase("the host ends", (fixture: HostFixture): Promise<unknown> => fixture.host.endAllAsync())
+    ])
       it(`answers Ended, starting no shell, once ${label} while a new terminal waits for its pane's first fit`, async () => {
         const fixture: HostFixture = await HostFixture.createAsync();
         const { result, sessionId } = await openNewAsync(fixture);
@@ -3727,11 +3771,11 @@ describe("TerminalHost", () => {
       assert.deepEqual([(await result).outcome, process.writes], ["Ended", []]);
     });
 
-    const silentEnds: readonly (readonly [string, (fixture: HostFixture, sessionId: string, process: FakePtyProcess) => Promise<unknown>])[] = [
-      ["its shell exits", async (_fixture, _sessionId, process) => process.exit(0)],
-      ["its terminal closes", (fixture, sessionId) => fixture.host.handleAsync("terminal.close", { sessionId }, APP)]
+    const silentEnds: readonly NamedCase<(fixture: HostFixture, sessionId: string, process: FakePtyProcess) => Promise<unknown>>[] = [
+      new NamedCase("its shell exits", async (_fixture, _sessionId, process) => process.exit(0)),
+      new NamedCase("its terminal closes", (fixture, sessionId) => fixture.host.handleAsync("terminal.close", { sessionId }, APP))
     ];
-    for (const [ending, end] of silentEnds)
+    for (const { name: ending, value: end } of silentEnds)
       it(`answers Ended at once, typing nothing, when ${ending} at 20 seconds while the run waits for a shell with the integration that has shown no text`, async () => {
         vi.useFakeTimers();
         const fixture: HostFixture = await HostFixture.createAsync();
@@ -3765,50 +3809,50 @@ describe("TerminalHost", () => {
       await fixture.endAllAsync();
     });
 
-    const passedOver: ReadonlyArray<readonly [string, (fixture: HostFixture) => Promise<FakePtyProcess>, Record<string, JsonValue>]> = [
-      ["one running a command", async fixture => {
+    const passedOver: readonly RequestCase<FakePtyProcess>[] = [
+      new RequestCase("one running a command", async fixture => {
         const { process } = await openFreeAsync(fixture);
         process.emitData(`make\r\n\u001b]6973;C;${nonceOf(fixture, process)}\u0007`);
         return process;
-      }, {}],
-      ["one with a line waiting at its prompt", async fixture => {
+      }, {}),
+      new RequestCase("one with a line waiting at its prompt", async fixture => {
         const { process } = await openFreeAsync(fixture);
         process.emitData("rm -rf ");
         return process;
-      }, {}],
-      ["one the person typed into under a second ago", async fixture => {
+      }, {}),
+      new RequestCase("one the person typed into under a second ago", async fixture => {
         const { sessionId, process } = await openFreeAsync(fixture);
         await fixture.host.handleAsync("terminal.input", { sessionId, data: "l" }, APP);
         return process;
-      }, {}],
-      ["one without the shell integration", async fixture => {
+      }, {}),
+      new RequestCase("one without the shell integration", async fixture => {
         await fixture.openAsync(ownedOpen(OWNER));
         fixture.process.emitData("$ ");
         return fixture.process;
-      }, {}],
-      ["an agent's", async fixture => {
+      }, {}),
+      new RequestCase("an agent's", async fixture => {
         await fixture.host.openTerminalAsync(null, "/work", new TerminalSize(80, 24), "agent-1", 104_857_600, null, false, OWNER);
         showPrompt(fixture, fixture.process);
         return fixture.process;
-      }, {}],
-      ["another kind's", async fixture => {
+      }, {}),
+      new RequestCase("another kind's", async fixture => {
         fixture.fileSystem.files.set("/etc/shells", "/bin/bash\n/bin/zsh\n");
         fixture.fileSystem.files.set("/bin/zsh", "");
         return (await openFreeAsync(fixture)).process;
-      }, { shellKinds: ["Zsh", "PowerShell"] }],
-      ["an ended one", async fixture => {
+      }, { shellKinds: ["Zsh", "PowerShell"] }),
+      new RequestCase("an ended one", async fixture => {
         const { process } = await openFreeAsync(fixture);
         process.exit(0);
         return process;
-      }, {}],
-      ["another owner's", async fixture => (await openFreeAsync(fixture, "example.chat/7")).process, {}],
-      ["one another connection opened", async fixture => {
+      }, {}),
+      new RequestCase("another owner's", async fixture => (await openFreeAsync(fixture, "example.chat/7")).process, {}),
+      new RequestCase("one another connection opened", async fixture => {
         await fixture.host.handleAsync("terminal.open", ownedOpen(OWNER), COMMAND_LINE);
         showPrompt(fixture, fixture.process);
         return fixture.process;
-      }, {}]
+      }, {})
     ];
-    for (const [name, setUpAsync, request] of passedOver)
+    for (const { name, act: setUpAsync, request } of passedOver)
       it(`passes over ${name} for a new terminal of the owner, which takes the commands once its shell is ready`, async () => {
         const fixture: HostFixture = await HostFixture.createAsync();
         const passed: FakePtyProcess = await setUpAsync(fixture);
@@ -3945,23 +3989,23 @@ describe("TerminalHost", () => {
         await fixture.endAllAsync();
       });
 
-      const unreached: ReadonlyArray<readonly [string, (fixture: HostFixture) => Promise<string>, Record<string, JsonValue>]> = [
-        ["a terminal the runtime doesn't have", async () => GONE, {}],
-        ["another owner's terminal", async fixture => (await openFreeAsync(fixture, "example.chat/7")).sessionId, {}],
-        ["an agent's terminal of the owner", async fixture => {
+      const unreached: readonly RequestCase<string>[] = [
+        new RequestCase("a terminal the runtime doesn't have", async () => GONE, {}),
+        new RequestCase("another owner's terminal", async fixture => (await openFreeAsync(fixture, "example.chat/7")).sessionId, {}),
+        new RequestCase("an agent's terminal of the owner", async fixture => {
           const sessionId: string = (await fixture.host.openTerminalAsync(null, "/work", new TerminalSize(80, 24), "agent-1", 104_857_600, null, false,
             OWNER)).session.sessionId;
           showPrompt(fixture, fixture.process);
           return sessionId;
-        }, {}],
-        ["a terminal of another kind", async fixture => (await openFreeAsync(fixture)).sessionId, { shellKinds: ["Zsh"] }],
-        ["a terminal another connection opened", async fixture => {
+        }, {}),
+        new RequestCase("a terminal of another kind", async fixture => (await openFreeAsync(fixture)).sessionId, { shellKinds: ["Zsh"] }),
+        new RequestCase("a terminal another connection opened", async fixture => {
           const sessionId: string = TerminalReference.fromJson(await fixture.host.handleAsync("terminal.open", ownedOpen(OWNER), COMMAND_LINE)).sessionId;
           showPrompt(fixture, fixture.process);
           return sessionId;
-        }, {}]
+        }, {})
       ];
-      for (const [name, setUpAsync, request] of unreached)
+      for (const { name, act: setUpAsync, request } of unreached)
         it(`answers Ended for ${name}, alike, typing into and opening nothing`, async () => {
           const fixture: HostFixture = await HostFixture.createAsync();
           const sessionId: string = await setUpAsync(fixture);
@@ -3974,24 +4018,24 @@ describe("TerminalHost", () => {
           await fixture.endAllAsync();
         });
 
-      const busy: ReadonlyArray<readonly [string, (fixture: HostFixture) => Promise<OpenedTerminal>]> = [
-        ["running a command", async fixture => {
+      const busy: readonly NamedCase<(fixture: HostFixture) => Promise<OpenedTerminal>>[] = [
+        new NamedCase("running a command", async fixture => {
           const { sessionId, process } = await openFreeAsync(fixture);
           process.emitData(`make\r\n${mark(fixture, process, "C")}`);
           return new OpenedTerminal(sessionId, process);
-        }],
-        ["with a line waiting at its prompt", async fixture => {
+        }),
+        new NamedCase("with a line waiting at its prompt", async fixture => {
           const { sessionId, process } = await openFreeAsync(fixture);
           process.emitData("rm -rf ");
           return new OpenedTerminal(sessionId, process);
-        }],
-        ["without the shell integration's marks", async fixture => {
+        }),
+        new NamedCase("without the shell integration's marks", async fixture => {
           const sessionId: string = await fixture.openAsync(ownedOpen(OWNER));
           fixture.process.emitData("$ ");
           return new OpenedTerminal(sessionId, fixture.process);
-        }]
+        })
       ];
-      for (const [name, setUpAsync] of busy)
+      for (const { name, value: setUpAsync } of busy)
         it(`answers Busy for a run that refuses its terminal ${name}, typing nothing`, async () => {
           const fixture: HostFixture = await HostFixture.createAsync();
           const { sessionId, process } = await setUpAsync(fixture);
@@ -4018,8 +4062,8 @@ describe("TerminalHost", () => {
           await fixture.endAllAsync();
         });
 
-        const keyed = [["a key", ["l"]], ["a focus report and then a key", ["\u001b[O", "l"]], ["a key and then a focus report", ["l", "\u001b[O"]]] as const;
-        for (const [name, inputs] of keyed)
+        const keyed: readonly NamedCase<readonly string[]>[] = [new NamedCase("a key", ["l"]), new NamedCase("a focus report and then a key", ["\u001b[O", "l"]), new NamedCase("a key and then a focus report", ["l", "\u001b[O"])];
+        for (const { name, value: inputs } of keyed)
           it(`answers Busy for its terminal after ${name}, as a run that ${as} it, sending no Ctrl+C`, async () => {
             const fixture: HostFixture = await HostFixture.createAsync();
             const { sessionId, process } = await openFreeAsync(fixture);
@@ -4883,10 +4927,10 @@ describe("TerminalHost", () => {
         await fixture.endAllAsync();
       });
 
-      for (const [name, lastLine, echoed] of [
-        ["a last line wider than the terminal, which readline wraps", "printf '%s' a-wide-argument", "printf '%s' a-wi\r\nde-argument"],
-        ["a tab, which readline shows as spaces", "printf 'a\tb'", "printf 'a       b'"]
-      ] as const)
+      for (const { name, lastLine, echoed } of [
+        new PastedLineCase("a last line wider than the terminal, which readline wraps", "printf '%s' a-wide-argument", "printf '%s' a-wi\r\nde-argument"),
+        new PastedLineCase("a tab, which readline shows as spaces", "printf 'a\tb'", "printf 'a       b'")
+      ])
         it(`ends a pasted run of several lines with ${name} at its command's end, not at bash's prompt drawn again over the paste`, async () => {
           const fixture: HostFixture = await HostFixture.createAsync();
           const { sessionId, process } = await openFreeAsync(fixture);
@@ -4978,13 +5022,13 @@ describe("TerminalHost", () => {
         await fixture.endAllAsync();
       });
 
-      const ends: ReadonlyArray<readonly [string, (fixture: HostFixture, sessionId: string, process: FakePtyProcess) => Promise<unknown>]> = [
-        ["its shell exits", async (_, __, process) => process.exit(0)],
-        ["its terminal closes", async (fixture, sessionId) => fixture.host.handleAsync("terminal.close", { sessionId }, APP)],
-        ["its terminal restarts", async (fixture, sessionId) => fixture.host.handleAsync("terminal.restart", { sessionId, size: SIZE }, APP)],
-        ["the host ends", async fixture => fixture.host.endAllAsync()]
+      const ends: readonly NamedCase<(fixture: HostFixture, sessionId: string, process: FakePtyProcess) => Promise<unknown>>[] = [
+        new NamedCase("its shell exits", async (_, __, process) => process.exit(0)),
+        new NamedCase("its terminal closes", async (fixture, sessionId) => fixture.host.handleAsync("terminal.close", { sessionId }, APP)),
+        new NamedCase("its terminal restarts", async (fixture, sessionId) => fixture.host.handleAsync("terminal.restart", { sessionId, size: SIZE }, APP)),
+        new NamedCase("the host ends", async fixture => fixture.host.endAllAsync())
       ];
-      for (const [name, endAsync] of ends)
+      for (const { name, value: endAsync } of ends)
         it(`ends a run still waiting when ${name}, as TerminalEnded, once`, async () => {
           const fixture: HostFixture = await HostFixture.createAsync();
           const { sessionId, process } = await openFreeAsync(fixture);
@@ -5015,11 +5059,11 @@ describe("TerminalHost", () => {
         await fixture.endAllAsync();
       });
 
-      const closes: ReadonlyArray<readonly [string, (fixture: HostFixture) => Promise<unknown>]> = [
-        ["its owner closes", async fixture => fixture.host.handleAsync("terminal.closeOwner", { owner: OWNER }, APP)],
-        ["the app's connection closes", async fixture => fixture.host.closeConnectionAsync(APP.connection, null)]
+      const closes: readonly NamedCase<(fixture: HostFixture) => Promise<unknown>>[] = [
+        new NamedCase("its owner closes", async fixture => fixture.host.handleAsync("terminal.closeOwner", { owner: OWNER }, APP)),
+        new NamedCase("the app's connection closes", async fixture => fixture.host.closeConnectionAsync(APP.connection, null))
       ];
-      for (const [name, closeAsync] of closes)
+      for (const { name, value: closeAsync } of closes)
         it(`answers Ended to a run waiting on a loaded shell's first prompt when ${name}, though the shell outlives its kill`, async () => {
           const fixture: HostFixture = await HostFixture.createAsync();
           fixture.spawner.isEndable = false;

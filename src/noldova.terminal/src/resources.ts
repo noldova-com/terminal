@@ -148,7 +148,8 @@ export class Resources {
   public static readonly windowsPlatform: string = "win32";
   public static readonly linuxPlatform: string = "linux";
   public static readonly minimumWindowsBuild: number = 17_763;
-  public static readonly minimumGlibcVersion: readonly [number, number] = [2, 28];
+  public static readonly minimumGlibcMajor: number = 2;
+  public static readonly minimumGlibcMinor: number = 28;
   public static readonly macPlatform: string = "darwin";
   public static readonly languageVariable: string = "LANG";
   public static readonly characterTypeVariable: string = "LC_CTYPE";

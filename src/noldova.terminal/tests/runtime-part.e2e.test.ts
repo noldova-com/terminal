@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { JsonException, type JsonValue } from "@noldova/context.json";
 import { ShellClients } from "@noldova/desktop.protocol";
 import { type IMethodHandler, PermissionDecision, RequestContext, ToolResult, type ToolSession } from "@noldova/desktop.runtime";
-import { RuntimeTerminalOwners, TerminalAttachment, TerminalCommandEnded, TerminalExited, TerminalLaunched, TerminalOutput, TerminalReference, TerminalRunEnded, TerminalRunOutput, TerminalRunResult, TerminalSessions, TerminalShells, TerminalSummary } from "@noldova/terminal.protocol";
+import { RuntimeTerminalOwners, TerminalAttachment, TerminalCommandEnded, TerminalExited, TerminalLaunched, TerminalOutput, TerminalReference, TerminalRunEnded, TerminalRunOutput, TerminalRunResult, TerminalSessions, TerminalShells, TerminalSize, TerminalSummary } from "@noldova/terminal.protocol";
 import type { IBuffer, Terminal as XtermTerminal } from "@xterm/headless";
 import { afterAll, afterEach, beforeAll, describe, it, vi } from "vitest";
 
@@ -49,6 +49,40 @@ const COMMAND_END_MARK: string = "\u001b]6973;D;";
 const COMMAND_END_PATTERN: RegExp = /\u001b\]6973;D;[^;\u0007]*;(\d+)\u0007/g;
 const RESTORE: JsonValue = { size: { cols: 80, rows: 24 }, shellId: null, storedLimit: 104_857_600 };
 const fixtures: RuntimeFixture[] = [];
+
+class SubshellCase {
+  public readonly shellId: string;
+  public readonly file: string;
+
+  public constructor(shellId: string, file: string) {
+    this.shellId = shellId;
+    this.file = file;
+  }
+}
+
+class WrappedShellCase {
+  public readonly shellId: string;
+  public readonly platformGap: string | null;
+  public readonly setPrompt: string;
+  public readonly sum: (name: string, left: number, right: number) => string;
+
+  public constructor(shellId: string, platformGap: string | null, setPrompt: string, sum: (name: string, left: number, right: number) => string) {
+    this.shellId = shellId;
+    this.platformGap = platformGap;
+    this.setPrompt = setPrompt;
+    this.sum = sum;
+  }
+}
+
+class PromptShellCase {
+  public readonly shellId: string;
+  public readonly prompt: string;
+
+  public constructor(shellId: string, prompt: string) {
+    this.shellId = shellId;
+    this.prompt = prompt;
+  }
+}
 let terminals: SupervisedTerminals;
 
 class RuntimeFixture {
@@ -432,8 +466,8 @@ describe("the runtime part with real shells", () => {
     await fixture.part.deactivateAsync();
   });
 
-  const subshellShells: readonly (readonly [string, string])[] = [["bash", process.platform === "darwin" ? "/bin/bash" : "bash"], ["zsh", "zsh"]];
-  for (const [shellId, file] of subshellShells)
+  const subshellShells: readonly SubshellCase[] = [new SubshellCase("bash", process.platform === "darwin" ? "/bin/bash" : "bash"), new SubshellCase("zsh", "zsh")];
+  for (const { shellId, file } of subshellShells)
     it(`[${shellId}] tells a launched subshell's end with its exit code, 3, never the person's next command's, in macOS's /bin/bash 3.2 too`, async context => {
       context.skip(IS_WINDOWS, "Windows has no shell with the id bash or zsh; Git Bash goes by its own id there.");
       const fixture: RuntimeFixture = new RuntimeFixture();
@@ -456,15 +490,15 @@ describe("the runtime part with real shells", () => {
     });
 
   const wrappedPrompt: string = "wrapped-prompt-wider-than-twenty-columns> ";
-  const wrappedShells: readonly (readonly [string, string | null, string, (name: string, left: number, right: number) => string])[] = [
-    ["bash", IS_WINDOWS ? "Windows has no shell with the id bash; Git Bash goes by its own id there." : null, `PS1='${wrappedPrompt}'`,
-      (name, left, right) => `echo "${name}=$((${left}+${right}))."`],
-    ["zsh", IS_WINDOWS ? "zsh doesn't run on Windows." : null, `PROMPT='${wrappedPrompt}'`, (name, left, right) => `echo "${name}=$((${left}+${right}))."`],
-    ["pwsh", null, `$Global:__NoldovaPrompt = { '${wrappedPrompt}' }`, (name, left, right) => `echo "${name}=$(${left}+${right})."`],
-    ["powershell", IS_WINDOWS ? null : "Windows PowerShell exists only on Windows.", `$Global:__NoldovaPrompt = { '${wrappedPrompt}' }`,
-      (name, left, right) => `echo "${name}=$(${left}+${right})."`]
+  const wrappedShells: readonly WrappedShellCase[] = [
+    new WrappedShellCase("bash", IS_WINDOWS ? "Windows has no shell with the id bash; Git Bash goes by its own id there." : null, `PS1='${wrappedPrompt}'`,
+      (name, left, right) => `echo "${name}=$((${left}+${right}))."`),
+    new WrappedShellCase("zsh", IS_WINDOWS ? "zsh doesn't run on Windows." : null, `PROMPT='${wrappedPrompt}'`, (name, left, right) => `echo "${name}=$((${left}+${right}))."`),
+    new WrappedShellCase("pwsh", null, `$Global:__NoldovaPrompt = { '${wrappedPrompt}' }`, (name, left, right) => `echo "${name}=$(${left}+${right})."`),
+    new WrappedShellCase("powershell", IS_WINDOWS ? null : "Windows PowerShell exists only on Windows.", `$Global:__NoldovaPrompt = { '${wrappedPrompt}' }`,
+      (name, left, right) => `echo "${name}=$(${left}+${right})."`)
   ];
-  for (const [shellId, platformGap, setPrompt, sum] of wrappedShells)
+  for (const { shellId, platformGap, setPrompt, sum } of wrappedShells)
     it(`[${shellId}] runs into the owner's ${shellId} at its prompt when the prompt wraps over several rows`, async context => {
       context.skip(!Object.isNull(platformGap), platformGap ?? "");
       const fixture: RuntimeFixture = new RuntimeFixture();
@@ -487,7 +521,7 @@ describe("the runtime part with real shells", () => {
       await fixture.part.deactivateAsync();
     });
 
-  for (const [shellId, platformGap] of wrappedShells)
+  for (const { shellId, platformGap } of wrappedShells)
     it(`[${shellId}] tells the window that asked of a run's end in the owner's ${shellId}, with its code, its last line's for two lines, or as TerminalEnded when its terminal closes first`,
       async context => {
         context.skip(!Object.isNull(platformGap), platformGap ?? "");
@@ -794,9 +828,9 @@ describe("the runtime part with real shells", () => {
     await fixture.part.deactivateAsync();
   });
 
-  const promptShells: readonly (readonly [string, string])[] = IS_WINDOWS ? [["powershell", ""], ["git-bash", "\\w\\$ "]]
-    : [["bash", "\\w\\$ "], ["zsh", "%~%# "]];
-  for (const [shellId, prompt] of promptShells) {
+  const promptShells: readonly PromptShellCase[] = IS_WINDOWS ? [new PromptShellCase("powershell", ""), new PromptShellCase("git-bash", "\\w\\$ ")]
+    : [new PromptShellCase("bash", "\\w\\$ "), new PromptShellCase("zsh", "%~%# ")];
+  for (const { shellId, prompt } of promptShells) {
     it(`[${shellId}] draws a Run's command on its prompt's row in a new ${shellId} terminal whose prompt is over 80 columns`,
       async context => {
       const home: string = join(folder, `${shellId}-home`);
@@ -810,19 +844,19 @@ describe("the runtime part with real shells", () => {
       const runFolder: string = join(folder, `${shellId}-${"p".repeat(90)}`);
       await mkdir(runFolder, { recursive: true });
       const word: string = `ran-${randomUUID().slice(0, 8)}`;
-      const pane: { cols: number; rows: number } = { cols: 200, rows: 30 };
+      const pane: TerminalSize = new TerminalSize(200, 30);
       await fixture.callAsync("terminal.showOwner", { owner: OWNER });
 
       const running: Promise<TerminalRunResult> = fixture.runAsync({ owner: OWNER, command: `echo ${word}`, folder: runFolder,
         shellKinds: [], shellId, size: { cols: 80, rows: 24 }, storedLimit: 104_857_600, sessionId: null, whenBusy: "Refuse", opensTab: true });
       await fixture.waitForEventsAsync("terminal.opened", 1);
       const sessionId: string = TerminalSummary.fromJson(fixture.published("terminal.opened")[0] ?? null).sessionId;
-      await fixture.callAsync("terminal.resize", { sessionId, size: pane });
+      await fixture.callAsync("terminal.resize", { sessionId, size: pane.toJson() });
       await running;
       await fixture.waitForTextAsync(sessionId, `${word}\r\n`);
       await fixture.waitForOutputAsync(`Terminal ${sessionId}'s second prompt`, () => fixture.countPromptEnds(sessionId) > 1);
       const attachment: TerminalAttachment = TerminalAttachment.fromJson(await fixture.callAsync("terminal.attach", { sessionId, paneId: "p1" }));
-      const lines: readonly string[] = await drawAsync(attachment.snapshot, pane.cols, pane.rows);
+      const lines: readonly string[] = await drawAsync(attachment.snapshot, pane.columns, pane.rows);
 
       assert.ok(lines.some(t => new RegExp(`[$%#>] echo ${word}`, "u").test(t)), `The command was not drawn after its prompt:\n${lines.join("\n")}`);
       await fixture.callAsync("terminal.close", { sessionId });

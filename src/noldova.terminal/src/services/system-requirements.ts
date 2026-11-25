@@ -46,8 +46,7 @@ export class SystemRequirements {
     const match: RegExpExecArray | null = Resources.systemRequirementsGlibcVersion.exec(version);
     if (Object.isNull(match))
       return false;
-    const [minimumMajor, minimumMinor] = Resources.minimumGlibcVersion;
     const major: number = Number(match[1]);
-    return major < minimumMajor || (major === minimumMajor && Number(match[2]) < minimumMinor);
+    return major < Resources.minimumGlibcMajor || (major === Resources.minimumGlibcMajor && Number(match[2]) < Resources.minimumGlibcMinor);
   }
 }

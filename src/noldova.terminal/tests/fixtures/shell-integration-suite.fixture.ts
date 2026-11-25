@@ -100,6 +100,16 @@ class ShellMarkView {
   }
 }
 
+class WrittenProfile {
+  public readonly profile: string;
+  public readonly content: string;
+
+  public constructor(profile: string, content: string) {
+    this.profile = profile;
+    this.content = content;
+  }
+}
+
 class RuntimeFixture {
   public readonly context: FakeRuntimePartContext = new FakeRuntimePartContext();
   public readonly part: RuntimePart = new RuntimePart();
@@ -1352,7 +1362,7 @@ async function withProfilesAsync(context: TestContext, shellId: string, texts: r
     "$PROFILE.CurrentUserAllHosts; $PROFILE.CurrentUserCurrentHost"], { encoding: "utf8", timeout: WAIT_MS });
   assert.equal(result.status, 0, `Reading ${shellId}'s profiles failed: ${result.stderr}`);
   const profiles: readonly string[] = result.stdout.split(/\r?\n/u).filter(t => t !== "");
-  const written: (readonly [string, string])[] = [];
+  const written: WrittenProfile[] = [];
   try {
     for (const [index, text] of texts.entries()) {
       const profile: string = profiles[index] ?? "";
@@ -1369,12 +1379,12 @@ async function withProfilesAsync(context: TestContext, shellId: string, texts: r
         context.skip(!isEnded, `${shellId} already has ${profile}.`);
         await vi.waitFor(() => writeFile(profile, content, "utf8"), { timeout: WAIT_MS, interval: TEXT_POLL_MS });
       }
-      written.push([profile, content]);
+      written.push(new WrittenProfile(profile, content));
     }
-    await check(written.map(t => t[0]));
+    await check(written.map(t => t.profile));
   }
   finally {
-    for (const [profile, content] of written)
+    for (const { profile, content } of written)
       if (await readFile(profile, "utf8").catch(() => "") === content)
         await vi.waitFor(() => rm(profile, { force: true }), { timeout: WAIT_MS, interval: TEXT_POLL_MS });
   }
