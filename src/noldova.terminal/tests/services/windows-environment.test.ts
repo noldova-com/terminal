@@ -88,7 +88,7 @@ function exported(key: string, scope: Scope): Uint8Array {
 }
 
 class ExportRunner implements ICommandRunner {
-  public readonly runs: (readonly [string, readonly string[], number])[] = [];
+  public readonly runs: RecordedRun[] = [];
   public readonly answers: Map<string, Scope | Error> = new Map<string, Scope | Error>();
   public readonly failures: Map<string, Error[]> = new Map<string, Error[]>();
   public readonly present: Set<string> = new Set<string>([MACHINE_KEY, USER_KEY]);
@@ -107,7 +107,7 @@ class ExportRunner implements ICommandRunner {
   }
 
   public async runAsync(file: string, args: readonly string[], timeoutMilliseconds: number): Promise<string> {
-    this.runs.push([file, args, timeoutMilliseconds]);
+    this.runs.push(new RecordedRun(file, args, timeoutMilliseconds));
     if (!Object.isNull(this.held)) {
       this.entered.resolve();
       await this.held.promise;
@@ -536,7 +536,7 @@ describe("WindowsEnvironment", () => {
     await new Promise<void>(resolve => setImmediate(resolve));
 
     assert.equal(ended, INHERITED);
-    assert.deepEqual([fixture.writer.folders, fixture.runner.runs.length, fixture.log.callsOf("write").map(t => t.file)], [1, 2, []]);
+    assert.deepEqual([fixture.writer.folders, fixture.runner.runs.length, fixture.log.callsOf("write").map(t => t[0])], [1, 2, []]);
   });
 
   it.each([["", null, [FOLDER], [FOLDER, FOLDER], []],
