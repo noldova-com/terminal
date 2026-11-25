@@ -84,6 +84,48 @@ class ForcedDrawn {
   }
 }
 
+class CursorCell {
+  public readonly hasCursor: boolean;
+  public readonly character: string | undefined;
+
+  public constructor(hasCursor: boolean, character: string | undefined) {
+    this.hasCursor = hasCursor;
+    this.character = character;
+  }
+}
+
+class UnselectedLine {
+  public readonly hasReferenceText: boolean;
+  public readonly isDrawn: boolean;
+  public readonly isTextInFirst: boolean;
+  public readonly isTextInNext: boolean;
+  public readonly edges: readonly string[];
+
+  public constructor(hasReferenceText: boolean, isDrawn: boolean, isTextInFirst: boolean, isTextInNext: boolean, edges: readonly string[]) {
+    this.hasReferenceText = hasReferenceText;
+    this.isDrawn = isDrawn;
+    this.isTextInFirst = isTextInFirst;
+    this.isTextInNext = isTextInNext;
+    this.edges = edges;
+  }
+}
+
+class SelectedLine {
+  public readonly isTextInFirst: boolean;
+  public readonly isTextInNext: boolean;
+  public readonly hasKitText: boolean;
+  public readonly empty: string;
+  public readonly edges: readonly string[];
+
+  public constructor(isTextInFirst: boolean, isTextInNext: boolean, hasKitText: boolean, empty: string, edges: readonly string[]) {
+    this.isTextInFirst = isTextInFirst;
+    this.isTextInNext = isTextInNext;
+    this.hasKitText = hasKitText;
+    this.empty = empty;
+    this.edges = edges;
+  }
+}
+
 class BackgroundCase {
   public readonly mode: ThemeMode;
   public readonly color: "window" | "panel";
@@ -508,13 +550,13 @@ describe("TerminalPanelComponent in the kit's look", () => {
     const cell: Area = new Area(screen.width / size.columns, screen.height / size.rows);
     const cursor: string = resolve("var(--nol-terminal-cursor)");
     const accent: string = mode === ThemeMode.Light ? "rgb(255, 255, 255)" : "rgb(0, 0, 0)";
-    const underCursorAsync = async (): Promise<unknown> => {
+    const underCursorAsync = async (): Promise<CursorCell> => {
       const shot: ScreenShot = await shotAsync(shown.element, `terminal-panel-cursor-accent-${mode.toLowerCase()}`);
       const pixels: string[] = shot.inside(screen.left, screen.top, cell.width, cell.height);
-      return { cursor: pixels.includes(cursor), character: glyph(pixels, cursor) };
+      return new CursorCell(pixels.includes(cursor), glyph(pixels, cursor));
     };
 
-    await DrawnWait.untilAsync(`The character under the cursor in ${mode} mode`, underCursorAsync, { cursor: true, character: accent });
+    await DrawnWait.untilAsync(`The character under the cursor in ${mode} mode`, underCursorAsync, new CursorCell(true, accent));
     expect(Contrast.of(accent, cursor)).toBeGreaterThanOrEqual(4.5);
   });
 
@@ -582,32 +624,25 @@ describe("TerminalPanelComponent in the kit's look", () => {
       const selection: string = selectionOver(background, resolve("var(--nol-terminal-selection)"));
       const { drawnAsync, select } = await squaresAsync(new SquareColors(text, selection));
       const shot: string = `terminal-panel-${theme.id}-${mode}`;
-      const unselectedAsync = async (): Promise<unknown> => {
+      const holds = (cells: readonly string[], drawnText: string | undefined): boolean => !Object.isUndefined(drawnText) && cells.includes(drawnText);
+      const unselectedAsync = async (): Promise<UnselectedLine> => {
         const drawn: DrawnCells = await drawnAsync(`${shot}-unselected-text`);
         const drawnText: string | undefined = glyph(drawn.reference, selection);
-        return {
-          drawn: [!Object.isUndefined(drawnText), drawn.pixels.some(t => t !== drawn.empty)],
-          text: [drawn.pixels, drawn.next].map(t => !Object.isUndefined(drawnText) && t.includes(drawnText)),
-          edges: drawn.edges
-        };
+        return new UnselectedLine(!Object.isUndefined(drawnText), drawn.pixels.some(t => t !== drawn.empty), holds(drawn.pixels, drawnText),
+          holds(drawn.next, drawnText), drawn.edges);
       };
       await DrawnWait.untilAsync(`The unselected line in the ${theme.name} theme in ${mode} mode`, unselectedAsync,
-        { drawn: [true, true], text: [false, false], edges: [background, background, background, background] });
+        new UnselectedLine(true, true, false, false, [background, background, background, background]));
 
       select();
 
-      const selectedAsync = async (): Promise<unknown> => {
+      const selectedAsync = async (): Promise<SelectedLine> => {
         const drawn: DrawnCells = await drawnAsync(`${shot}-selected-text`);
         const drawnText: string | undefined = glyph(drawn.reference, selection);
-        return {
-          text: [drawn.pixels, drawn.next].map(t => !Object.isUndefined(drawnText) && t.includes(drawnText)),
-          kit: drawn.pixels.includes(text),
-          empty: drawn.empty,
-          edges: drawn.edges
-        };
+        return new SelectedLine(holds(drawn.pixels, drawnText), holds(drawn.next, drawnText), drawn.pixels.includes(text), drawn.empty, drawn.edges);
       };
       await DrawnWait.untilAsync(`The selected line's text in the ${theme.name} theme in ${mode} mode`, selectedAsync,
-        { text: [true, true], kit: Contrast.of(text, selection) >= 4.5, empty: selection, edges: [selection, selection, background, selection] });
+        new SelectedLine(true, true, Contrast.of(text, selection) >= 4.5, selection, [selection, selection, background, selection]));
     });
 
   const forcedAsync = async (drawnAsync: (name: string) => Promise<DrawnCells>, name: string): Promise<ForcedDrawn> => {

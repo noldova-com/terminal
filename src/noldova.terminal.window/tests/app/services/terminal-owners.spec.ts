@@ -38,6 +38,9 @@ import { HeldAnswer } from "../../fixtures/held-answer.fixture.ts";
 import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 import { TerminalPartContext } from "../../fixtures/terminal-part-context.fixture.ts";
 
+const UNKNOWN_SHELL_KIND: TerminalShellKind = JSON.parse("\"Csh\"");
+const UNKNOWN_BUSY_CHOICE: TerminalRunBusy = JSON.parse("\"Wait\"");
+
 class Refusal {
   public readonly parameter: string;
   public readonly message: string;
@@ -45,6 +48,18 @@ class Refusal {
   public constructor(parameter: string, message: string) {
     this.parameter = parameter;
     this.message = message;
+  }
+}
+
+class KindsRefusal {
+  public readonly parameter: string;
+  public readonly message: string;
+  public readonly shellKinds: readonly TerminalShellKind[];
+
+  public constructor(parameter: string, message: string, shellKinds: readonly TerminalShellKind[]) {
+    this.parameter = parameter;
+    this.message = message;
+    this.shellKinds = shellKinds;
   }
 }
 
@@ -600,7 +615,7 @@ describe("TerminalOwners", () => {
           await refusalAsync(inactive.runAsync(OWNER, "rm -rf \u001b[A", null, [])),
           await refusalAsync(inactive.runAsync(OWNER, " \n ", null, [])),
           await refusalAsync(inactive.runAsync(OWNER, "ls", "work", [])),
-          await refusalAsync(inactive.runAsync(OWNER, "ls", null, [TerminalShellKind.Bash, "Csh" as TerminalShellKind]))
+          await refusalAsync(inactive.runAsync(OWNER, "ls", null, [TerminalShellKind.Bash, UNKNOWN_SHELL_KIND]))
         ];
 
         expect(parameters).toEqual([
@@ -639,17 +654,18 @@ describe("TerminalOwners", () => {
         const owners: TerminalOwners = await provideAsync(runtime);
         const opened: number = runtime.context.opened.length;
         runtime.context.handlers.set(TerminalNames.runMethod, async () => new TerminalRunResult(null, TerminalRunOutcome.NoShell).toJson());
-        const refusals: unknown[] = [];
+        const refusals: KindsRefusal[] = [];
 
         for (const kinds of [[TerminalShellKind.Zsh], [TerminalShellKind.CommandPrompt, TerminalShellKind.Zsh, TerminalShellKind.Fish]]) {
           const error: RunShellKindsMissingException = await rejectionAsync(owners.runAsync(OWNER, "rm -rf build/", null, kinds), RunShellKindsMissingException);
-          refusals.push([error.parameter, error.message, error.shellKinds]);
+          refusals.push(new KindsRefusal(error.parameter, error.message, error.shellKinds));
         }
 
         expect(refusals).toEqual([
-          ["shellKinds", "The commands weren't run, and nothing opened: no shell of the kinds they need is installed (Zsh).", ["Zsh"]],
-          ["shellKinds", "The commands weren't run, and nothing opened: no shell of the kinds they need is installed (Command Prompt, Zsh or fish).",
-            ["CommandPrompt", "Zsh", "Fish"]]
+          new KindsRefusal("shellKinds", "The commands weren't run, and nothing opened: no shell of the kinds they need is installed (Zsh).",
+            [TerminalShellKind.Zsh]),
+          new KindsRefusal("shellKinds", "The commands weren't run, and nothing opened: no shell of the kinds they need is installed (Command Prompt, Zsh or fish).",
+            [TerminalShellKind.CommandPrompt, TerminalShellKind.Zsh, TerminalShellKind.Fish])
         ]);
         expect(runtime.context.opened.length - opened).toBe(0);
       });
@@ -809,7 +825,7 @@ describe("TerminalOwners", () => {
           return new Refusal(refusal.parameter, refusal.message);
         };
 
-        expect([await refusalAsync(new TerminalRunTarget(" ")), await refusalAsync(new TerminalRunTarget("c42", "Wait" as TerminalRunBusy))]).toEqual([
+        expect([await refusalAsync(new TerminalRunTarget(" ")), await refusalAsync(new TerminalRunTarget("c42", UNKNOWN_BUSY_CHOICE))]).toEqual([
           new Refusal("sessionId", "The commands weren't run, and nothing opened: sessionId must not be blank."),
           new Refusal("whenBusy", "The commands weren't run, and nothing opened: whenBusy must be one of Refuse, Interrupt.")
         ]);
