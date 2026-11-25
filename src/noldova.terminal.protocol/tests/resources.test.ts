@@ -6,40 +6,39 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { Resources } from "@noldova/terminal.protocol";
 
-import { describe, it } from "vitest";
+@TestClass
+export class ResourcesTests {
+  @TestMethod
+  public formatsFieldAndIndexPaths(): void {
+    Assert.areEqual("$.size", Resources.formatFieldPath("$", "size"));
+    Assert.areEqual("$.shells[2]", Resources.formatIndexPath("$.shells", 2));
+  }
 
-import { Resources } from "../src/resources.ts";
+  @TestMethod
+  public formatsTheReadersTextsWithoutAPathSinceJsonExceptionPutsThePathFirst(): void {
+    Assert.areEqual("Expected at most 9 characters.", Resources.formatLongerThan(9));
+    Assert.areEqual("Expected a whole number from 0 to 9.", Resources.formatOutsideRange(0, 9));
+    Assert.areEqual("Expected at most 2 items.", Resources.formatMoreItemsThan(2));
+    Assert.areEqual("Expected one of Exit, Close.", Resources.formatExpectedOneOf(["Exit", "Close"]));
+  }
 
-describe("Resources", () => {
-  it("formats field and index paths", () => {
-    assert.equal(Resources.formatFieldPath("$", "size"), "$.size");
-    assert.equal(Resources.formatIndexPath("$.shells", 2), "$.shells[2]");
-  });
-
-  it("formats the reader's texts without a path, since JsonException puts the path first", () => {
-    assert.equal(Resources.formatLongerThan(9), "Expected at most 9 characters.");
-    assert.equal(Resources.formatOutsideRange(0, 9), "Expected a whole number from 0 to 9.");
-    assert.equal(Resources.formatMoreItemsThan(2), "Expected at most 2 items.");
-    assert.equal(Resources.formatExpectedOneOf(["Exit", "Close"]), "Expected one of Exit, Close.");
-  });
-
-  it("formats each argument message with its name", () => {
-    assert.equal(Resources.formatNotString("$.a"), "$.a must be a string.");
-    assert.equal(Resources.formatBlankString("$.a"), "$.a must not be blank.");
-    assert.equal(Resources.formatTooLong("$.a", 9), "$.a must have at most 9 characters.");
-    assert.equal(Resources.formatNotIntegerInRange("$.a", 0, 9), "$.a must be a whole number from 0 to 9.");
-    assert.equal(Resources.formatNotOneOf("$.a", ["Exit", "Close"]), "$.a must be one of Exit, Close.");
-    assert.equal(Resources.formatEnvironmentTooLong("$", 2), "$ must have at most 2 characters of names and values in all.");
-    assert.equal(Resources.formatScriptControlCharacter("command"), "command must not hold a control character other than a line break or a tab.");
-    assert.equal(Resources.formatScriptHiddenCharacter("command", "\u00ad"),
-      "command holds U+00AD, a format or default-ignorable character, which would make it read differently from what runs.");
-    assert.equal(Resources.formatScriptHiddenCharacter("command", "\u{e0041}"),
-      "command holds U+E0041, a format or default-ignorable character, which would make it read differently from what runs.");
-    assert.equal(Resources.formatNotOneLaunchAnswer("$"), "$ must give either sessionId or missingFolder, not both or neither.");
-    assert.equal(Resources.formatNotOneRunAnswer("$"), "$ must give a sessionId unless its outcome is NoShell, and none when it is.");
-    assert.equal(Resources.formatNotOneRunId("$"), "$ must give a runId when its outcome is Typed, and none when it isn't.");
-    assert.equal(Resources.formatTooManyLines("lines", Resources.maximumRunLines), "lines must hold at most 5000 lines.");
-  });
-});
+  @TestMethod
+  public formatsEachArgumentMessageWithItsName(): void {
+    Assert.areEqual("$.a must be a string.", Resources.formatNotString("$.a"));
+    Assert.areEqual("$.a must not be blank.", Resources.formatBlankString("$.a"));
+    Assert.areEqual("$.a must have at most 9 characters.", Resources.formatTooLong("$.a", 9));
+    Assert.areEqual("$.a must be a whole number from 0 to 9.", Resources.formatNotIntegerInRange("$.a", 0, 9));
+    Assert.areEqual("$.a must be one of Exit, Close.", Resources.formatNotOneOf("$.a", ["Exit", "Close"]));
+    Assert.areEqual("$ must have at most 2 characters of names and values in all.", Resources.formatEnvironmentTooLong("$", 2));
+    Assert.areEqual("command must not hold a control character other than a line break or a tab.", Resources.formatScriptControlCharacter("command"));
+    Assert.areEqual("command holds U+00AD, a format or default-ignorable character, which would make it read differently from what runs.", Resources.formatScriptHiddenCharacter("command", "\u00ad"));
+    Assert.areEqual("command holds U+E0041, a format or default-ignorable character, which would make it read differently from what runs.", Resources.formatScriptHiddenCharacter("command", "\u{e0041}"));
+    Assert.areEqual("$ must give either sessionId or missingFolder, not both or neither.", Resources.formatNotOneLaunchAnswer("$"));
+    Assert.areEqual("$ must give a sessionId unless its outcome is NoShell, and none when it is.", Resources.formatNotOneRunAnswer("$"));
+    Assert.areEqual("$ must give a runId when its outcome is Typed, and none when it isn't.", Resources.formatNotOneRunId("$"));
+    Assert.areEqual("lines must hold at most 5000 lines.", Resources.formatTooManyLines("lines", Resources.maximumRunLines));
+  }
+}

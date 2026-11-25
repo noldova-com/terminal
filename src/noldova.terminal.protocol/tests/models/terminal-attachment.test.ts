@@ -6,22 +6,18 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { EndedBy, TerminalAttachment, TerminalExit, TerminalInputStart, TerminalLineRange, TerminalShellKind, TerminalSize, WindowsPty,
 
-import { EndedBy } from "../../src/enums/ended-by.ts";
-import { TerminalShellKind } from "../../src/enums/terminal-shell-kind.ts";
-import { TerminalAttachment } from "../../src/models/terminal-attachment.ts";
-import { TerminalExit } from "../../src/models/terminal-exit.ts";
-import { TerminalInputStart } from "../../src/models/terminal-input-start.ts";
-import { TerminalLineRange } from "../../src/models/terminal-line-range.ts";
-import { TerminalSize } from "../../src/models/terminal-size.ts";
-import { WindowsPty } from "../../src/models/windows-pty.ts";
+} from "@noldova/terminal.protocol";
 
-describe("TerminalAttachment", () => {
-  it("writes and reads a running terminal", () => {
+import { Expect } from "../support/expect.ts";
+
+@TestClass
+export class TerminalAttachmentTests {
+  @TestMethod
+  public writesAndReadsARunningTerminal(): void {
     const json: object = {
       sessionId: "s1",
       snapshot: "\u001b[1mprompt$ \u001b[0m",
@@ -39,18 +35,19 @@ describe("TerminalAttachment", () => {
     };
     const attachment: TerminalAttachment = TerminalAttachment.fromJson(json);
 
-    assert.equal(attachment.pending, "\u001b]0;ti");
-    assert.equal(attachment.cwd, "/home/me");
-    assert.equal(attachment.exit, null);
-    assert.equal(attachment.windowsPty, null);
-    assert.deepEqual([attachment.stored.start, attachment.stored.end, attachment.stored.dropped], [40, 1200, 25]);
-    assert.deepEqual([attachment.input?.rowsAbove, attachment.input?.column], [1, 9]);
-    assert.deepEqual(attachment.commands, ["npm test", "git status"]);
-    assert.equal(attachment.shellKind, TerminalShellKind.Bash);
-    assert.deepEqual(attachment.toJson(), json);
-  });
+    Assert.areEqual("\u001b]0;ti", attachment.pending);
+    Assert.areEqual("/home/me", attachment.cwd);
+    Assert.areEqual(null, attachment.exit);
+    Assert.areEqual(null, attachment.windowsPty);
+    Expect.same([40, 1200, 25], [attachment.stored.start, attachment.stored.end, attachment.stored.dropped]);
+    Expect.same([1, 9], [attachment.input?.rowsAbove, attachment.input?.column]);
+    Expect.same(["npm test", "git status"], attachment.commands);
+    Assert.areEqual(TerminalShellKind.Bash, attachment.shellKind);
+    Expect.same(json, attachment.toJson());
+  }
 
-  it("writes and reads an ended Windows terminal", () => {
+  @TestMethod
+  public writesAndReadsAnEndedWindowsTerminal(): void {
     const attachment: TerminalAttachment = new TerminalAttachment(
       "s1", "", "", 0, new TerminalSize(120, 30), "", null, new TerminalExit(1, EndedBy.Close), new WindowsPty(26100), new TerminalLineRange(0, 0), null, [],
       TerminalShellKind.Other);
@@ -70,92 +67,92 @@ describe("TerminalAttachment", () => {
       shellKind: "Other"
     };
 
-    assert.deepEqual(attachment.toJson(), json);
-    assert.equal(TerminalAttachment.fromJson(json).windowsPty?.buildNumber, 26100);
-    assert.equal(TerminalAttachment.fromJson(json).exit?.endedBy, EndedBy.Close);
-  });
+    Expect.same(json, attachment.toJson());
+    Assert.areEqual(26100, TerminalAttachment.fromJson(json).windowsPty?.buildNumber);
+    Assert.areEqual(EndedBy.Close, TerminalAttachment.fromJson(json).exit?.endedBy);
+  }
 
-  it("refuses a negative offset", () => {
-    assert.throws(() => new TerminalAttachment("s1", "", "", -1, new TerminalSize(80, 24), "", null, null, null, new TerminalLineRange(0, 0), null, [],
+  @TestMethod
+  public refusesANegativeOffset(): void {
+    Assert.throws(() => new TerminalAttachment("s1", "", "", -1, new TerminalSize(80, 24), "", null, null, null, new TerminalLineRange(0, 0), null, [],
       TerminalShellKind.Bash), ArgumentException);
-  });
+  }
 
-  it("refuses a blank working folder", () => {
-    assert.throws(() => new TerminalAttachment("s1", "", "", 0, new TerminalSize(80, 24), "", " ", null, null, new TerminalLineRange(0, 0), null, [],
+  @TestMethod
+  public refusesABlankWorkingFolder(): void {
+    Assert.throws(() => new TerminalAttachment("s1", "", "", 0, new TerminalSize(80, 24), "", " ", null, null, new TerminalLineRange(0, 0), null, [],
       TerminalShellKind.Bash), ArgumentException);
-  });
+  }
 
-  it("refuses a blank session, and a snapshot, pending tail or title longer than its limit", () => {
+  @TestMethod
+  public refusesABlankSessionAndASnapshotPendingTailOrTitleLongerThanItsLimit(): void {
     const size: TerminalSize = new TerminalSize(80, 24);
     const stored: TerminalLineRange = new TerminalLineRange(0, 0);
 
     for (const sessionId of ["", " "])
-      assert.throws(() => new TerminalAttachment(sessionId, "", "", 0, size, "", null, null, null, stored, null, [], TerminalShellKind.Bash),
-        { name: "ArgumentException", parameterName: "sessionId" });
-    assert.throws(() => new TerminalAttachment("s1", "s".repeat(16_777_217), "", 0, size, "", null, null, null, stored, null, [], TerminalShellKind.Bash),
-      { name: "ArgumentException", parameterName: "snapshot" });
-    assert.throws(() => new TerminalAttachment("s1", "", "p".repeat(1_048_577), 0, size, "", null, null, null, stored, null, [], TerminalShellKind.Bash),
-      { name: "ArgumentException", parameterName: "pending" });
-    assert.throws(() => new TerminalAttachment("s1", "", "", 0, size, "t".repeat(4_097), null, null, null, stored, null, [], TerminalShellKind.Bash),
-      { name: "ArgumentException", parameterName: "title" });
-  });
+      Expect.throwsMatching(() => new TerminalAttachment(sessionId, "", "", 0, size, "", null, null, null, stored, null, [], TerminalShellKind.Bash), { name: "ArgumentException", parameterName: "sessionId" });
+    Expect.throwsMatching(() => new TerminalAttachment("s1", "s".repeat(16_777_217), "", 0, size, "", null, null, null, stored, null, [], TerminalShellKind.Bash), { name: "ArgumentException", parameterName: "snapshot" });
+    Expect.throwsMatching(() => new TerminalAttachment("s1", "", "p".repeat(1_048_577), 0, size, "", null, null, null, stored, null, [], TerminalShellKind.Bash), { name: "ArgumentException", parameterName: "pending" });
+    Expect.throwsMatching(() => new TerminalAttachment("s1", "", "", 0, size, "t".repeat(4_097), null, null, null, stored, null, [], TerminalShellKind.Bash), { name: "ArgumentException", parameterName: "title" });
+  }
 
-  it("keeps its own copy of the commands", () => {
+  @TestMethod
+  public keepsItsOwnCopyOfTheCommands(): void {
     const commands: string[] = ["npm test"];
     const attachment: TerminalAttachment = new TerminalAttachment("s1", "", "", 0, new TerminalSize(80, 24), "", null, null, null, new TerminalLineRange(0, 0),
       null, commands, TerminalShellKind.Bash);
     commands.push("ls");
 
-    assert.deepEqual(attachment.commands, ["npm test"]);
-  });
+    Expect.same(["npm test"], attachment.commands);
+  }
 
-  it("refuses a stored range that ends before it starts at the range's field when it reads one", () => {
+  @TestMethod
+  public refusesAStoredRangeThatEndsBeforeItStartsAtTheRangesFieldWhenItReadsOne(): void {
     const json: object = {
       sessionId: "s1", snapshot: "", pending: "", offset: 0, size: { cols: 80, rows: 24 }, title: "", cwd: null, exit: null, windowsPty: null,
       stored: { start: 5, end: 4, dropped: 0 }, input: null, commands: [], shellKind: "Bash"
     };
 
-    assert.throws(() => TerminalAttachment.fromJson(json), { name: "JsonException", path: "$.stored.end" });
-  });
+    Expect.throwsMatching(() => TerminalAttachment.fromJson(json), { name: "JsonException", path: "$.stored.end" });
+  }
 
-  it("refuses a blank command and more commands than a shell keeps", () => {
+  @TestMethod
+  public refusesABlankCommandAndMoreCommandsThanAShellKeeps(): void {
     const size: TerminalSize = new TerminalSize(80, 24);
     const stored: TerminalLineRange = new TerminalLineRange(0, 0);
     const input: TerminalInputStart = new TerminalInputStart(0, 2);
     const most: readonly string[] = Array.from({ length: 200 }, (_, index) => `echo ${index}`);
 
-    assert.equal(new TerminalAttachment("s1", "", "", 0, size, "", null, null, null, stored, input, most, TerminalShellKind.Bash).commands.length, 200);
-    assert.throws(() => new TerminalAttachment("s1", "", "", 0, size, "", null, null, null, stored, input, [...most, "ls"], TerminalShellKind.Bash),
-      { name: "ArgumentException", parameterName: "commands" });
-    assert.throws(() => new TerminalAttachment("s1", "", "", 0, size, "", null, null, null, stored, input, [" "], TerminalShellKind.Bash), ArgumentException);
-    assert.throws(() => new TerminalAttachment("s1", "", "", 0, size, "", null, null, null, stored, input, ["c".repeat(4_097)], TerminalShellKind.Bash), ArgumentException);
+    Assert.areEqual(200, new TerminalAttachment("s1", "", "", 0, size, "", null, null, null, stored, input, most, TerminalShellKind.Bash).commands.length);
+    Expect.throwsMatching(() => new TerminalAttachment("s1", "", "", 0, size, "", null, null, null, stored, input, [...most, "ls"], TerminalShellKind.Bash), { name: "ArgumentException", parameterName: "commands" });
+    Assert.throws(() => new TerminalAttachment("s1", "", "", 0, size, "", null, null, null, stored, input, [" "], TerminalShellKind.Bash), ArgumentException);
+    Assert.throws(() => new TerminalAttachment("s1", "", "", 0, size, "", null, null, null, stored, input, ["c".repeat(4_097)], TerminalShellKind.Bash), ArgumentException);
     const json: object = {
       sessionId: "s1", snapshot: "", pending: "", offset: 0, size: { cols: 80, rows: 24 }, title: "", cwd: null, exit: null, windowsPty: null,
       stored: { start: 0, end: 0, dropped: 0 }, input: null
     };
-    assert.throws(() => TerminalAttachment.fromJson(json), { name: "JsonException", path: "$.commands" });
-    assert.throws(() => TerminalAttachment.fromJson({ ...json, commands: ["ls", ""] }), { name: "JsonException", path: "$.commands.1" });
-    assert.throws(() => TerminalAttachment.fromJson({ ...json, commands: [...most, "ls"] }), { name: "JsonException", path: "$.commands" });
-    assert.throws(() => TerminalAttachment.fromJson({ ...json, input: { rowsAbove: -1, column: 0, rightPrompt: null }, commands: [] }),
-      { name: "JsonException", path: "$.input.rowsAbove" });
-  });
+    Expect.throwsMatching(() => TerminalAttachment.fromJson(json), { name: "JsonException", path: "$.commands" });
+    Expect.throwsMatching(() => TerminalAttachment.fromJson({ ...json, commands: ["ls", ""] }), { name: "JsonException", path: "$.commands.1" });
+    Expect.throwsMatching(() => TerminalAttachment.fromJson({ ...json, commands: [...most, "ls"] }), { name: "JsonException", path: "$.commands" });
+    Expect.throwsMatching(() => TerminalAttachment.fromJson({ ...json, input: { rowsAbove: -1, column: 0, rightPrompt: null }, commands: [] }), { name: "JsonException", path: "$.input.rowsAbove" });
+  }
 
-  it("refuses a shell kind it doesn't know, or none", () => {
+  @TestMethod
+  public refusesAShellKindItDoesntKnowOrNone(): void {
     const json: object = {
       sessionId: "s1", snapshot: "", pending: "", offset: 0, size: { cols: 80, rows: 24 }, title: "", cwd: null, exit: null, windowsPty: null,
       stored: { start: 0, end: 0, dropped: 0 }, input: null, commands: []
     };
 
-    assert.equal(TerminalAttachment.fromJson({ ...json, shellKind: "PowerShell" }).shellKind, TerminalShellKind.PowerShell);
-    assert.throws(() => TerminalAttachment.fromJson(json), { name: "JsonException", path: "$.shellKind" });
-    assert.throws(() => TerminalAttachment.fromJson({ ...json, shellKind: "Tcsh" }), { name: "JsonException", path: "$.shellKind" });
-  });
+    Assert.areEqual(TerminalShellKind.PowerShell, TerminalAttachment.fromJson({ ...json, shellKind: "PowerShell" }).shellKind);
+    Expect.throwsMatching(() => TerminalAttachment.fromJson(json), { name: "JsonException", path: "$.shellKind" });
+    Expect.throwsMatching(() => TerminalAttachment.fromJson({ ...json, shellKind: "Tcsh" }), { name: "JsonException", path: "$.shellKind" });
+  }
 
-  it("names the nested field it cannot read", () => {
-    assert.throws(
-      () => TerminalAttachment.fromJson({
+  @TestMethod
+  public namesTheNestedFieldItCannotRead(): void {
+    Expect.throwsMatching(() => TerminalAttachment.fromJson({
         sessionId: "s1", snapshot: "", pending: "", offset: 0, size: { cols: 80, rows: 24 }, title: "", cwd: null, exit: { exitCode: 0 }, windowsPty: null, input: null
-      }),
-      { name: "JsonException", path: "$.exit.endedBy" });
-  });
-});
+      }), { name: "JsonException", path: "$.exit.endedBy" });
+  }
+}

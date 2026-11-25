@@ -12,8 +12,7 @@ export default defineConfig({
   cacheDir: "_build/vite",
   test: {
     projects: [
-      "src/noldova.terminal",
-      "src/noldova.terminal.protocol"
+      "src/noldova.terminal"
     ],
     coverage: {
       provider: "v8",
@@ -23,6 +22,7 @@ export default defineConfig({
       exclude: [
         "**/tests/**",
         "src/*/vitest.config.ts",
+        "src/noldova.terminal.protocol/**",
         "src/noldova.terminal.window/**"
       ],
       reporter: [

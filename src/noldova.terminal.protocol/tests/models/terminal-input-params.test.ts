@@ -6,30 +6,33 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalInputParams } from "@noldova/terminal.protocol";
 
-import { TerminalInputParams } from "../../src/models/terminal-input-params.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalInputParams", () => {
-  it("writes and reads its wire form, control characters included", () => {
+@TestClass
+export class TerminalInputParamsTests {
+  @TestMethod
+  public writesAndReadsItsWireFormControlCharactersIncluded(): void {
     const params: TerminalInputParams = TerminalInputParams.fromJson({ sessionId: "s1", data: "ls\r\u0003" });
 
-    assert.equal(params.data, "ls\r\u0003");
-    assert.deepEqual(new TerminalInputParams("s1", "").toJson(), { sessionId: "s1", data: "" });
-  });
+    Assert.areEqual("ls\r\u0003", params.data);
+    Expect.same({ sessionId: "s1", data: "" }, new TerminalInputParams("s1", "").toJson());
+  }
 
-  it("refuses more than 1 MiB of input", () => {
+  @TestMethod
+  public refusesMoreThan1MiBOfInput(): void {
     const data: string = "a".repeat(1_048_577);
 
-    assert.throws(() => new TerminalInputParams("s1", data), ArgumentException);
-    assert.throws(() => TerminalInputParams.fromJson({ sessionId: "s1", data }), { name: "JsonException", path: "$.data" });
-  });
+    Assert.throws(() => new TerminalInputParams("s1", data), ArgumentException);
+    Expect.throwsMatching(() => TerminalInputParams.fromJson({ sessionId: "s1", data }), { name: "JsonException", path: "$.data" });
+  }
 
-  it("refuses a blank session", () => {
+  @TestMethod
+  public refusesABlankSession(): void {
     for (const id of ["", " "])
-      assert.throws(() => new TerminalInputParams(id, "ls"), { name: "ArgumentException", parameterName: "sessionId" });
-  });
-});
+      Expect.throwsMatching(() => new TerminalInputParams(id, "ls"), { name: "ArgumentException", parameterName: "sessionId" });
+  }
+}

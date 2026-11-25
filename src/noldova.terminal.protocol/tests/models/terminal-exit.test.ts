@@ -6,40 +6,44 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { EndedBy, TerminalExit } from "@noldova/terminal.protocol";
 
-import { EndedBy } from "../../src/enums/ended-by.ts";
-import { TerminalExit } from "../../src/models/terminal-exit.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalExit", () => {
-  it("writes and reads an exit code", () => {
+@TestClass
+export class TerminalExitTests {
+  @TestMethod
+  public writesAndReadsAnExitCode(): void {
     const exit: TerminalExit = TerminalExit.fromJson({ exitCode: 3, endedBy: "Exit" });
 
-    assert.equal(exit.exitCode, 3);
-    assert.equal(exit.endedBy, EndedBy.Exit);
-    assert.deepEqual(new TerminalExit(0, EndedBy.Exit).toJson(), { exitCode: 0, endedBy: "Exit" });
-  });
+    Assert.areEqual(3, exit.exitCode);
+    Assert.areEqual(EndedBy.Exit, exit.endedBy);
+    Expect.same({ exitCode: 0, endedBy: "Exit" }, new TerminalExit(0, EndedBy.Exit).toJson());
+  }
 
-  it("writes and reads an unknown exit code as null", () => {
-    assert.equal(TerminalExit.fromJson({ exitCode: null, endedBy: "Close" }).exitCode, null);
-    assert.deepEqual(new TerminalExit(null, EndedBy.Close).toJson(), { exitCode: null, endedBy: "Close" });
-  });
+  @TestMethod
+  public writesAndReadsAnUnknownExitCodeAsNull(): void {
+    Assert.areEqual(null, TerminalExit.fromJson({ exitCode: null, endedBy: "Close" }).exitCode);
+    Expect.same({ exitCode: null, endedBy: "Close" }, new TerminalExit(null, EndedBy.Close).toJson());
+  }
 
-  it("refuses a fractional exit code", () => {
-    assert.throws(() => new TerminalExit(1.5, EndedBy.Exit), ArgumentException);
-  });
+  @TestMethod
+  public refusesAFractionalExitCode(): void {
+    Assert.throws(() => new TerminalExit(1.5, EndedBy.Exit), ArgumentException);
+  }
 
-  it("refuses an unknown ending", () => {
-    assert.throws(() => TerminalExit.fromJson({ exitCode: 0, endedBy: "Crash" }), { name: "JsonException", path: "$.endedBy" });
-  });
+  @TestMethod
+  public refusesAnUnknownEnding(): void {
+    Expect.throwsMatching(() => TerminalExit.fromJson({ exitCode: 0, endedBy: "Crash" }), { name: "JsonException", path: "$.endedBy" });
+  }
 
-  it("takes exit codes from the lowest signed to the highest unsigned 32-bit number, and refuses one beyond them", () => {
+  @TestMethod
+  public takesExitCodesFromTheLowestSignedToTheHighestUnsigned32BitNumberAndRefusesOneBeyondThem(): void {
     for (const exitCode of [-2_147_483_648, 4_294_967_295])
-      assert.equal(new TerminalExit(exitCode, EndedBy.Exit).exitCode, exitCode);
+      Assert.areEqual(exitCode, new TerminalExit(exitCode, EndedBy.Exit).exitCode);
     for (const exitCode of [-2_147_483_649, 4_294_967_296])
-      assert.throws(() => new TerminalExit(exitCode, EndedBy.Exit), { name: "ArgumentOutOfRangeException", parameterName: "exitCode" });
-  });
-});
+      Expect.throwsMatching(() => new TerminalExit(exitCode, EndedBy.Exit), { name: "ArgumentOutOfRangeException", parameterName: "exitCode" });
+  }
+}

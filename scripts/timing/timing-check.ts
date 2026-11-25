@@ -84,6 +84,9 @@ class TimingCheck {
         return lookStatus;
       this.readSpecs(lookReport);
     }
+    const protocolStatus: number = TimingCheck.spawn(TimingCheck.root, [Resources.protocolTiming]);
+    if (protocolStatus !== 0)
+      return protocolStatus;
     const problems: readonly string[] = [
       ...this.fileTimes.size === 0 ? [Resources.formatNothingTimed(Resources.unitTimingName)] : [],
       ...this.testTimes.size === 0 ? [Resources.formatNothingTimed(Resources.specTimingName)] : []

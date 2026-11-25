@@ -6,38 +6,42 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
 import { JsonException } from "@noldova/context.json";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalSize } from "@noldova/terminal.protocol";
 
-import { TerminalSize } from "../../src/models/terminal-size.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalSize", () => {
-  it("writes and reads its wire form", () => {
+@TestClass
+export class TerminalSizeTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
     const size: TerminalSize = TerminalSize.fromJson({ cols: 120, rows: 30 });
 
-    assert.equal(size.columns, 120);
-    assert.equal(size.rows, 30);
-    assert.deepEqual(new TerminalSize(1, 1000).toJson(), { cols: 1, rows: 1000 });
-  });
+    Assert.areEqual(120, size.columns);
+    Assert.areEqual(30, size.rows);
+    Expect.same({ cols: 1, rows: 1000 }, new TerminalSize(1, 1000).toJson());
+  }
 
-  it("compares columns and rows", () => {
+  @TestMethod
+  public comparesColumnsAndRows(): void {
     const size: TerminalSize = new TerminalSize(80, 24);
 
-    assert.equal(size.equals(new TerminalSize(80, 24)), true);
-    assert.equal(size.equals(new TerminalSize(81, 24)), false);
-    assert.equal(size.equals(new TerminalSize(80, 25)), false);
-  });
+    Assert.areEqual(true, size.equals(new TerminalSize(80, 24)));
+    Assert.areEqual(false, size.equals(new TerminalSize(81, 24)));
+    Assert.areEqual(false, size.equals(new TerminalSize(80, 25)));
+  }
 
-  it("refuses a size outside 1 to 1000", () => {
-    assert.throws(() => new TerminalSize(0, 24), ArgumentException);
-    assert.throws(() => new TerminalSize(80, 1001), ArgumentException);
-  });
+  @TestMethod
+  public refusesASizeOutside1To1000(): void {
+    Assert.throws(() => new TerminalSize(0, 24), ArgumentException);
+    Assert.throws(() => new TerminalSize(80, 1001), ArgumentException);
+  }
 
-  it("names the field it cannot read", () => {
-    assert.throws(() => TerminalSize.fromJson({ cols: 80, rows: 0 }), { name: "JsonException", path: "$.rows" });
-    assert.throws(() => TerminalSize.fromJson({ cols: 80, rows: 24, width: 1 }), JsonException);
-  });
-});
+  @TestMethod
+  public namesTheFieldItCannotRead(): void {
+    Expect.throwsMatching(() => TerminalSize.fromJson({ cols: 80, rows: 0 }), { name: "JsonException", path: "$.rows" });
+    Assert.throws(() => TerminalSize.fromJson({ cols: 80, rows: 24, width: 1 }), JsonException);
+  }
+}

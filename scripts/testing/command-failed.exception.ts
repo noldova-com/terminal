@@ -6,12 +6,4 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { defineProject } from "vitest/config";
-
-export default defineProject({
-  test: {
-    include: [
-      "tests/**/*.test.ts"
-    ]
-  }
-});
+export default class CommandFailedException extends Error { }

@@ -6,17 +6,17 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
+import { TestClass, TestMethod } from "@noldova/context.testing";
+import { ArgumentProblem } from "@noldova/terminal.protocol";
 
-import { describe, it } from "vitest";
+import { Expect } from "../support/expect.ts";
 
-import { ArgumentProblem } from "../../src/models/argument-problem.ts";
-
-describe("ArgumentProblem", () => {
-  it("holds the parameter, the reason that names it and the message that doesn't", () => {
+@TestClass
+export class ArgumentProblemTests {
+  @TestMethod
+  public holdsTheParameterTheReasonThatNamesItAndTheMessageThatDoesnt(): void {
     const problem: ArgumentProblem = new ArgumentProblem("folder", "folder must be an absolute path.", "The value must be an absolute path.");
 
-    assert.deepEqual([problem.parameterName, problem.reason, problem.message],
-      ["folder", "folder must be an absolute path.", "The value must be an absolute path."]);
-  });
-});
+    Expect.same(["folder", "folder must be an absolute path.", "The value must be an absolute path."], [problem.parameterName, problem.reason, problem.message]);
+  }
+}

@@ -6,92 +6,90 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalOpenParams, TerminalSize } from "@noldova/terminal.protocol";
 
-import { TerminalOpenParams } from "../../src/models/terminal-open-params.ts";
-import { TerminalSize } from "../../src/models/terminal-size.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalOpenParams", () => {
-  it("writes and reads its wire form", () => {
+@TestClass
+export class TerminalOpenParamsTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
     const json: object = { shellId: "bash", folder: "/work/project", size: { cols: 100, rows: 40 }, storedLimit: 20_971_520, isPanelTerminal: true,
       owner: null };
     const params: TerminalOpenParams = TerminalOpenParams.fromJson(json);
 
-    assert.equal(params.shellId, "bash");
-    assert.equal(params.folder, "/work/project");
-    assert.equal(params.size.columns, 100);
-    assert.equal(params.storedLimit, 20_971_520);
-    assert.equal(params.isPanelTerminal, true);
-    assert.deepEqual(new TerminalOpenParams("bash", "/work/project", new TerminalSize(100, 40), 20_971_520, true).toJson(), json);
-  });
+    Assert.areEqual("bash", params.shellId);
+    Assert.areEqual("/work/project", params.folder);
+    Assert.areEqual(100, params.size.columns);
+    Assert.areEqual(20_971_520, params.storedLimit);
+    Assert.areEqual(true, params.isPanelTerminal);
+    Expect.same(json, new TerminalOpenParams("bash", "/work/project", new TerminalSize(100, 40), 20_971_520, true).toJson());
+  }
 
-  it("leaves the shell and the folder to the runtime when they are null, stores 100 MiB and opens a tab's terminal unless told otherwise", () => {
+  @TestMethod
+  public leavesTheShellAndTheFolderToTheRuntimeWhenTheyAreNullStores100MiBAndOpensATabsTerminalUnlessToldOtherwise(): void {
     const json: object = { shellId: null, folder: null, size: { cols: 80, rows: 24 }, storedLimit: 104_857_600, isPanelTerminal: false, owner: null };
     const params: TerminalOpenParams = TerminalOpenParams.fromJson({ shellId: null, folder: null, size: { cols: 80, rows: 24 }, storedLimit: 104_857_600 });
 
-    assert.equal(params.shellId, null);
-    assert.equal(params.folder, null);
-    assert.equal(params.isPanelTerminal, false);
-    assert.equal(params.owner, null);
-    assert.deepEqual(params.toJson(), json);
-    assert.deepEqual(new TerminalOpenParams(null, null, new TerminalSize(80, 24)).toJson(), json);
-  });
+    Assert.areEqual(null, params.shellId);
+    Assert.areEqual(null, params.folder);
+    Assert.areEqual(false, params.isPanelTerminal);
+    Assert.areEqual(null, params.owner);
+    Expect.same(json, params.toJson());
+    Expect.same(json, new TerminalOpenParams(null, null, new TerminalSize(80, 24)).toJson());
+  }
 
-  it("ties a tab's terminal to an owner", () => {
+  @TestMethod
+  public tiesATabsTerminalToAnOwner(): void {
     const json: object = { shellId: null, folder: null, size: { cols: 80, rows: 24 }, storedLimit: 104_857_600, isPanelTerminal: false,
       owner: "example.chat/42" };
 
-    assert.equal(TerminalOpenParams.fromJson(json).owner, "example.chat/42");
-    assert.deepEqual(new TerminalOpenParams(null, null, new TerminalSize(80, 24), 104_857_600, false, "example.chat/42").toJson(), json);
-    assert.equal(new TerminalOpenParams(null, null, new TerminalSize(80, 24), 104_857_600, false, "o".repeat(256)).owner?.length, 256);
-  });
+    Assert.areEqual("example.chat/42", TerminalOpenParams.fromJson(json).owner);
+    Expect.same(json, new TerminalOpenParams(null, null, new TerminalSize(80, 24), 104_857_600, false, "example.chat/42").toJson());
+    Assert.areEqual(256, new TerminalOpenParams(null, null, new TerminalSize(80, 24), 104_857_600, false, "o".repeat(256)).owner?.length);
+  }
 
-  it("refuses a blank or over-long owner, and an owner for a panel terminal", () => {
+  @TestMethod
+  public refusesABlankOrOverLongOwnerAndAnOwnerForAPanelTerminal(): void {
     for (const owner of ["", " ", "o".repeat(257)])
-      assert.throws(() => new TerminalOpenParams(null, null, new TerminalSize(80, 24), 104_857_600, false, owner),
-        { name: "ArgumentException", parameterName: "owner" });
-    assert.throws(() => new TerminalOpenParams(null, null, new TerminalSize(80, 24), 104_857_600, true, "example.chat/42"),
-      { name: "ArgumentException", parameterName: "owner", message: "A panel terminal has no owner. (Parameter 'owner')" });
-    assert.throws(
-      () => TerminalOpenParams.fromJson({ shellId: null, folder: null, size: { cols: 80, rows: 24 }, storedLimit: 104_857_600, owner: 42 }),
-      { name: "JsonException", path: "$.owner" });
-  });
+      Expect.throwsMatching(() => new TerminalOpenParams(null, null, new TerminalSize(80, 24), 104_857_600, false, owner), { name: "ArgumentException", parameterName: "owner" });
+    Expect.throwsMatching(() => new TerminalOpenParams(null, null, new TerminalSize(80, 24), 104_857_600, true, "example.chat/42"), { name: "ArgumentException", parameterName: "owner", message: "A panel terminal has no owner. (Parameter 'owner')" });
+    Expect.throwsMatching(() => TerminalOpenParams.fromJson({ shellId: null, folder: null, size: { cols: 80, rows: 24 }, storedLimit: 104_857_600, owner: 42 }), { name: "JsonException", path: "$.owner" });
+  }
 
-  it("refuses a blank shell or folder", () => {
-    assert.throws(() => new TerminalOpenParams(" ", null, new TerminalSize(80, 24)), ArgumentException);
-    assert.throws(() => new TerminalOpenParams("bash", "", new TerminalSize(80, 24)), ArgumentException);
-  });
+  @TestMethod
+  public refusesABlankShellOrFolder(): void {
+    Assert.throws(() => new TerminalOpenParams(" ", null, new TerminalSize(80, 24)), ArgumentException);
+    Assert.throws(() => new TerminalOpenParams("bash", "", new TerminalSize(80, 24)), ArgumentException);
+  }
 
-  it("refuses a relative folder, naming the field when it reads one", () => {
-    assert.throws(() => new TerminalOpenParams(null, "work", new TerminalSize(80, 24)), { name: "ArgumentException", parameterName: "folder" });
-    assert.throws(() => TerminalOpenParams.fromJson({ shellId: null, folder: "work", size: { cols: 80, rows: 24 }, storedLimit: 104_857_600 }),
-      { name: "JsonException", path: "$.folder", message: "$.folder: The value must be an absolute path. (Parameter 'folder')" });
-  });
+  @TestMethod
+  public refusesARelativeFolderNamingTheFieldWhenItReadsOne(): void {
+    Expect.throwsMatching(() => new TerminalOpenParams(null, "work", new TerminalSize(80, 24)), { name: "ArgumentException", parameterName: "folder" });
+    Expect.throwsMatching(() => TerminalOpenParams.fromJson({ shellId: null, folder: "work", size: { cols: 80, rows: 24 }, storedLimit: 104_857_600 }), { name: "JsonException", path: "$.folder", message: "$.folder: The value must be an absolute path. (Parameter 'folder')" });
+  }
 
-  it("refuses a blank owner, and an owner for a panel terminal, at the owner's field when it reads them", () => {
+  @TestMethod
+  public refusesABlankOwnerAndAnOwnerForAPanelTerminalAtTheOwnersFieldWhenItReadsThem(): void {
     const json: object = { shellId: null, folder: null, size: { cols: 80, rows: 24 }, storedLimit: 104_857_600 };
 
-    assert.throws(() => TerminalOpenParams.fromJson({ ...json, owner: " " }), { name: "JsonException", path: "$.owner" });
-    assert.throws(() => TerminalOpenParams.fromJson({ ...json, isPanelTerminal: true, owner: "example.chat/42" }),
-      { name: "JsonException", path: "$.owner", message: "$.owner: A panel terminal has no owner. (Parameter 'owner')" });
-  });
+    Expect.throwsMatching(() => TerminalOpenParams.fromJson({ ...json, owner: " " }), { name: "JsonException", path: "$.owner" });
+    Expect.throwsMatching(() => TerminalOpenParams.fromJson({ ...json, isPanelTerminal: true, owner: "example.chat/42" }), { name: "JsonException", path: "$.owner", message: "$.owner: A panel terminal has no owner. (Parameter 'owner')" });
+  }
 
-  it("stores from 10 MiB to 10,000 MiB", () => {
+  @TestMethod
+  public storesFrom10MiBTo10000MiB(): void {
     for (const limit of [10_485_760, 10_485_760_000])
-      assert.equal(new TerminalOpenParams(null, null, new TerminalSize(80, 24), limit).storedLimit, limit);
+      Assert.areEqual(limit, new TerminalOpenParams(null, null, new TerminalSize(80, 24), limit).storedLimit);
     for (const limit of [10_485_759, 10_485_760_001, 10_485_760.5])
-      assert.throws(() => new TerminalOpenParams(null, null, new TerminalSize(80, 24), limit), { name: "ArgumentOutOfRangeException", parameterName: "storedLimit" });
-    assert.throws(
-      () => TerminalOpenParams.fromJson({ shellId: null, folder: null, size: { cols: 80, rows: 24 }, storedLimit: 1 }),
-      { name: "JsonException", path: "$.storedLimit" });
-  });
+      Expect.throwsMatching(() => new TerminalOpenParams(null, null, new TerminalSize(80, 24), limit), { name: "ArgumentOutOfRangeException", parameterName: "storedLimit" });
+    Expect.throwsMatching(() => TerminalOpenParams.fromJson({ shellId: null, folder: null, size: { cols: 80, rows: 24 }, storedLimit: 1 }), { name: "JsonException", path: "$.storedLimit" });
+  }
 
-  it("names the nested field it cannot read", () => {
-    assert.throws(
-      () => TerminalOpenParams.fromJson({ shellId: "bash", folder: "/", size: { cols: 80 }, storedLimit: 104_857_600 }),
-      { name: "JsonException", path: "$.size.rows" });
-  });
-});
+  @TestMethod
+  public namesTheNestedFieldItCannotRead(): void {
+    Expect.throwsMatching(() => TerminalOpenParams.fromJson({ shellId: "bash", folder: "/", size: { cols: 80 }, storedLimit: 104_857_600 }), { name: "JsonException", path: "$.size.rows" });
+  }
+}

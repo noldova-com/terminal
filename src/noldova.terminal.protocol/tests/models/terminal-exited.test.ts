@@ -6,25 +6,25 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { EndedBy, TerminalExit, TerminalExited } from "@noldova/terminal.protocol";
 
-import { EndedBy } from "../../src/enums/ended-by.ts";
-import { TerminalExit } from "../../src/models/terminal-exit.ts";
-import { TerminalExited } from "../../src/models/terminal-exited.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalExited", () => {
-  it("writes and reads its wire form", () => {
+@TestClass
+export class TerminalExitedTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
     const json: object = { sessionId: "s1", exit: { exitCode: 130, endedBy: "Exit" } };
 
-    assert.equal(TerminalExited.fromJson(json).exit.exitCode, 130);
-    assert.deepEqual(new TerminalExited("s1", new TerminalExit(130, EndedBy.Exit)).toJson(), json);
-  });
+    Assert.areEqual(130, TerminalExited.fromJson(json).exit.exitCode);
+    Expect.same(json, new TerminalExited("s1", new TerminalExit(130, EndedBy.Exit)).toJson());
+  }
 
-  it("refuses a missing exit", () => {
-    assert.throws(() => new TerminalExited(" ", new TerminalExit(0, EndedBy.Exit)), ArgumentException);
-    assert.throws(() => TerminalExited.fromJson({ sessionId: "s1" }), { name: "JsonException", path: "$.exit" });
-  });
-});
+  @TestMethod
+  public refusesAMissingExit(): void {
+    Assert.throws(() => new TerminalExited(" ", new TerminalExit(0, EndedBy.Exit)), ArgumentException);
+    Expect.throwsMatching(() => TerminalExited.fromJson({ sessionId: "s1" }), { name: "JsonException", path: "$.exit" });
+  }
+}

@@ -216,10 +216,12 @@ export class Resources {
     ["scripts/checks/api-example-check.ts"],
     [Resources.typeScriptCompilerPath, Resources.projectOption, `scripts/${Resources.projectFile}`],
     [Resources.typeScriptCompilerPath, Resources.projectOption, `${Resources.windowFolder}/scripts/${Resources.projectFile}`],
-    [Resources.typeScriptCompilerPath, Resources.projectOption, `${Resources.protocolFolder}/${Resources.specProjectFile}`],
     [Resources.typeScriptCompilerPath, Resources.projectOption, `${Resources.moduleFolder}/${Resources.specProjectFile}`]
   ];
   public static readonly lineEnd: string = "\n";
+  public static readonly protocolTests: string = "scripts/testing/test.ts";
+  public static readonly protocolTiming: string = "scripts/testing/test-timing.ts";
+  public static readonly protocolTestPrefix: string = `${Resources.protocolFolder}/`;
   public static readonly testWaitSourceFolders: readonly string[] = [Resources.sourceFolder, "scripts"];
   public static readonly testWaitSkippedFolders: ReadonlySet<string> = new Set([Resources.modulesFolder, Resources.gitFolder, "_build", "_packages", "dist", ".angular"]);
   public static readonly testWaitExtensions: ReadonlySet<string> = new Set([".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"]);

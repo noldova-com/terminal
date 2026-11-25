@@ -6,28 +6,28 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { ProtocolReader, TerminalInputEdge, TerminalInputMark } from "@noldova/terminal.protocol";
 
-import { TerminalInputEdge } from "../../src/enums/terminal-input-edge.ts";
-import { TerminalInputMark } from "../../src/models/terminal-input-mark.ts";
-import { ProtocolReader } from "../../src/services/protocol.reader.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalInputMark", () => {
-  it("writes and reads its wire form", () => {
+@TestClass
+export class TerminalInputMarkTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
     const mark: TerminalInputMark = TerminalInputMark.fromReader(ProtocolReader.fromValue({ offset: 7, edge: "Start" }));
 
-    assert.deepEqual([mark.offset, mark.edge], [7, TerminalInputEdge.Start]);
-    assert.deepEqual(new TerminalInputMark(9, TerminalInputEdge.End).toJson(), { offset: 9, edge: "End" });
-    assert.equal(TerminalInputMark.fromReader(ProtocolReader.fromValue({ offset: 3, edge: "RightPrompt" })).edge, TerminalInputEdge.RightPrompt);
-    assert.equal(TerminalInputMark.fromReader(ProtocolReader.fromValue({ offset: 4, edge: "Continuation" })).edge, TerminalInputEdge.Continuation);
-  });
+    Expect.same([7, TerminalInputEdge.Start], [mark.offset, mark.edge]);
+    Expect.same({ offset: 9, edge: "End" }, new TerminalInputMark(9, TerminalInputEdge.End).toJson());
+    Assert.areEqual(TerminalInputEdge.RightPrompt, TerminalInputMark.fromReader(ProtocolReader.fromValue({ offset: 3, edge: "RightPrompt" })).edge);
+    Assert.areEqual(TerminalInputEdge.Continuation, TerminalInputMark.fromReader(ProtocolReader.fromValue({ offset: 4, edge: "Continuation" })).edge);
+  }
 
-  it("refuses a negative or fractional offset and an unknown edge", () => {
-    assert.throws(() => new TerminalInputMark(-1, TerminalInputEdge.Start), ArgumentException);
-    assert.throws(() => TerminalInputMark.fromReader(ProtocolReader.fromValue({ offset: 0.5, edge: "End" })), { name: "JsonException", path: "$.offset" });
-    assert.throws(() => TerminalInputMark.fromReader(ProtocolReader.fromValue({ offset: 0, edge: "start" })), { name: "JsonException", path: "$.edge" });
-  });
-});
+  @TestMethod
+  public refusesANegativeOrFractionalOffsetAndAnUnknownEdge(): void {
+    Assert.throws(() => new TerminalInputMark(-1, TerminalInputEdge.Start), ArgumentException);
+    Expect.throwsMatching(() => TerminalInputMark.fromReader(ProtocolReader.fromValue({ offset: 0.5, edge: "End" })), { name: "JsonException", path: "$.offset" });
+    Expect.throwsMatching(() => TerminalInputMark.fromReader(ProtocolReader.fromValue({ offset: 0, edge: "start" })), { name: "JsonException", path: "$.edge" });
+  }
+}

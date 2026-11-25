@@ -6,36 +6,37 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
+import { TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalShell, TerminalShellKind, TerminalShells } from "@noldova/terminal.protocol";
 
-import { describe, it } from "vitest";
+import { Expect } from "../support/expect.ts";
 
-import { TerminalShellKind } from "../../src/enums/terminal-shell-kind.ts";
-import { TerminalShell } from "../../src/models/terminal-shell.ts";
-import { TerminalShells } from "../../src/models/terminal-shells.ts";
-
-describe("TerminalShells", () => {
-  it("writes and reads its shells in order", () => {
+@TestClass
+export class TerminalShellsTests {
+  @TestMethod
+  public writesAndReadsItsShellsInOrder(): void {
     const json: object = {
       shells: [{ id: "zsh", name: "zsh", kind: "Zsh", isDefault: true }, { id: "bash", name: "Bash", kind: "Bash", isDefault: false }]
     };
 
-    assert.deepEqual(TerminalShells.fromJson(json).shells.map(t => t.id), ["zsh", "bash"]);
-    assert.deepEqual(new TerminalShells([
+    Expect.same(["zsh", "bash"], TerminalShells.fromJson(json).shells.map(t => t.id));
+    Expect.same(json, new TerminalShells([
       new TerminalShell("zsh", "zsh", TerminalShellKind.Zsh, true),
       new TerminalShell("bash", "Bash", TerminalShellKind.Bash, false)
-    ]).toJson(), json);
-  });
+    ]).toJson());
+  }
 
-  it("names the shell it cannot read", () => {
-    assert.throws(() => TerminalShells.fromJson({ shells: [{ id: "zsh", name: "zsh", kind: "Zsh" }] }), { name: "JsonException", path: "$.shells.0.isDefault" });
-  });
+  @TestMethod
+  public namesTheShellItCannotRead(): void {
+    Expect.throwsMatching(() => TerminalShells.fromJson({ shells: [{ id: "zsh", name: "zsh", kind: "Zsh" }] }), { name: "JsonException", path: "$.shells.0.isDefault" });
+  }
 
-  it("keeps its own copy of the shells", () => {
+  @TestMethod
+  public keepsItsOwnCopyOfTheShells(): void {
     const shells: TerminalShell[] = [];
     const answer: TerminalShells = new TerminalShells(shells);
     shells.push(new TerminalShell("bash", "Bash", TerminalShellKind.Bash, true));
 
-    assert.deepEqual(answer.shells, []);
-  });
-});
+    Expect.same([], answer.shells);
+  }
+}

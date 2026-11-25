@@ -6,24 +6,25 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalResizeParams, TerminalSize } from "@noldova/terminal.protocol";
 
-import { TerminalResizeParams } from "../../src/models/terminal-resize-params.ts";
-import { TerminalSize } from "../../src/models/terminal-size.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalResizeParams", () => {
-  it("writes and reads its wire form", () => {
+@TestClass
+export class TerminalResizeParamsTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
     const params: TerminalResizeParams = TerminalResizeParams.fromJson({ sessionId: "s1", size: { cols: 132, rows: 50 } });
 
-    assert.equal(params.size.columns, 132);
-    assert.deepEqual(new TerminalResizeParams("s1", new TerminalSize(80, 24)).toJson(), { sessionId: "s1", size: { cols: 80, rows: 24 } });
-  });
+    Assert.areEqual(132, params.size.columns);
+    Expect.same({ sessionId: "s1", size: { cols: 80, rows: 24 } }, new TerminalResizeParams("s1", new TerminalSize(80, 24)).toJson());
+  }
 
-  it("refuses a blank session id", () => {
-    assert.throws(() => new TerminalResizeParams("", new TerminalSize(80, 24)), ArgumentException);
-    assert.throws(() => TerminalResizeParams.fromJson({ sessionId: "s1", size: null }), { name: "JsonException", path: "$.size" });
-  });
-});
+  @TestMethod
+  public refusesABlankSessionId(): void {
+    Assert.throws(() => new TerminalResizeParams("", new TerminalSize(80, 24)), ArgumentException);
+    Expect.throwsMatching(() => TerminalResizeParams.fromJson({ sessionId: "s1", size: null }), { name: "JsonException", path: "$.size" });
+  }
+}

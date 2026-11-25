@@ -6,21 +6,23 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import assert from "node:assert/strict";
-
 import { ArgumentException } from "@noldova/context.exceptions";
-import { describe, it } from "vitest";
+import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalReference } from "@noldova/terminal.protocol";
 
-import { TerminalReference } from "../../src/models/terminal-reference.ts";
+import { Expect } from "../support/expect.ts";
 
-describe("TerminalReference", () => {
-  it("writes and reads its wire form", () => {
-    assert.equal(TerminalReference.fromJson({ sessionId: "s1" }).sessionId, "s1");
-    assert.deepEqual(new TerminalReference("s2").toJson(), { sessionId: "s2" });
-  });
+@TestClass
+export class TerminalReferenceTests {
+  @TestMethod
+  public writesAndReadsItsWireForm(): void {
+    Assert.areEqual("s1", TerminalReference.fromJson({ sessionId: "s1" }).sessionId);
+    Expect.same({ sessionId: "s2" }, new TerminalReference("s2").toJson());
+  }
 
-  it("refuses a blank session id", () => {
-    assert.throws(() => new TerminalReference(""), ArgumentException);
-    assert.throws(() => TerminalReference.fromJson({ sessionId: 1 }), { name: "JsonException", path: "$.sessionId" });
-  });
-});
+  @TestMethod
+  public refusesABlankSessionId(): void {
+    Assert.throws(() => new TerminalReference(""), ArgumentException);
+    Expect.throwsMatching(() => TerminalReference.fromJson({ sessionId: 1 }), { name: "JsonException", path: "$.sessionId" });
+  }
+}
