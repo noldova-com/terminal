@@ -38,6 +38,8 @@ async function rejectionAsync<T extends Error>(promise: Promise<unknown>, type: 
   return caught;
 }
 
+const UNKNOWN_SHELL_KIND: TerminalShellKind = JSON.parse("\"Tcsh\"");
+
 class RefusalCase {
   public readonly what: string;
   public readonly type: abstract new (...args: never[]) => TerminalLaunchRefusedException;
@@ -403,7 +405,7 @@ describe("TerminalLauncher", () => {
       "minimumRows must be a whole number from 1 to 100."),
     new RefusalCase("minimum rows without a tab", LaunchRowsWithoutTabException, new TerminalLaunch("/work", {}, null, null, null, false, 16), "minimumRows",
       "minimumRows needs the launch's tab; an embedded terminal takes its rows from EmbeddedTerminal.open."),
-    new RefusalCase("a shell kind that isn't one", LaunchArgumentRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, null, [TerminalShellKind.Bash, "Tcsh" as TerminalShellKind]),
+    new RefusalCase("a shell kind that isn't one", LaunchArgumentRefusedException, new TerminalLaunch("/work", {}, null, null, null, true, null, [TerminalShellKind.Bash, UNKNOWN_SHELL_KIND]),
       "shellKinds.1", "shellKinds.1 must be one of PowerShell, CommandPrompt, Bash, Zsh, Fish, Wsl, Other.")
   ])
     it(`refuses ${what} before anything opens, never naming a value`, async () => {

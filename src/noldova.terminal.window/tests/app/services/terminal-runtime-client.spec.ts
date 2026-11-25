@@ -7,7 +7,10 @@
  */
 
 import { FailureCode } from "@noldova/desktop.protocol";
-import { EndedBy, TerminalExit, TerminalName, TerminalNames, TerminalReference, TerminalShell, TerminalShellKind, TerminalSize } from "@noldova/terminal.protocol";
+import {
+  EndedBy, TerminalExit, TerminalLaunchParams, TerminalName, TerminalNames, TerminalOpenParams, TerminalReference, TerminalRestoreParams, TerminalShell, TerminalShellKind,
+  TerminalSize
+} from "@noldova/terminal.protocol";
 import { describe, expect, it, type MockInstance, vi } from "vitest";
 
 import { TerminalRuntimeClient } from "../../../src/app/services/terminal-runtime-client.ts";
@@ -16,6 +19,16 @@ import { FakeRuntime } from "../../fixtures/fake-runtime.fixture.ts";
 import { HeldAnswer } from "../../fixtures/held-answer.fixture.ts";
 import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 import { UpdatedView } from "../../fixtures/updated-view.fixture.ts";
+
+class LaunchShell {
+  public readonly shellId: string | null;
+  public readonly shellKinds: readonly TerminalShellKind[];
+
+  public constructor(shellId: string | null, shellKinds: readonly TerminalShellKind[]) {
+    this.shellId = shellId;
+    this.shellKinds = shellKinds;
+  }
+}
 
 describe("TerminalRuntimeClient", () => {
   it("opens a shell at the opening size, leaving the shell and folder to the runtime when not named", async () => {
@@ -68,7 +81,7 @@ describe("TerminalRuntimeClient", () => {
     runtime.shells.splice(1, 1);
     await client.openAsync(null, null, true);
 
-    expect(runtime.context.sent(TerminalNames.openMethod).map(t => (t as { shellId: string | null }).shellId)).toEqual(["zsh", "bash", "zsh", null]);
+    expect(runtime.context.sent(TerminalNames.openMethod).map(t => TerminalOpenParams.fromJson(t).shellId)).toEqual(["zsh", "bash", "zsh", null]);
     expect(runtime.context.sent(TerminalNames.shellsMethod)).toEqual([]);
     expect(runtime.context.logs).toEqual(["The Default shell zsh could not open, so the terminal opens with the system default shell: The shell zsh was not found."]);
   });
@@ -88,10 +101,10 @@ describe("TerminalRuntimeClient", () => {
     runtime.context.settings.delete("terminal.defaultShell");
     await expect(client.launchAsync("/work", {}, null)).rejects.toThrow("The runtime is busy.");
 
-    expect(runtime.context.sent(TerminalNames.launchMethod).map(t => (t as { shellId: string | null }).shellId)).toEqual([null, "zsh", "zsh", null, "zsh", null]);
+    expect(runtime.context.sent(TerminalNames.launchMethod).map(t => TerminalLaunchParams.fromJson(t).shellId)).toEqual([null, "zsh", "zsh", null, "zsh", null]);
     expect(runtime.context.sent(TerminalNames.launchMethod)[1]).toEqual({ shellId: "zsh", folder: "/work", size: { cols: 80, rows: 24 },
       storedLimit: 104_857_600, environment: { A: "1" }, notice: "Notice", command: "agent login", opensTab: true });
-    expect(runtime.context.sent(TerminalNames.launchMethod).map(t => (t as { command: string | null }).command)).toEqual([null, "agent login", "agent login",
+    expect(runtime.context.sent(TerminalNames.launchMethod).map(t => TerminalLaunchParams.fromJson(t).command)).toEqual([null, "agent login", "agent login",
       "agent login", null, null]);
     expect(runtime.context.logs).toEqual([
       "The Default shell zsh could not open, so the terminal opens with the system default shell: The shell zsh was not found."
@@ -108,8 +121,8 @@ describe("TerminalRuntimeClient", () => {
     runtime.shells.splice(1, 1);
     await expect(client.launchAsync("/work", {}, null, null, true, [TerminalShellKind.CommandPrompt])).rejects.toThrow("The shell zsh was not found.");
 
-    expect(runtime.context.sent(TerminalNames.launchMethod).map(t => [(t as { shellId: string | null }).shellId, (t as { shellKinds?: string[] }).shellKinds]))
-      .toEqual([["zsh", ["PowerShell", "CommandPrompt"]], ["zsh", ["CommandPrompt"]]]);
+    expect(runtime.context.sent(TerminalNames.launchMethod).map(t => TerminalLaunchParams.fromJson(t)).map(t => new LaunchShell(t.shellId, t.shellKinds)))
+      .toEqual([new LaunchShell("zsh", [TerminalShellKind.PowerShell, TerminalShellKind.CommandPrompt]), new LaunchShell("zsh", [TerminalShellKind.CommandPrompt])]);
     expect(runtime.context.logs).toEqual([]);
   });
 
@@ -137,7 +150,7 @@ describe("TerminalRuntimeClient", () => {
       await client.openAsync(null, null);
     }
 
-    expect(runtime.context.sent(TerminalNames.openMethod).map(t => (t as { shellId: string | null }).shellId)).toEqual([null, null, null, null]);
+    expect(runtime.context.sent(TerminalNames.openMethod).map(t => TerminalOpenParams.fromJson(t).shellId)).toEqual([null, null, null, null]);
     expect(runtime.context.sent(TerminalNames.shellsMethod)).toEqual([]);
   });
 
@@ -151,7 +164,7 @@ describe("TerminalRuntimeClient", () => {
     runtime.context.settings.set("terminal.defaultShell", "zsh");
     await expect(client.openAsync(null, null)).rejects.toThrow("The runtime is busy.");
 
-    expect(runtime.context.sent(TerminalNames.openMethod).map(t => (t as { shellId: string | null }).shellId)).toEqual(["fish", null, "zsh"]);
+    expect(runtime.context.sent(TerminalNames.openMethod).map(t => TerminalOpenParams.fromJson(t).shellId)).toEqual(["fish", null, "zsh"]);
     expect(runtime.context.logs).toEqual([]);
   });
 
@@ -181,7 +194,7 @@ describe("TerminalRuntimeClient", () => {
       await client.openAsync(null, null);
     }
 
-    expect(runtime.context.sent(TerminalNames.openMethod).map(t => (t as { storedLimit: number }).storedLimit))
+    expect(runtime.context.sent(TerminalNames.openMethod).map(t => TerminalOpenParams.fromJson(t).storedLimit))
       .toEqual([10_485_760, 10_485_760_000, 104_857_600, 104_857_600, 104_857_600, 104_857_600, 104_857_600]);
   });
 
@@ -213,7 +226,7 @@ describe("TerminalRuntimeClient", () => {
       await client.restoreAsync();
     }
 
-    expect(runtime.context.sent(TerminalNames.restoreMethod).map(t => (t as { shellId: string | null }).shellId)).toEqual(["s".repeat(200), null]);
+    expect(runtime.context.sent(TerminalNames.restoreMethod).map(t => TerminalRestoreParams.fromJson(t).shellId)).toEqual(["s".repeat(200), null]);
   });
 
   it("starts an ended terminal's shell again in place, at the asking pane's size", async () => {

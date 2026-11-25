@@ -38,6 +38,55 @@ import { HeldAnswer } from "../../fixtures/held-answer.fixture.ts";
 import { SpecWait } from "../../fixtures/spec-wait.fixture.ts";
 import { TerminalPartContext } from "../../fixtures/terminal-part-context.fixture.ts";
 
+const UNKNOWN_SHELL_KIND: TerminalShellKind = JSON.parse("\"Csh\"");
+const UNKNOWN_BUSY_CHOICE: TerminalRunBusy = JSON.parse("\"Wait\"");
+
+class Refusal {
+  public readonly parameter: string;
+  public readonly message: string;
+
+  public constructor(parameter: string, message: string) {
+    this.parameter = parameter;
+    this.message = message;
+  }
+}
+
+class KindsRefusal {
+  public readonly parameter: string;
+  public readonly message: string;
+  public readonly shellKinds: readonly TerminalShellKind[];
+
+  public constructor(parameter: string, message: string, shellKinds: readonly TerminalShellKind[]) {
+    this.parameter = parameter;
+    this.message = message;
+    this.shellKinds = shellKinds;
+  }
+}
+
+class RunPlace {
+  public readonly folder: string | null;
+  public readonly shellId: string | null;
+
+  public constructor(folder: string | null, shellId: string | null) {
+    this.folder = folder;
+    this.shellId = shellId;
+  }
+}
+
+class RunAnswer {
+  public isAnswered: boolean = false;
+}
+
+class Notice<T> {
+  public readonly sessionId: string;
+  public readonly seen: T;
+
+  public constructor(sessionId: string, seen: T) {
+    this.sessionId = sessionId;
+    this.seen = seen;
+  }
+}
+
 async function rejectionAsync<T extends Error>(promise: Promise<unknown>, type: abstract new (...args: never[]) => T): Promise<T> {
   const caught: unknown = await promise.then(() => undefined, (error: unknown) => error);
   if (!(caught instanceof type))
@@ -509,7 +558,7 @@ describe("TerminalOwners", () => {
 
         await owners.runAsync(OWNER, "Get-ChildItem", null, [TerminalShellKind.PowerShell]);
 
-        expect(runs(runtime).map(t => [(t as { folder: string }).folder, (t as { shellId: string }).shellId])).toEqual([["/work/project", "zsh"]]);
+        expect(runs(runtime).map(t => TerminalRunParams.fromJson(t)).map(t => new RunPlace(t.folder, t.shellId))).toEqual([new RunPlace("/work/project", "zsh")]);
       });
 
       it("runs for an owner the window doesn't show without a tab, which opens once that owner shows", async () => {
@@ -550,32 +599,31 @@ describe("TerminalOwners", () => {
         const inactive: TerminalOwners = TerminalOwners.provide(runtime.context, () => null);
         cleanups.push(() => inactive.removeAsync());
         const refusalAsync = async (run: Promise<string>, type: typeof RunPartInactiveException | typeof RunArgumentRefusedException = RunArgumentRefusedException):
-          Promise<readonly [string, string]> => {
-          const error: unknown = await run.catch((caught: unknown) => caught);
+          Promise<Refusal> => {
+          const error: TerminalRunRefusedException = await rejectionAsync(run, type);
           expect(error).toBeInstanceOf(TerminalRunRefusedException);
-          expect(error).toBeInstanceOf(type);
-          return [(error as TerminalRunRefusedException).parameter, (error as TerminalRunRefusedException).message];
+          return new Refusal(error.parameter, error.message);
         };
 
-        expect(await refusalAsync(inactive.runAsync(OWNER, "ls", null, []), RunPartInactiveException)).toEqual(["context",
-          "The commands weren't run, and nothing opened: the terminal's window part isn't active in this window."]);
+        expect(await refusalAsync(inactive.runAsync(OWNER, "ls", null, []), RunPartInactiveException)).toEqual(new Refusal("context",
+          "The commands weren't run, and nothing opened: the terminal's window part isn't active in this window."));
         const part: TerminalWindowPart = new TerminalWindowPart();
         cleanups.push(() => part.deactivateAsync());
         await part.activateAsync(runtime.context);
-        const parameters: (readonly [string, string])[] = [
+        const parameters: Refusal[] = [
           await refusalAsync(inactive.runAsync(" ", "ls", null, [])),
           await refusalAsync(inactive.runAsync(OWNER, "rm -rf \u001b[A", null, [])),
           await refusalAsync(inactive.runAsync(OWNER, " \n ", null, [])),
           await refusalAsync(inactive.runAsync(OWNER, "ls", "work", [])),
-          await refusalAsync(inactive.runAsync(OWNER, "ls", null, [TerminalShellKind.Bash, "Csh" as TerminalShellKind]))
+          await refusalAsync(inactive.runAsync(OWNER, "ls", null, [TerminalShellKind.Bash, UNKNOWN_SHELL_KIND]))
         ];
 
         expect(parameters).toEqual([
-          ["owner", "The commands weren't run, and nothing opened: owner must not be blank."],
-          ["command", "The commands weren't run, and nothing opened: command must not hold a control character other than a line break or a tab."],
-          ["command", "The commands weren't run, and nothing opened: command must not be blank."],
-          ["folder", "The commands weren't run, and nothing opened: folder must be an absolute path."],
-          ["shellKinds.1", "The commands weren't run, and nothing opened: shellKinds.1 must be one of PowerShell, CommandPrompt, Bash, Zsh, Fish, Wsl, Other."]
+          new Refusal("owner", "The commands weren't run, and nothing opened: owner must not be blank."),
+          new Refusal("command", "The commands weren't run, and nothing opened: command must not hold a control character other than a line break or a tab."),
+          new Refusal("command", "The commands weren't run, and nothing opened: command must not be blank."),
+          new Refusal("folder", "The commands weren't run, and nothing opened: folder must be an absolute path."),
+          new Refusal("shellKinds.1", "The commands weren't run, and nothing opened: shellKinds.1 must be one of PowerShell, CommandPrompt, Bash, Zsh, Fish, Wsl, Other.")
         ]);
         expect(runs(runtime)).toEqual([]);
       });
@@ -587,9 +635,7 @@ describe("TerminalOwners", () => {
 
         for (const outcome of [TerminalRunOutcome.Input, TerminalRunOutcome.Tab, TerminalRunOutcome.Ended]) {
           runtime.runOutcome = outcome;
-          const error: unknown = await owners.runAsync(OWNER, "rm -rf build/", null, []).catch((caught: unknown) => caught);
-          expect(error).toBeInstanceOf(TerminalRunNotTypedException);
-          const notTyped: TerminalRunNotTypedException = error as TerminalRunNotTypedException;
+          const notTyped: TerminalRunNotTypedException = await rejectionAsync(owners.runAsync(OWNER, "rm -rf build/", null, []), TerminalRunNotTypedException);
           reasons.push([notTyped.name, notTyped.sessionId, notTyped.reason, notTyped.message.includes("rm -rf")]);
         }
 
@@ -598,7 +644,7 @@ describe("TerminalOwners", () => {
           ["TerminalRunNotTypedException", "run-2", "Tab", false],
           ["TerminalRunNotTypedException", "run-3", "Ended", false]
         ]);
-        expect((await owners.runAsync(OWNER, "ls", null, []).catch((caught: Error) => caught)) as Error).toHaveProperty("message",
+        expect(await rejectionAsync(owners.runAsync(OWNER, "ls", null, []), TerminalRunNotTypedException)).toHaveProperty("message",
           "The commands weren't typed into terminal run-4: it ended, closed or restarted first.");
         expect(runtime.context.opened.map(t => t.instance)).toEqual(["run-1", "run-2", "run-3", "run-4"]);
       });
@@ -608,18 +654,18 @@ describe("TerminalOwners", () => {
         const owners: TerminalOwners = await provideAsync(runtime);
         const opened: number = runtime.context.opened.length;
         runtime.context.handlers.set(TerminalNames.runMethod, async () => new TerminalRunResult(null, TerminalRunOutcome.NoShell).toJson());
-        const refusals: unknown[] = [];
+        const refusals: KindsRefusal[] = [];
 
         for (const kinds of [[TerminalShellKind.Zsh], [TerminalShellKind.CommandPrompt, TerminalShellKind.Zsh, TerminalShellKind.Fish]]) {
-          const error: unknown = await owners.runAsync(OWNER, "rm -rf build/", null, kinds).catch((caught: unknown) => caught);
-          expect(error).toBeInstanceOf(RunShellKindsMissingException);
-          refusals.push([(error as RunShellKindsMissingException).parameter, (error as RunShellKindsMissingException).message, (error as RunShellKindsMissingException).shellKinds]);
+          const error: RunShellKindsMissingException = await rejectionAsync(owners.runAsync(OWNER, "rm -rf build/", null, kinds), RunShellKindsMissingException);
+          refusals.push(new KindsRefusal(error.parameter, error.message, error.shellKinds));
         }
 
         expect(refusals).toEqual([
-          ["shellKinds", "The commands weren't run, and nothing opened: no shell of the kinds they need is installed (Zsh).", ["Zsh"]],
-          ["shellKinds", "The commands weren't run, and nothing opened: no shell of the kinds they need is installed (Command Prompt, Zsh or fish).",
-            ["CommandPrompt", "Zsh", "Fish"]]
+          new KindsRefusal("shellKinds", "The commands weren't run, and nothing opened: no shell of the kinds they need is installed (Zsh).",
+            [TerminalShellKind.Zsh]),
+          new KindsRefusal("shellKinds", "The commands weren't run, and nothing opened: no shell of the kinds they need is installed (Command Prompt, Zsh or fish).",
+            [TerminalShellKind.CommandPrompt, TerminalShellKind.Zsh, TerminalShellKind.Fish])
         ]);
         expect(runtime.context.opened.length - opened).toBe(0);
       });
@@ -774,21 +820,21 @@ describe("TerminalOwners", () => {
       it("refuses a blank target for sessionId, and an unknown busy choice for whenBusy, before anything is sent", async () => {
         const runtime: FakeRuntime = new FakeRuntime();
         const owners: TerminalOwners = await provideAsync(runtime);
-        const refusalAsync = async (target: TerminalRunTarget): Promise<readonly [string, string]> => {
+        const refusalAsync = async (target: TerminalRunTarget): Promise<Refusal> => {
           const refusal: RunArgumentRefusedException = await rejectionAsync(owners.startRunAsync(OWNER, "ls", null, [], target), RunArgumentRefusedException);
-          return [refusal.parameter, refusal.message];
+          return new Refusal(refusal.parameter, refusal.message);
         };
 
-        expect([await refusalAsync(new TerminalRunTarget(" ")), await refusalAsync(new TerminalRunTarget("c42", "Wait" as TerminalRunBusy))]).toEqual([
-          ["sessionId", "The commands weren't run, and nothing opened: sessionId must not be blank."],
-          ["whenBusy", "The commands weren't run, and nothing opened: whenBusy must be one of Refuse, Interrupt."]
+        expect([await refusalAsync(new TerminalRunTarget(" ")), await refusalAsync(new TerminalRunTarget("c42", UNKNOWN_BUSY_CHOICE))]).toEqual([
+          new Refusal("sessionId", "The commands weren't run, and nothing opened: sessionId must not be blank."),
+          new Refusal("whenBusy", "The commands weren't run, and nothing opened: whenBusy must be one of Refuse, Interrupt.")
         ]);
         expect(runs(runtime)).toEqual([]);
       });
 
       describe("with shown", () => {
-        function track(run: { answered: boolean }, notices: [string, boolean][]): (sessionId: string) => void {
-          return t => notices.push([t, run.answered]);
+        function track(run: RunAnswer, notices: Notice<boolean>[]): (sessionId: string) => void {
+          return t => notices.push(new Notice(t, run.isAnswered));
         }
 
         it("opens and focuses no tab for a new terminal or a free one the runtime reuses, while the owner shows, and names each before the run answers", async () => {
@@ -796,19 +842,19 @@ describe("TerminalOwners", () => {
           const owners: TerminalOwners = await provideAsync(runtime);
           const focused: string[] = [];
           cleanups.push(TerminalFocus.add({ contains: () => false, isFor: () => true, showAsync: async () => focused.push("shown") > 0, hideDock: () => undefined }));
-          const notices: [string, boolean][] = [];
+          const notices: Notice<boolean>[] = [];
           const started: TerminalRun[] = [];
 
           for (const step of [() => undefined, () => runtime.freeSessions.add("run-1")]) {
             step();
-            const run: { answered: boolean } = { answered: false };
+            const run: RunAnswer = new RunAnswer();
             started.push(await owners.startRunAsync(OWNER, "npm test", "/work", [], null, track(run, notices)).finally(() => {
-              run.answered = true;
+              run.isAnswered = true;
             }));
           }
 
           expect(started).toEqual([new TerminalRun("run-1", "run-id-1"), new TerminalRun("run-1", "run-id-2")]);
-          expect(notices).toEqual([["run-1", false], ["run-1", false]]);
+          expect(notices).toEqual([new Notice("run-1", false), new Notice("run-1", false)]);
           expect(runs(runtime).map(t => TerminalRunParams.fromJson(t).opensTab)).toEqual([false, false]);
           expect([runtime.context.opened, focused, runtime.sessions.map(t => [t.sessionId, t.opensTab])]).toEqual([[], [], [["run-1", false]]]);
         });
@@ -818,31 +864,31 @@ describe("TerminalOwners", () => {
           runtime.addSession("c42", "bash", "/work", null, false, false, OWNER);
           const owners: TerminalOwners = await provideAsync(runtime);
           const opened: number = runtime.context.opened.length;
-          const notices: [string, number][] = [];
+          const notices: Notice<number>[] = [];
 
-          const run: TerminalRun = await owners.startRunAsync(OWNER, "ls", null, [], new TerminalRunTarget("c42"), t => notices.push([t, runs(runtime).length]));
+          const run: TerminalRun = await owners.startRunAsync(OWNER, "ls", null, [], new TerminalRunTarget("c42"), t => notices.push(new Notice(t, runs(runtime).length)));
 
-          expect([run, notices, runtime.context.opened.length - opened]).toEqual([new TerminalRun("c42", "run-id-1"), [["c42", 0]], 0]);
+          expect([run, notices, runtime.context.opened.length - opened]).toEqual([new TerminalRun("c42", "run-id-1"), [new Notice("c42", 0)], 0]);
           expect(runs(runtime).map(t => TerminalRunParams.fromJson(t).opensTab)).toEqual([false]);
         });
 
         it("starts this window's runs one at a time, so each run's terminal goes to its own shown, past a run that failed", async () => {
           const runtime: FakeRuntime = new FakeRuntime();
           const owners: TerminalOwners = await provideAsync(runtime);
-          const notices: [string, string][] = [];
+          const notices: Notice<string>[] = [];
           runtime.holdOpens();
 
           const failing: Promise<TerminalRunNotTypedException> = rejectionAsync(owners.startRunAsync(OWNER, "ls", null, [], new TerminalRunTarget("gone-1"),
-            t => notices.push(["failing", t])), TerminalRunNotTypedException);
-          const first: Promise<TerminalRun> = owners.startRunAsync(OWNER, "npm test", "/work", [], null, t => notices.push(["first", t]));
-          const second: Promise<TerminalRun> = owners.startRunAsync(OWNER, "npm test", "/work", [], null, t => notices.push(["second", t]));
+            t => notices.push(new Notice(t, "failing"))), TerminalRunNotTypedException);
+          const first: Promise<TerminalRun> = owners.startRunAsync(OWNER, "npm test", "/work", [], null, t => notices.push(new Notice(t, "first")));
+          const second: Promise<TerminalRun> = owners.startRunAsync(OWNER, "npm test", "/work", [], null, t => notices.push(new Notice(t, "second")));
           await vi.waitFor(() => expect(runs(runtime)).toHaveLength(1), { timeout: SpecWait.milliseconds });
           const sentWhileHeld: number = runs(runtime).length;
           runtime.releaseOpens();
 
           expect([(await failing).reason, await first, await second]).toEqual([TerminalRunOutcome.Ended, new TerminalRun("run-1", "run-id-1"),
             new TerminalRun("run-2", "run-id-2")]);
-          expect([sentWhileHeld, notices]).toEqual([1, [["failing", "gone-1"], ["first", "run-1"], ["second", "run-2"]]]);
+          expect([sentWhileHeld, notices]).toEqual([1, [new Notice("gone-1", "failing"), new Notice("run-1", "first"), new Notice("run-2", "second")]]);
         });
 
         it("gives a run its terminal though a run with a tab starts while it waits for the runtime's word, and that run opens its own tab", async () => {

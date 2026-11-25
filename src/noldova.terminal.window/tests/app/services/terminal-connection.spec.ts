@@ -10,7 +10,7 @@ import "@noldova/context.core";
 
 import { FailureCode } from "@noldova/desktop.protocol";
 import type { JsonValue } from "@noldova/context.json";
-import { EndedBy, TerminalExit, TerminalLine, TerminalLineRange, TerminalNames, TerminalSize, TerminalTextRun, WindowsPty, type TerminalAttachment, TerminalInputEdge, TerminalInputMark, type TerminalLinePage } from "@noldova/terminal.protocol";
+import { EndedBy, TerminalExit, TerminalLine, TerminalLineRange, TerminalNames, TerminalPaneReference, TerminalSize, TerminalTextRun, TerminalVisibilityParams, WindowsPty, type TerminalAttachment, TerminalInputEdge, TerminalInputMark, type TerminalLinePage } from "@noldova/terminal.protocol";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type { ITerminalSink } from "../../../src/app/interfaces/i-terminal-sink.ts";
@@ -344,7 +344,7 @@ describe("TerminalConnection", () => {
 
     expect(harness.sent(TerminalNames.inputMethod)).toEqual(["early", "ls\r"].map(t => ({ sessionId: "s1", data: t })));
     expect(harness.sent(TerminalNames.resizeMethod)).toEqual([{ sessionId: "s1", size: { cols: 120, rows: 40 } }]);
-    expect(harness.sent(TerminalNames.visibilityMethod).map(t => (t as { visible: boolean }).visible)).toEqual([true, false]);
+    expect(harness.sent(TerminalNames.visibilityMethod).map(t => TerminalVisibilityParams.fromJson(t).isVisible)).toEqual([true, false]);
     expect(harness.runtime.attachCount).toBe(1);
   });
 
@@ -380,7 +380,7 @@ describe("TerminalConnection", () => {
     harness.runtime.releaseAttaches();
     await opening;
 
-    expect([harness.sent(TerminalNames.attachMethod).map(t => (t as { paneId: string }).paneId), harness.sent(TerminalNames.inputMethod)])
+    expect([harness.sent(TerminalNames.attachMethod).map(t => TerminalPaneReference.fromJson(t).paneId), harness.sent(TerminalNames.inputMethod)])
       .toEqual([["p1", "p2"], [{ sessionId: "s1", data: "cd ..\r" }]]);
   });
 

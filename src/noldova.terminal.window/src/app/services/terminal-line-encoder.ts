@@ -31,9 +31,9 @@ export class TerminalLineEncoder {
 
   private static attributes(run: TerminalTextRun): string {
     const parameters: number[] = [Resources.sgrReset];
-    for (const [style, parameter] of Resources.styleParameters)
-      if ((run.style & style) !== 0)
-        parameters.push(parameter);
+    for (const style of Resources.styleParameters)
+      if ((run.style & style.style) !== 0)
+        parameters.push(style.parameter);
     parameters.push(...TerminalLineEncoder.color(run.foreground, Resources.sgrForeground));
     parameters.push(...TerminalLineEncoder.color(run.background, Resources.sgrBackground));
     return Resources.formatSgr(parameters);

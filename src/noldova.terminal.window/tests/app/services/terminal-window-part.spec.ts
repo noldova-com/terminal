@@ -11,7 +11,7 @@ import "@noldova/context.core";
 import type { CommandContribution, IWindowPartContext, MenuRowContribution } from "@noldova/desktop.window";
 import { ArgumentException } from "@noldova/context.exceptions";
 import { JsonException, type JsonValue } from "@noldova/context.json";
-import { EndedBy, TerminalExit, TerminalName, TerminalNames, TerminalShellKind, TerminalSummary } from "@noldova/terminal.protocol";
+import { EndedBy, TerminalExit, TerminalName, TerminalNames, TerminalOpenParams, TerminalShellKind, TerminalSummary } from "@noldova/terminal.protocol";
 import { afterEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
 import menus from "@noldova/terminal/menus.json" with { type: "json" };
@@ -42,6 +42,58 @@ import { UpdatedView } from "../../fixtures/updated-view.fixture.ts";
 
 const PLUS_ROW = menus.groups[0]?.items?.[0];
 const PLUS_ARGUMENTS: Readonly<Record<string, JsonValue>> | undefined = !Object.isUndefined(PLUS_ROW) && "arguments" in PLUS_ROW ? PLUS_ROW.arguments : undefined;
+
+class ShellRowKey {
+  public readonly label: string | null;
+  public readonly key: string | null;
+
+  public constructor(label: string | null, key: string | null) {
+    this.label = label;
+    this.key = key;
+  }
+}
+
+class HeldListing {
+  public readonly listing: HeldAnswer;
+  public readonly isAsked: () => boolean;
+
+  public constructor(listing: HeldAnswer, isAsked: () => boolean) {
+    this.listing = listing;
+    this.isAsked = isAsked;
+  }
+}
+
+class ChatTerminalArguments {
+  public readonly chat: string;
+  public readonly tabGroup: string;
+  public readonly shellId: string | null;
+
+  public constructor(chat: string, tabGroup: string, shellId: string | null) {
+    this.chat = chat;
+    this.tabGroup = tabGroup;
+    this.shellId = shellId;
+  }
+}
+
+class MenuPlace {
+  public readonly name: string;
+  public readonly shows: string;
+
+  public constructor(name: string, shows: string) {
+    this.name = name;
+    this.shows = shows;
+  }
+}
+
+class OpenedShell {
+  public readonly shellId: string | null;
+  public readonly owner: string | null;
+
+  public constructor(shellId: string | null, owner: string | null) {
+    this.shellId = shellId;
+    this.owner = owner;
+  }
+}
 
 describe("TerminalWindowPart", () => {
   const parts: TerminalWindowPart[] = [];
@@ -388,7 +440,7 @@ describe("TerminalWindowPart", () => {
     await runtime.context.commands[0]?.runAsync({ tabGroup: null });
 
     expect(rows.map(t => t.label)).toEqual(["Bash (default)", "Zsh"]);
-    expect(runtime.context.sent(TerminalNames.openMethod).map(t => (t as { shellId: string | null }).shellId)).toEqual(["zsh", null]);
+    expect(runtime.context.sent(TerminalNames.openMethod).map(t => TerminalOpenParams.fromJson(t).shellId)).toEqual(["zsh", null]);
     expect(runtime.context.opened.map(t => [t.instance, t.title, t.options])).toEqual([
       ["opened-1", "Zsh", { icon: "percent", tabGroup: "g2" }],
       ["opened-2", "Bash", { icon: "attach_money" }]
@@ -399,15 +451,15 @@ describe("TerminalWindowPart", () => {
     const runtime: FakeRuntime = new FakeRuntime();
     await createPart().activateAsync(runtime.context);
     await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]), { timeout: SpecWait.milliseconds });
-    const keys: () => (readonly [string | null, string | null])[] = () => (runtime.context.menuGroups.get("terminal.shellList")?.({}) ?? [])
-      .map(t => [t.label, runtime.context.commands.find(u => u.name === t.command)?.defaultKey?.label("win32") ?? null] as const);
+    const keys: () => ShellRowKey[] = () => (runtime.context.menuGroups.get("terminal.shellList")?.({}) ?? [])
+      .map(t => new ShellRowKey(t.label, runtime.context.commands.find(u => u.name === t.command)?.defaultKey?.label("win32") ?? null));
 
-    const systemDefault: (readonly [string | null, string | null])[] = keys();
+    const systemDefault: ShellRowKey[] = keys();
     runtime.context.settings.set("terminal.defaultShell", "zsh");
 
     expect([systemDefault, keys()]).toEqual([
-      [["Bash (default)", "Ctrl+Shift+`"], ["Zsh", null]],
-      [["Bash", null], ["Zsh (default)", "Ctrl+Shift+`"]]
+      [new ShellRowKey("Bash (default)", "Ctrl+Shift+`"), new ShellRowKey("Zsh", null)],
+      [new ShellRowKey("Bash", null), new ShellRowKey("Zsh (default)", "Ctrl+Shift+`")]
     ]);
   });
 
@@ -420,7 +472,7 @@ describe("TerminalWindowPart", () => {
 
     await runRowAsync(runtime, rows[0], {});
 
-    expect(runtime.context.sent(TerminalNames.openMethod).map(t => (t as { shellId: string | null }).shellId)).toEqual([null]);
+    expect(runtime.context.sent(TerminalNames.openMethod).map(t => TerminalOpenParams.fromJson(t).shellId)).toEqual([null]);
     expect(runtime.context.opened.map(t => t.title)).toEqual(["Bash"]);
     expect([null, { takesNewOwner: true }, rows[1]?.commandArguments ?? null].map(t => withShell?.isEnabled(t))).toEqual([false, false, true]);
     expect(runtime.context.commands[0]?.isEnabled(null)).toBe(true);
@@ -523,7 +575,7 @@ describe("TerminalWindowPart", () => {
     }
 
     function openedOwners(runtime: FakeRuntime): (string | null)[] {
-      return runtime.context.sent(TerminalNames.openMethod).map(t => (t as { owner: string | null }).owner);
+      return runtime.context.sent(TerminalNames.openMethod).map(t => TerminalOpenParams.fromJson(t).owner);
     }
 
     it("reopens no tab, as the part activates with the owner already shown, for a terminal a run opened without one", async () => {
@@ -575,10 +627,10 @@ describe("TerminalWindowPart", () => {
       expect(runtime.context.logs).toEqual([]);
     });
 
-    function holdTabNames(runtime: FakeRuntime): { readonly listing: HeldAnswer; readonly isAsked: () => boolean } {
+    function holdTabNames(runtime: FakeRuntime): HeldListing {
       const first: number = runtime.listingCount;
       const listing: HeldAnswer = runtime.holdListings(t => t === 1);
-      return { listing, isAsked: () => runtime.listingCount > first };
+      return new HeldListing(listing, () => runtime.listingCount > first);
     }
 
     it("opens no tab for a terminal from + that the runtime closed by its owner while its tab waited, whatever else the runtime closes", async () => {
@@ -586,7 +638,7 @@ describe("TerminalWindowPart", () => {
       await createPart().activateAsync(runtime.context);
       await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]), { timeout: SpecWait.milliseconds });
       await provide(runtime, () => "example.chat/42").showAsync("example.chat/42");
-      const held: { readonly listing: HeldAnswer; readonly isAsked: () => boolean } = holdTabNames(runtime);
+      const held: HeldListing = holdTabNames(runtime);
 
       const opening: Promise<JsonValue> | undefined = runtime.context.commands[0]?.runAsync({ ...PLUS_ARGUMENTS });
       await vi.waitFor(() => expect(held.isAsked()).toBe(true), { timeout: SpecWait.milliseconds });
@@ -606,7 +658,7 @@ describe("TerminalWindowPart", () => {
       await vi.waitFor(() => expect(runtime.context.refreshedSettings).toEqual(["terminal.defaultShell"]), { timeout: SpecWait.milliseconds });
       const owners: TerminalOwners = provide(runtime, () => "example.chat/42");
       await owners.showAsync("example.chat/42");
-      const held: { readonly listing: HeldAnswer; readonly isAsked: () => boolean } = holdTabNames(runtime);
+      const held: HeldListing = holdTabNames(runtime);
 
       const opening: Promise<JsonValue> | undefined = runtime.context.commands[0]?.runAsync({ ...PLUS_ARGUMENTS });
       await vi.waitFor(() => expect(held.isAsked()).toBe(true), { timeout: SpecWait.milliseconds });
@@ -730,7 +782,7 @@ describe("TerminalWindowPart", () => {
       await createPart().activateAsync(runtime.context);
       const owners: TerminalOwners = provide(runtime, () => null);
       await owners.showAsync("example.chat/42");
-      const held: { readonly listing: HeldAnswer; readonly isAsked: () => boolean } = holdTabNames(runtime);
+      const held: HeldListing = holdTabNames(runtime);
       const openTabs: MockInstance<TerminalRuntimeClient["openTabsAsync"]> = vi.spyOn(TerminalRuntimeClient.prototype, "openTabsAsync");
 
       try {
@@ -770,9 +822,9 @@ describe("TerminalWindowPart", () => {
     const runtime: FakeRuntime = new FakeRuntime();
     await createPart().activateAsync(runtime.context);
     const newTerminalAsync: (commandArguments: JsonValue) => Promise<JsonValue> = t => runtime.context.commands[0]?.runAsync(t) ?? Promise.resolve(null);
-    const commands: ReadonlyMap<string, (commandArguments: { chat: string; tabGroup: string; shellId?: string }) => Promise<JsonValue>> = new Map([
+    const commands: ReadonlyMap<string, (commandArguments: ChatTerminalArguments) => Promise<JsonValue>> = new Map([
       ["chats.newChatTerminal", t => newTerminalAsync({ owner: `chats.chat/${t.chat}`, tabGroup: t.tabGroup })],
-      ["chats.newChatShell", t => newTerminalAsync({ owner: `chats.chat/${t.chat}`, shellId: t.shellId ?? null, tabGroup: t.tabGroup })]
+      ["chats.newChatShell", t => newTerminalAsync({ owner: `chats.chat/${t.chat}`, shellId: t.shellId, tabGroup: t.tabGroup })]
     ]);
     const owners: TerminalOwners = TerminalOwners.provide(runtime.context, () => null);
     try {
@@ -780,21 +832,22 @@ describe("TerminalWindowPart", () => {
       for (const group of chatsMenus.groups)
         for (const item of group.items) {
           expect(chatsModule.contributes.commands).toContain(item.command);
-          await commands.get(item.command)?.({ ...item.arguments, tabGroup: "g2" });
+          await commands.get(item.command)?.(new ChatTerminalArguments(item.arguments.chat, "g2", "shellId" in item.arguments ? item.arguments.shellId : null));
         }
     }
     finally {
       await owners.removeAsync();
     }
 
-    expect(menus.places.map(t => [t.name, (t as { shows?: string }).shows ?? "menu"])).toEqual([["terminal.tabRow", "menu"], ["terminal.shellMenu", "menu"]]);
+    expect(menus.places.map(t => new MenuPlace(t.name, "shows" in t && Object.isString(t.shows) ? t.shows : "menu")))
+      .toEqual([new MenuPlace("terminal.tabRow", "menu"), new MenuPlace("terminal.shellMenu", "menu")]);
     expect(menus.groups.filter(t => t.place.startsWith("terminal.")).map(t => [t.place, t.name])).toEqual([
       ["terminal.tabRow", "terminal.tabRowActions"], ["terminal.shellMenu", "terminal.shellList"]]);
     expect(chatsModule.dependencies).toHaveProperty("terminal");
     expect(chatsMenus.groups.map(t => t.place)).toEqual(["terminal.tabRow", "terminal.shellMenu"]);
 
-    expect(runtime.context.sent(TerminalNames.openMethod).map(t => [(t as { shellId: string | null }).shellId, (t as { owner: string | null }).owner]))
-      .toEqual([[null, "chats.chat/42"], ["zsh", "chats.chat/42"]]);
+    expect(runtime.context.sent(TerminalNames.openMethod).map(t => TerminalOpenParams.fromJson(t)).map(t => new OpenedShell(t.shellId, t.owner)))
+      .toEqual([new OpenedShell(null, "chats.chat/42"), new OpenedShell("zsh", "chats.chat/42")]);
     expect(runtime.context.opened.map(t => [t.instance, t.options?.tabGroup])).toEqual([["opened-1", "g2"], ["opened-2", "g2"]]);
   });
 

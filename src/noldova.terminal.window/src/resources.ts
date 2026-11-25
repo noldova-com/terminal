@@ -12,8 +12,10 @@ import { TerminalRunOutcome, TerminalShellKind, TerminalTextStyle, type Terminal
 import type { IFunctionIdentifier } from "@xterm/xterm";
 
 import type { CommandTokenKind } from "./app/enums/command-token-kind.ts";
+import { AnsiColorToken } from "./app/models/ansi-color-token.ts";
+import { CompletionListInputs } from "./app/models/completion-list-inputs.ts";
+import { StyleParameter } from "./app/models/style-parameter.ts";
 import type { AnsiColor } from "./app/types/ansi-color.ts";
-import type { AnsiKey } from "./app/types/ansi-key.ts";
 
 export class Resources {
   public static readonly moduleId: string = "terminal";
@@ -129,9 +131,11 @@ export class Resources {
   public static readonly sgrBackground: number = 48;
   public static readonly sgrPaletteColor: number = 5;
   public static readonly sgrRgbColor: number = 2;
-  public static readonly styleParameters: readonly (readonly [TerminalTextStyle, number])[] = [
-    [TerminalTextStyle.Bold, 1], [TerminalTextStyle.Dim, 2], [TerminalTextStyle.Italic, 3], [TerminalTextStyle.Underline, 4], [TerminalTextStyle.Blink, 5],
-    [TerminalTextStyle.Inverse, 7], [TerminalTextStyle.Invisible, 8], [TerminalTextStyle.Strikethrough, 9], [TerminalTextStyle.Overline, 53]
+  public static readonly styleParameters: readonly StyleParameter[] = [
+    new StyleParameter(TerminalTextStyle.Bold, 1), new StyleParameter(TerminalTextStyle.Dim, 2), new StyleParameter(TerminalTextStyle.Italic, 3),
+    new StyleParameter(TerminalTextStyle.Underline, 4), new StyleParameter(TerminalTextStyle.Blink, 5),
+    new StyleParameter(TerminalTextStyle.Inverse, 7), new StyleParameter(TerminalTextStyle.Invisible, 8),
+    new StyleParameter(TerminalTextStyle.Strikethrough, 9), new StyleParameter(TerminalTextStyle.Overline, 53)
   ];
   public static readonly maximumTitleLength: number = 200;
   public static readonly maximumMinimumRows: number = 100;
@@ -204,9 +208,7 @@ export class Resources {
   public static readonly completionClass: string = "nol-completion-option";
   public static readonly completionLabelClass: string = "nol-completion-label";
   public static readonly completionKindClass: string = "nol-completion-note";
-  public static readonly completionListInputs: { readonly choices: string; readonly active: string; readonly listId: string; readonly label: string;
-    readonly isCode: string; readonly maxHeight: string } = { choices: "choices", active: "active", listId: "listId", label: "label", isCode: "isCode",
-    maxHeight: "maxHeight" };
+  public static readonly completionListInputs: CompletionListInputs = new CompletionListInputs();
   public static readonly completionsLabel: string = "Completions";
   public static readonly activeDescendantAttribute: string = "aria-activedescendant";
   public static readonly controlsAttribute: string = "aria-controls";
@@ -309,10 +311,14 @@ export class Resources {
   public static readonly defaultRunLines: number = 2_000;
   public static readonly keptEarlyRunEnds: number = 64;
   public static readonly brightBlackColor: AnsiColor = "bright-black";
-  public static readonly ansiColors: readonly (readonly [AnsiKey, AnsiColor])[] = [
-    ["black", "black"], ["red", "red"], ["green", "green"], ["yellow", "yellow"], ["blue", "blue"], ["magenta", "magenta"], ["cyan", "cyan"],
-    ["white", "white"], ["brightBlack", "bright-black"], ["brightRed", "bright-red"], ["brightGreen", "bright-green"], ["brightYellow", "bright-yellow"],
-    ["brightBlue", "bright-blue"], ["brightMagenta", "bright-magenta"], ["brightCyan", "bright-cyan"], ["brightWhite", "bright-white"]
+  public static readonly ansiColors: readonly AnsiColorToken[] = [
+    new AnsiColorToken("black", "black"), new AnsiColorToken("red", "red"), new AnsiColorToken("green", "green"),
+    new AnsiColorToken("yellow", "yellow"), new AnsiColorToken("blue", "blue"), new AnsiColorToken("magenta", "magenta"),
+    new AnsiColorToken("cyan", "cyan"), new AnsiColorToken("white", "white"), new AnsiColorToken("brightBlack", "bright-black"),
+    new AnsiColorToken("brightRed", "bright-red"), new AnsiColorToken("brightGreen", "bright-green"),
+    new AnsiColorToken("brightYellow", "bright-yellow"), new AnsiColorToken("brightBlue", "bright-blue"),
+    new AnsiColorToken("brightMagenta", "bright-magenta"), new AnsiColorToken("brightCyan", "bright-cyan"),
+    new AnsiColorToken("brightWhite", "bright-white")
   ];
   public static readonly unforcedColorAdjust: string = "none";
   public static readonly probePosition: string = "absolute";
