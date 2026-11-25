@@ -49,7 +49,7 @@ export class ArchiveCheck {
     const [desktopCore, rangeFindings] = ArchiveCheck.readDesktopCore(contents);
     findings.push(...rangeFindings);
     for (const [archive, entries] of contents)
-      findings.push(...ArchiveCheck.checkArchive(archive, entries, version, commit, scope, names, desktopCore, await this.readBuildPinsAsync(archive)));
+      findings.push(...ArchiveCheck.checkArchive(archive, entries, version, commit, scope, names, desktopCore, await this.readBuildPinsAsync()));
 
     if (findings.length > 0)
       throw new ArchiveFindingsException(findings);
@@ -86,8 +86,8 @@ export class ArchiveCheck {
     return [findings.length === 0 && ranges.size === 1 ? [...ranges][0] ?? null : null, findings];
   }
 
-  private async readBuildPinsAsync(archive: ReleaseArchive): Promise<Readonly<Record<string, unknown>>> {
-    const file = path.posix.join(archive.part.folder, Resources.manifestFile);
+  private async readBuildPinsAsync(): Promise<Readonly<Record<string, unknown>>> {
+    const file = Resources.manifestFile;
     const manifest = ArchiveCheck.parseObject(await readFile(path.join(this.root, file), Resources.textEncoding), file);
     return manifest[Resources.devDependenciesField] === undefined ? {} : GitHubJson.nullableChild(manifest, Resources.devDependenciesField, file) ?? {};
   }

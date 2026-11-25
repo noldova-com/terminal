@@ -145,14 +145,20 @@ class DeclarationCheck {
         builtAgainst.push(pins);
     }
     this.checkPeers(packageManifest, desktopCore);
-    this.readPins(packageManifest, Resources.dependenciesField, Resources.packageManifest);
-    this.readPins(windowManifest, Resources.dependenciesField, Resources.windowPackageManifest);
-    const windowPins: JsonObject = this.readPins(windowManifest, Resources.devDependenciesField, Resources.windowPackageManifest);
-    for (const [name, pin] of [...builtAgainst, windowPins].flatMap(t => Object.entries(t)))
+    const rootPins: JsonObject = builtAgainst[0] ?? {};
+    this.checkPinnedAtRoot(this.readPins(packageManifest, Resources.dependenciesField, Resources.packageManifest), Resources.packageManifest, rootPins);
+    this.checkPinnedAtRoot(this.readPins(windowManifest, Resources.dependenciesField, Resources.windowPackageManifest), Resources.windowPackageManifest, rootPins);
+    for (const [name, pin] of builtAgainst.flatMap(t => Object.entries(t)))
       if (VersionRange.isCore(name) && !Object.isNull(desktopCore) && Object.isString(pin) && !desktopCore.includes(pin))
         this.problems.push(Resources.formatCoreBuildOutsideRange(name, pin, desktopCore.toString()));
     for (const name of Object.keys(this.readPins(rootManifest, Resources.dependenciesField, Resources.rootManifest)))
       this.problems.push(Resources.formatRootDependencyPinned(name));
+  }
+
+  private checkPinnedAtRoot(pins: JsonObject, description: string, rootPins: JsonObject): void {
+    for (const [name, pin] of Object.entries(pins))
+      if (!name.startsWith(Resources.ownPackagePrefix) && rootPins[name] !== pin)
+        this.problems.push(Resources.formatPartPinNotAtRoot(description, name, String(pin)));
   }
 
   private checkPartPins(manifest: JsonObject, folder: string): void {

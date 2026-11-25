@@ -180,10 +180,8 @@ export class Resources {
   public static readonly cleanInstallArguments: readonly string[] = ["ci", "--ignore-scripts", "--no-audit", "--no-fund"];
   public static readonly projectOption: string = "--project";
   public static readonly typeScriptCompiler: readonly string[] = [Resources.modulesFolder, "typescript", "bin", "tsc"];
-  public static readonly compiledProjects: readonly string[] = [
-    `${Resources.protocolFolder}/${Resources.projectFile}`,
-    `${Resources.moduleFolder}/${Resources.projectFile}`
-  ];
+  public static readonly protocolProject: string = `${Resources.protocolFolder}/${Resources.projectFile}`;
+  public static readonly moduleProject: string = `${Resources.moduleFolder}/${Resources.projectFile}`;
   public static readonly compilerManifest: readonly string[] = [Resources.modulesFolder, "@angular", "compiler-cli", Resources.manifestFile];
   public static readonly compilerCommand: string = "ngc";
   public static readonly compilerProjectOption: string = "-p";
@@ -597,6 +595,14 @@ export class Resources {
     return `Packing ${packageName} failed with exit code ${exitCode}:\n${output}`;
   }
 
+  public static formatCompileFailed(project: string, exitCode: number): string {
+    return `Compiling ${project} failed with exit code ${exitCode}.`;
+  }
+
+  public static formatArchiveInstallFailed(exitCode: number | null, output: string): string {
+    return `Installing the packed archives from ${Resources.archivesFolder} failed with exit code ${exitCode}:\n${output}`;
+  }
+
   public static formatPackageCorePeerDiffers(name: string, desktopCore: string): string {
     return `The package's manifest must name ${name} at module.json's ${Resources.desktopCoreField}, ${desktopCore}, in ${Resources.peersField}.`;
   }
@@ -639,6 +645,10 @@ export class Resources {
 
   public static formatReadFailed(path: string, error: unknown): string {
     return `Could not read ${path}: ${String(error)}`;
+  }
+
+  public static formatPartPinNotAtRoot(description: string, name: string, pin: string): string {
+    return `${description} pins ${name} at ${pin}, but the root manifest's devDependencies don't pin it at that version; the root installs every package the parts build with.`;
   }
 
   public static formatRootDependencyPinned(name: string): string {
