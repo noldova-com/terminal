@@ -7,10 +7,8 @@
  */
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalCompletion, TerminalCompletionItem, TerminalCompletionKind } from "@noldova/terminal.protocol";
 
-import { TerminalCompletionKind } from "../../src/enums/terminal-completion-kind.ts";
-import { TerminalCompletionItem } from "../../src/models/terminal-completion-item.ts";
-import { TerminalCompletion } from "../../src/models/terminal-completion.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

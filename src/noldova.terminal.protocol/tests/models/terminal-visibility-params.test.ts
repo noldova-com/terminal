@@ -8,8 +8,8 @@
 
 import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalVisibilityParams } from "@noldova/terminal.protocol";
 
-import { TerminalVisibilityParams } from "../../src/models/terminal-visibility-params.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

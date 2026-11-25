@@ -8,9 +8,7 @@
 
 import { Exception } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-
-import { PackageCopiesException } from "../../src/exceptions/package-copies.exception.ts";
-import { TerminalProtocolException } from "../../src/exceptions/terminal-protocol.exception.ts";
+import { PackageCopiesException, TerminalProtocolException } from "@noldova/terminal.protocol";
 
 @TestClass
 export class PackageCopiesExceptionTests {

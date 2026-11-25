@@ -8,11 +8,8 @@
 
 import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalRunBusy, TerminalRunParams, TerminalShellKind, TerminalSize } from "@noldova/terminal.protocol";
 
-import { TerminalRunBusy } from "../../src/enums/terminal-run-busy.ts";
-import { TerminalShellKind } from "../../src/enums/terminal-shell-kind.ts";
-import { TerminalRunParams } from "../../src/models/terminal-run-params.ts";
-import { TerminalSize } from "../../src/models/terminal-size.ts";
 import { Expect } from "../support/expect.ts";
 
 const SIZE: TerminalSize = new TerminalSize(80, 24);

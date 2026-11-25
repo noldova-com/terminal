@@ -8,9 +8,8 @@
 
 import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalShell, TerminalShellKind } from "@noldova/terminal.protocol";
 
-import { TerminalShellKind } from "../../src/enums/terminal-shell-kind.ts";
-import { TerminalShell } from "../../src/models/terminal-shell.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

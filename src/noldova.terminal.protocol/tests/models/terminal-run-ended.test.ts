@@ -7,9 +7,8 @@
  */
 
 import { TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalRunEnded, TerminalRunEndedBy } from "@noldova/terminal.protocol";
 
-import { TerminalRunEndedBy } from "../../src/enums/terminal-run-ended-by.ts";
-import { TerminalRunEnded } from "../../src/models/terminal-run-ended.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

@@ -60,7 +60,8 @@ Every pull request into `main` must pass "Check / Linked issue", "Build and test
 
 ### Test runners
 
-The protocol's tests, under `src/noldova.terminal.protocol/tests`, are `@noldova/context.testing` test classes, since the organization tests UI with Vitest and all other code with context.testing: `npm test` compiles them with that folder's `tsconfig.json`, runs them with context.testing's runner and fails below 100% coverage of the protocol's production code, as [documents/TESTING.md](documents/TESTING.md#the-pull-request-checks) says.
+The protocol's tests, under `src/noldova.terminal.protocol/tests`, are `@noldova/context.testing` test classes, since the organization tests UI with Vitest and all other code with context.testing: `npm test` compiles them with that folder's `tsconfig.json`, runs them with context.testing's runner against the installed package and fails below 100% coverage of the protocol's production code, as [documents/TESTING.md](documents/TESTING.md#the-pull-request-checks) says, with the scripts in `scripts/testing`, which come from CONTEXT's `scripts`; `npm run test:timing` times them three times too, against context.testing's 2-second budget for a file.
+Until `@noldova/context.testing` compares objects and checks a thrown error's fields itself ([context#43](https://github.com/noldova-com/context/issues/43)), the tests use `Expect.same` and `Expect.throwsMatching` from `src/noldova.terminal.protocol/tests/support/expect.ts`, which goes once it does.
 The module's tests still run with Vitest, until context.testing has the hooks, fake timers and conditional skips they use, and the window part's specs run with Angular's unit-test builder.
 
 ### Module range

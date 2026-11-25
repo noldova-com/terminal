@@ -7,10 +7,8 @@
  */
 
 import { TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalSessions, TerminalShellKind, TerminalSummary } from "@noldova/terminal.protocol";
 
-import { TerminalShellKind } from "../../src/enums/terminal-shell-kind.ts";
-import { TerminalSessions } from "../../src/models/terminal-sessions.ts";
-import { TerminalSummary } from "../../src/models/terminal-summary.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

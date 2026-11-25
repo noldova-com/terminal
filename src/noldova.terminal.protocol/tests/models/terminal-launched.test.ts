@@ -7,8 +7,8 @@
  */
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalLaunched } from "@noldova/terminal.protocol";
 
-import { TerminalLaunched } from "../../src/models/terminal-launched.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

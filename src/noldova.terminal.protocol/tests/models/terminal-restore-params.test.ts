@@ -7,9 +7,8 @@
  */
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalRestoreParams, TerminalSize } from "@noldova/terminal.protocol";
 
-import { TerminalRestoreParams } from "../../src/models/terminal-restore-params.ts";
-import { TerminalSize } from "../../src/models/terminal-size.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

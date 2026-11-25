@@ -8,8 +8,8 @@
 
 import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalPaneReference } from "@noldova/terminal.protocol";
 
-import { TerminalPaneReference } from "../../src/models/terminal-pane-reference.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

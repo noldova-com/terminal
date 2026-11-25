@@ -9,8 +9,8 @@
 import { ArgumentException } from "@noldova/context.exceptions";
 import { JsonException } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalSize } from "@noldova/terminal.protocol";
 
-import { TerminalSize } from "../../src/models/terminal-size.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

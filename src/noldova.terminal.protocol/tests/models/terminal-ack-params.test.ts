@@ -8,8 +8,8 @@
 
 import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalAckParams } from "@noldova/terminal.protocol";
 
-import { TerminalAckParams } from "../../src/models/terminal-ack-params.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

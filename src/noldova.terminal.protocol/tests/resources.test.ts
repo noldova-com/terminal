@@ -7,8 +7,7 @@
  */
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-
-import { Resources } from "../src/resources.ts";
+import { Resources } from "@noldova/terminal.protocol";
 
 @TestClass
 export class ResourcesTests {

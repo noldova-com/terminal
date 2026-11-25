@@ -8,8 +8,8 @@
 
 import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { WindowsPty } from "@noldova/terminal.protocol";
 
-import { WindowsPty } from "../../src/models/windows-pty.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

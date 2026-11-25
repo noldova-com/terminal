@@ -7,11 +7,8 @@
  */
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalLine, TerminalLinePage, TerminalLineRange, TerminalTextRun } from "@noldova/terminal.protocol";
 
-import { TerminalLine } from "../../src/models/terminal-line.ts";
-import { TerminalLinePage } from "../../src/models/terminal-line-page.ts";
-import { TerminalLineRange } from "../../src/models/terminal-line-range.ts";
-import { TerminalTextRun } from "../../src/models/terminal-text-run.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

@@ -7,8 +7,8 @@
  */
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalOwnerReference } from "@noldova/terminal.protocol";
 
-import { TerminalOwnerReference } from "../../src/models/terminal-owner-reference.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

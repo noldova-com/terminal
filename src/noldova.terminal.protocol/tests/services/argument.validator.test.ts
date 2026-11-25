@@ -8,9 +8,8 @@
 
 import { ArgumentException, ArgumentOutOfRangeException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { ArgumentProblem, ArgumentValidator } from "@noldova/terminal.protocol";
 
-import { ArgumentProblem } from "../../src/models/argument-problem.ts";
-import { ArgumentValidator } from "../../src/services/argument.validator.ts";
 import { Expect } from "../support/expect.ts";
 
 function assertArgumentError(action: () => void, parameterName: string, reason: string): void {

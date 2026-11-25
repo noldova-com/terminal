@@ -7,8 +7,8 @@
  */
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalShowOwnerParams } from "@noldova/terminal.protocol";
 
-import { TerminalShowOwnerParams } from "../../src/models/terminal-show-owner-params.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

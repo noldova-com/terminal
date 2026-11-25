@@ -8,15 +8,10 @@
 
 import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { EndedBy, TerminalAttachment, TerminalExit, TerminalInputStart, TerminalLineRange, TerminalShellKind, TerminalSize, WindowsPty,
 
-import { EndedBy } from "../../src/enums/ended-by.ts";
-import { TerminalShellKind } from "../../src/enums/terminal-shell-kind.ts";
-import { TerminalAttachment } from "../../src/models/terminal-attachment.ts";
-import { TerminalExit } from "../../src/models/terminal-exit.ts";
-import { TerminalInputStart } from "../../src/models/terminal-input-start.ts";
-import { TerminalLineRange } from "../../src/models/terminal-line-range.ts";
-import { TerminalSize } from "../../src/models/terminal-size.ts";
-import { WindowsPty } from "../../src/models/windows-pty.ts";
+} from "@noldova/terminal.protocol";
+
 import { Expect } from "../support/expect.ts";
 
 @TestClass

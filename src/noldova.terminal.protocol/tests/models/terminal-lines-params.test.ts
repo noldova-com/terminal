@@ -7,8 +7,8 @@
  */
 
 import { TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalLinesParams } from "@noldova/terminal.protocol";
 
-import { TerminalLinesParams } from "../../src/models/terminal-lines-params.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

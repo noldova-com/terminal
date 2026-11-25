@@ -7,8 +7,7 @@
  */
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-
-import * as api from "../../src/api/index.ts";
+import * as api from "@noldova/terminal.protocol";
 
 @TestClass
 export class TerminalProtocolApiTests {

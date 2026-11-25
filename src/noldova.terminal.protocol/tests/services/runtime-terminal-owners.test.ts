@@ -7,10 +7,8 @@
  */
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { Resources, RuntimeTerminalOwners } from "@noldova/terminal.protocol";
 
-import { RuntimeTerminalOwners as ExportedTerminalOwners } from "../../src/api/index.ts";
-import { Resources } from "../../src/resources.ts";
-import { RuntimeTerminalOwners } from "../../src/services/runtime-terminal-owners.ts";
 import { Expect } from "../support/expect.ts";
 
 const BRAND: symbol = Symbol.for("@noldova/terminal.protocol/RuntimeTerminalOwners");
@@ -54,8 +52,7 @@ export class RuntimeTerminalOwnersTests {
     owners.unbindAgentSession("session-1");
     await owners.closeAsync("example.chat/42");
 
-    Assert.areEqual(RuntimeTerminalOwners, ExportedTerminalOwners);
-    Assert.isTrue(owners instanceof ExportedTerminalOwners);
+    Assert.isTrue(owners instanceof RuntimeTerminalOwners);
     Expect.same(["bind session-1 example.chat/42", "unbind session-1", "close example.chat/42"], owners.calls);
   }
 

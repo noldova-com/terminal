@@ -8,11 +8,8 @@
 
 import { ArgumentException } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { TerminalInputEdge, TerminalInputMark, TerminalLineRange, TerminalOutput } from "@noldova/terminal.protocol";
 
-import { TerminalInputEdge } from "../../src/enums/terminal-input-edge.ts";
-import { TerminalInputMark } from "../../src/models/terminal-input-mark.ts";
-import { TerminalLineRange } from "../../src/models/terminal-line-range.ts";
-import { TerminalOutput } from "../../src/models/terminal-output.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

@@ -7,10 +7,8 @@
  */
 
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { ProtocolReader, TerminalTextRun, TerminalTextStyle } from "@noldova/terminal.protocol";
 
-import { TerminalTextStyle } from "../../src/enums/terminal-text-style.ts";
-import { TerminalTextRun } from "../../src/models/terminal-text-run.ts";
-import { ProtocolReader } from "../../src/services/protocol.reader.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

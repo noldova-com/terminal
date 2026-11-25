@@ -9,8 +9,8 @@
 import { ArgumentException, ArgumentOutOfRangeException } from "@noldova/context.exceptions";
 import { JsonException, JsonReader } from "@noldova/context.json";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
+import { ProtocolReader } from "@noldova/terminal.protocol";
 
-import { ProtocolReader } from "../../src/services/protocol.reader.ts";
 import { Expect } from "../support/expect.ts";
 
 function assertJsonError(action: () => unknown, path: string, text: string): void {

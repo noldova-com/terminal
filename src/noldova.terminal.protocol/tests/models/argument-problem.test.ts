@@ -7,8 +7,8 @@
  */
 
 import { TestClass, TestMethod } from "@noldova/context.testing";
+import { ArgumentProblem } from "@noldova/terminal.protocol";
 
-import { ArgumentProblem } from "../../src/models/argument-problem.ts";
 import { Expect } from "../support/expect.ts";
 
 @TestClass

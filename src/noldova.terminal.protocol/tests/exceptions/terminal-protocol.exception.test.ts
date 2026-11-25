@@ -8,8 +8,7 @@
 
 import { Exception, ExceptionOptions } from "@noldova/context.exceptions";
 import { Assert, TestClass, TestMethod } from "@noldova/context.testing";
-
-import { TerminalProtocolException } from "../../src/exceptions/terminal-protocol.exception.ts";
+import { TerminalProtocolException } from "@noldova/terminal.protocol";
 
 @TestClass
 export class TerminalProtocolExceptionTests {

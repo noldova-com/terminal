@@ -6,11 +6,15 @@
     ],
     "noEmit": false,
     "sourceMap": true,
-    "rootDir": "..",
-    "outDir": "../../../_build/tests/noldova.terminal.protocol"
+    "rootDir": ".",
+    "outDir": "../../../_build/tests/noldova.terminal.protocol.tests",
+    "paths": {
+      "@noldova/terminal.protocol": [
+        "../../../node_modules/@noldova/terminal.protocol/src/api/index.d.ts"
+      ]
+    }
   },
   "include": [
-    "../src/**/*.ts",
     "**/*.ts"
   ]
 }
