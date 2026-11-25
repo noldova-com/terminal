@@ -11,6 +11,8 @@ import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promi
 import path from "node:path";
 
 import type { AngularPackageBuilder } from "../../src/noldova.terminal.window/scripts/angular-package-builder.ts";
+import { ArchiveInstallFailedException } from "../exceptions/archive-install-failed.exception.ts";
+import { CompileFailedException } from "../exceptions/compile-failed.exception.ts";
 import { CompiledMissingException } from "../exceptions/compiled-missing.exception.ts";
 import { ExportSourceInvalidException } from "../exceptions/export-source-invalid.exception.ts";
 import { ExportsInvalidException } from "../exceptions/exports-invalid.exception.ts";
@@ -57,9 +59,14 @@ export class PackagePacker {
       await this.checkModuleVersionAsync(version);
       const commit = await this.readCommitAsync();
       await rm(path.join(this.root, Resources.archivesFolder), { recursive: true, force: true });
+      await this.compileAsync(Resources.protocolProject);
       await this.packProtocolAsync(version, commit);
+      await this.installArchivesAsync();
       await this.packWindowAsync(version, commit);
+      await this.installArchivesAsync();
+      await this.compileAsync(Resources.moduleProject);
       await this.packModuleAsync(version, commit);
+      await this.installArchivesAsync();
       await new ArchiveCheck(this.root).checkAsync(Resources.archivesFolder, version, commit, Resources.scope);
       return 0;
     }
@@ -187,6 +194,38 @@ export class PackagePacker {
       const text = await readFile(path.join(sources, file), Resources.textEncoding);
       await writeFile(path.join(target, file), text.replace(Resources.declarationImportPattern, Resources.declarationImportReplacement));
     }
+  }
+
+  private async compileAsync(project: string): Promise<void> {
+    const exitCode = await this.runner.runAsync(process.execPath, [path.join(this.root, ...Resources.typeScriptCompiler), Resources.projectOption, project], this.root);
+    if (exitCode !== 0)
+      throw new CompileFailedException(project, exitCode);
+  }
+
+  private async installArchivesAsync(): Promise<void> {
+    const archives = (await readdir(path.join(this.root, Resources.archivesFolder))).filter(t => t.endsWith(Resources.archiveExtension)).sort()
+      .map(t => `./${Resources.archivesFolder}/${t}`);
+    const result = await this.npm.runAsync([...Resources.peerInstallArguments, ...archives, ...await this.readInstalledNoldovaAsync()], this.root);
+    if (!result.isSuccessful)
+      throw new ArchiveInstallFailedException(result.exitCode, result.text);
+  }
+
+  private async readInstalledNoldovaAsync(): Promise<readonly string[]> {
+    const folder = path.join(this.root, Resources.modulesFolder, Resources.scope);
+    if (!existsSync(folder))
+      return [];
+    const kept: string[] = [];
+    for (const name of (await readdir(folder)).sort()) {
+      const packageName = `${Resources.peerScopePrefix}${name}`;
+      const file = path.join(folder, name, Resources.manifestFile);
+      if (packageName === Resources.modulePackageName || packageName.startsWith(Resources.ownPackagePrefix) || !existsSync(file))
+        continue;
+      const version: unknown = (await this.readJsonAsync(path.relative(this.root, file)))[Resources.versionField];
+      if (typeof version !== "string")
+        throw new VersionMissingException(path.relative(this.root, file));
+      kept.push(Resources.formatPackageSpec(packageName, version));
+    }
+    return kept;
   }
 
   private async finishAsync(folder: string, output: string, manifest: JsonObject, commit: string | null): Promise<void> {

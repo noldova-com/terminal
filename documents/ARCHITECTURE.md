@@ -88,15 +88,15 @@ Each package's folder holds its `README.md`, its `package.json`, its source in `
 
 The runtime part and the protocol declare their entry points `src/api/index.ts` in a handwritten `src/api/index.d.ts`, and the window part its own.
 Both parts import the protocol by its package name.
-Every package is one of the root's npm workspaces, `src/*`, so the root's `node_modules` links each to its source.
-Each manifest exports `.ts` sources.
+No package is linked to its source: the root has no workspaces, and the build installs each packed archive into the root's `node_modules`, so a part, its tests and the other parts' tests import another package as its archive holds it.
+Each manifest exports `.ts` sources, which packing maps to the compiled scripts and the declarations.
 Each package keeps its strings and values in one `Resources` class, `src/resources.ts` at the root of its `src`, with no per-class resources files.
 The repository's scripts, under `scripts/` and `src/noldova.terminal.window/scripts/`, keep theirs in one `Resources` class each, the root's `scripts/resources.ts` and the window's build script's `src/noldova.terminal.window/scripts/resources.ts`, which import nothing, so `scripts/build.ts` loads them before its own install; their exceptions, under each one's `scripts/exceptions`, extend `Error` through `ScriptException` for the same reason, one class for each condition under the package, process and GitHub categories the scripts catch.
 The build maps each export to its compiled `.js` and to the handwritten declarations beside it.
 
-`npm run build` (`scripts/build.ts`) first checks, with npm's own tree listing in `scripts/checks/cdk-copy-check.ts`, that the window part holds one copy of `@angular/cdk`, which the UI kit shares, and stops, naming each copy, when it holds more, or none ([TESTING.md](TESTING.md#the-pull-request-checks)).
-It then empties `_build/compiled` and compiles the protocol and the runtime part into it, so the packs carry no script of a removed source.
-It then packs each package into `_packages`, building it in `_build/packages/<package folder>`, such as `_build/packages/noldova.terminal.window`.
+`npm run build` (`scripts/build.ts`) first checks, with npm's own tree listing in `scripts/checks/cdk-copy-check.ts`, that the root's `node_modules` holds one copy of `@angular/cdk`, which the UI kit shares, and stops, naming each copy, when it holds more, or none ([TESTING.md](TESTING.md#the-pull-request-checks)).
+It then empties `_build/compiled` and builds the packages in the order they import each other, packing each into `_packages`, building it in `_build/packages/<package folder>`, such as `_build/packages/noldova.terminal.window`, and installing the archives packed so far into the root's `node_modules` with `npm install --no-save`, naming the version `node_modules` holds of each other `@noldova` package so the install keeps it: it compiles and packs the protocol, then compiles and packs the window part against the installed protocol, then compiles the runtime part against both and packs the module.
+So the packs carry no script of a removed source, and each part compiles against the other packages' archives, not their sources.
 The window part's build resolves the protocol to the packed protocol's declarations, and takes the window package's dependencies and peers from what the compiled part's scripts and declarations import with `from`, `import`, `import()` or `require()`, in either quote, leaving out the examples in the declarations' comments but not a string that holds `/*` or `//`, and not reading a `/// <reference types>` directive, a dependency at the version `src/noldova.terminal.window/package.json` pins and a peer at the range and `peerDependenciesMeta` entry it declares; it refuses to pack a part that imports a peer the manifest doesn't declare as one, or another package it doesn't pin.
 
 `.github/workflows/release-npm.yml` releases the packages to npm through the organization's shared npm release, v2.34.0, with npm's trusted publishing, so no token is stored: each package's trusted publisher on npm is this repository's `release-npm.yml` in the `release` environment.
@@ -143,8 +143,8 @@ Any other option beside `--list-copies` fails the build.
 | `@xterm/addon-webgl` | Drawing the pane with WebGL. |
 
 Each is pinned exactly, as the organization's TypeScript standard says, by the package whose part uses it: the module package lists the runtime's, `@xterm/headless`, `@xterm/addon-serialize` and `node-pty`, and the window package the pane's.
-The packages are the root's npm workspaces, so the root's install holds them all, and the root manifest pins no runtime dependency, which the declaration check requires.
-The root manifest pins only the development tools exactly: TypeScript, Node.js's type declarations, Vitest and its V8 coverage, and every `@noldova` package the parts build and test against, once for all of them: context's, Noldova Desktop's and the kit's. A part's manifest pins none of them, so moving one to its newest version, as Module range does at the root, leaves no older copy under a part's folder.
+The root manifest, which has no workspaces, pins each of them again in its `devDependencies` at the same version, so the root's install holds what the parts build with; it pins no runtime dependency, and the declaration check fails when a part pins a dependency the root doesn't pin at that version.
+The root manifest also pins the development tools exactly: TypeScript, Node.js's type declarations, Vitest and its V8 coverage, Angular's packages, Playwright and Vitest's Playwright provider for the window part, and every `@noldova` package the parts build and test against, once for all of them: context's, Noldova Desktop's and the kit's. A part's manifest pins none of them, so moving one to its newest version, as Module range does at the root, leaves no older copy under a part's folder.
 `@xterm/headless` 6.0.0's manifest names an ES module entry that its package lacks and has no exports map, so the runtime loads it through its CommonJS entry, in `XtermHeadlessLoader`, `src/noldova.terminal/src/services/xterm-headless-loader.ts`.
 That file's test fails once a published version ships the entry, which tells us the loader can go.
 
@@ -531,7 +531,7 @@ A terminal of bash, zsh or PowerShell shows one list of what can follow at the c
 ## The window part
 
 The window part is an Angular project in `src/noldova.terminal.window`, with its own exact pins in its manifest, which the root's lockfile records.
-It takes Angular and its CDK, pinned exactly among its development dependencies, Noldova Desktop's `@noldova/desktop.window` and its peers, and the kit at the version Noldova Desktop's window workspace holds as peers, which the root manifest pins, and pins the three `@xterm` packages the pane draws with.
+It takes Angular and its CDK, which the root manifest pins exactly among its development dependencies, Noldova Desktop's `@noldova/desktop.window` and its peers, and the kit at the version Noldova Desktop's window workspace holds as peers, which the root manifest pins, and pins the three `@xterm` packages the pane draws with.
 Angular's compiler builds with the root's TypeScript, 6.0.3, the one version in the repository.
 The part takes `IWindowPart`, its context, the view, document and command contributions and `WindowPartTokens` from `@noldova/desktop.window`, so a host provides its tokens.
 
