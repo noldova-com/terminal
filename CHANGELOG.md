@@ -4,6 +4,19 @@
 
 Each version's section is written by the pull request that changes the version, from the pull requests merged since the previous version; other pull requests don't edit this file.
 
+## 0.0.8
+
+- A `terminal_read` after a `terminal_run` that answered before its command's output began no longer skips the start of the output: a read's cursor is a position in the session's text, not an offset from the output's start, which moved past the echo (#32).
+- When the session's text has been trimmed past a command's output, `terminal_run` and `terminal_read` count the trimmed characters in `omitted_characters` and say so at the excerpt's head (#32).
+- A session shown in two panes answers a color query, OSC 4, 10, 11 or 12, once, from the pane that sizes it, so the second answer no longer reaches the line editor as text; every pane still applies the colors a sequence sets (#31).
+- While an input method composes, → and End move within the composition instead of typing the rest of a command suggestion into the shell (#29).
+- Restart on an ended terminal's strip, pressed from the keyboard, moves the focus to the restarted shell, so typed keys reach it without a click (#30).
+- `@noldova/terminal` exports `./menus.json`, so an app can read the module's menus as `@noldova/terminal/menus.json` (#54).
+- Terminal needs Noldova Desktop 0.0.17 or later, `@noldova/ui.components.angular` 0.0.33 or later and `@noldova/context.core` 0.0.12 or later:
+  - the packages take `@noldova/desktop.protocol`, `@noldova/desktop.runtime` and `@noldova/desktop.window` at `>=0.0.17 <0.1.0`, and `module.json`'s `noldovaDesktop` is `>=0.0.17 <0.1.0` (#62);
+  - the window package takes the kit at `>=0.0.33 <0.1.0` (#59);
+  - all three packages take `@noldova/context.core` as a peer at `>=0.0.12 <0.1.0`, optional in the window package, since they check values with its checks (#41, #45).
+
 ## 0.0.7
 
 - On Windows, a key typed into Git Bash within about 16 ms of a pane's resize, before the pseudo console asks where the cursor is, is no longer lost: the resize wake-up judges bash's stalled redraw when the held keys are written, and sends its Ctrl+G ahead of them (#218).
