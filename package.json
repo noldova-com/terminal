@@ -28,6 +28,7 @@
     "@noldova/context.core": "0.0.13",
     "@noldova/context.exceptions": "0.0.13",
     "@noldova/context.json": "0.0.13",
+    "@noldova/context.processes": "0.0.13",
     "@noldova/context.testing": "0.0.13",
     "@noldova/context.text": "0.0.13",
     "@noldova/desktop.protocol": "0.0.17",
