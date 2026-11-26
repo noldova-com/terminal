@@ -61,6 +61,11 @@ Every pull request into `main` must pass "Check / Linked issue", "Build and test
 ### Test runners
 
 The protocol's tests, under `src/noldova.terminal.protocol/tests`, are `@noldova/context.testing` test classes, since the organization tests UI with Vitest and all other code with context.testing: `npm test` compiles them with that folder's `tsconfig.json`, runs them with context.testing's runner against the installed package and fails below 100% coverage of the protocol's production code, as [documents/TESTING.md](documents/TESTING.md#the-pull-request-checks) says, with the scripts in `scripts/testing`, which come from CONTEXT's `scripts`; `npm run test:timing` times them three times too, against context.testing's 2-second budget for a file.
+The files in `scripts/testing` differ from CONTEXT's `scripts` only where this repository needs less:
+- `test.ts` doesn't compile a package's sources with its own `tsconfig.json`, since `npm run build` compiles and packs the protocol, and it measures coverage under the installed package's `src` folder, where the protocol's archive keeps its `.js` files; `test-project.ts` drops the source `tsconfig.json` path that step used.
+- `config.ts` names the protocol as the one package, with `_build/tests` and `_build/protocol-coverage` as its folders, and has none of CONTEXT's packing settings, `VERSION`, the peer range's `UPPER_BOUND` and the `PACKAGES_FOLDER` archives folder, since `scripts/build.ts` packs the protocol here, nor its PostgreSQL or scripts-test settings, since neither applies here.
+- `suite-script.ts` starts no PostgreSQL server and tests no scripts project, and `script.ts` and `package-info.ts` drop the build, packing and npm helpers, which `scripts/build.ts` does for this repository.
+- `test-timing.ts` and `command-failed.exception.ts` are CONTEXT's, unchanged.
 Until `@noldova/context.testing` compares objects and checks a thrown error's fields itself ([context#43](https://github.com/noldova-com/context/issues/43)), the tests use `Expect.same` and `Expect.throwsMatching` from `src/noldova.terminal.protocol/tests/support/expect.ts`, which goes once it does.
 The module's tests still run with Vitest, until context.testing has the hooks, fake timers and conditional skips they use, and the window part's specs run with Angular's unit-test builder.
 
