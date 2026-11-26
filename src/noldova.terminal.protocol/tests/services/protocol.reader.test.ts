@@ -195,7 +195,7 @@ export class ProtocolReaderTests {
   public readIntegerRefuses2ToThe53rdAndItsNegativeWhichArentSafeIntegers(): void {
     for (const value of [2 ** 53, -(2 ** 53)])
       assertJsonError(() => ProtocolReader.fromValue({ a: value }).readInteger("a", -(2 ** 54), 2 ** 54), "$.a",
-        `Expected a whole number from ${-(2 ** 54)} to ${2 ** 54}.`);
+        `Expected an integer from ${Number.MIN_SAFE_INTEGER} to ${Number.MAX_SAFE_INTEGER}, which a number holds exactly.`);
   }
 
   @TestMethod
