@@ -12,7 +12,14 @@ export default defineConfig({
   cacheDir: "_build/vite",
   test: {
     projects: [
-      "src/noldova.terminal"
+      "src/noldova.terminal",
+      {
+        extends: true,
+        test: {
+          name: "scripts",
+          include: ["scripts/tests/**/*.test.ts"]
+        }
+      }
     ],
     coverage: {
       provider: "v8",
