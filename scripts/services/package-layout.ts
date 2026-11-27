@@ -11,6 +11,7 @@ import path from "node:path";
 
 import { PackageNameMissingException } from "../exceptions/package-name-missing.exception.ts";
 import type { IModulePackage } from "../interfaces/i-module-package.ts";
+import { ModulePackage } from "../models/module-package.ts";
 import { Resources } from "../resources.ts";
 
 export class PackageLayout {
@@ -28,7 +29,7 @@ export class PackageLayout {
       const name: unknown = typeof manifest === "object" && manifest !== null && "name" in manifest ? manifest.name : undefined;
       if (typeof name !== "string")
         throw new PackageNameMissingException(file);
-      packages.push({ folder, name });
+      packages.push(new ModulePackage(folder, name));
     }
     return packages;
   }
