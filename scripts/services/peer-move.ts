@@ -39,22 +39,34 @@ export class PeerMove {
 
   public async runAsync(): Promise<number> {
     try {
+      const ranges = await this.readRangesAsync();
+      if (ranges.size === 0)
+        return 0;
+      const manifest = RootManifest.parse(await readFile(path.join(this.root, Resources.manifestFile), Resources.textEncoding));
       const chosen = new Map<string, string>();
-      for (const [name, ranges] of await this.readRangesAsync()) {
-        const version = await this.newestAsync(name, ranges);
+      for (const [name, held] of [...ranges].filter(([t]) => !t.startsWith(Resources.contextPrefix))) {
+        const version = PeerMove.newestOf(await this.publishedAsync(name, held) ?? []);
         if (Object.isUndefined(version))
           return 1;
         chosen.set(name, version);
       }
-      if (chosen.size === 0)
-        return 0;
-      const manifest = RootManifest.parse(await readFile(path.join(this.root, Resources.manifestFile), Resources.textEncoding));
-      const context = [...chosen].filter(([name]) => name.startsWith(Resources.contextPrefix)).map(([, version]) => version);
-      const together = context.reduce<string | undefined>((found, t) => Object.isUndefined(found) || PeerMove.isNewer(t, found) ? t : found, undefined);
-      if (!Object.isUndefined(together))
-        for (const name of new Set([...manifest.pins.keys(), ...await this.readInstalledContextAsync()]))
-          if (name.startsWith(Resources.contextPrefix) && !chosen.has(name))
-            chosen.set(name, together);
+      if ([...ranges.keys()].some(t => t.startsWith(Resources.contextPrefix))) {
+        const names = [...new Set([...ranges.keys(), ...manifest.pins.keys(), ...await this.readInstalledContextAsync()])].filter(t => t.startsWith(Resources.contextPrefix));
+        let common: readonly string[] | undefined;
+        for (const name of names) {
+          const versions = await this.publishedAsync(name, ranges.get(name) ?? []);
+          if (Object.isUndefined(versions))
+            return 1;
+          common = Object.isUndefined(common) ? versions : common.filter(t => versions.includes(t));
+        }
+        const together = PeerMove.newestOf(common ?? []);
+        if (Object.isUndefined(together)) {
+          this.report(Resources.formatPeerNoCommonVersion(names));
+          return 1;
+        }
+        for (const name of names)
+          chosen.set(name, together);
+      }
       const kept = await this.readInstalledPinsAsync(new Map([...manifest.pins].filter(([name]) => !chosen.has(name))));
       const moved = [...chosen].map(([name, version]) => Resources.formatPackageSpec(name, version));
       const result = await this.npm.runAsync([...Resources.peerInstallArguments, ...moved, ...kept], this.root);
@@ -80,6 +92,10 @@ export class PeerMove {
       this.report(error.message);
       return 1;
     }
+  }
+
+  private static newestOf(versions: readonly string[]): string | undefined {
+    return versions.reduce<string | undefined>((found, t) => Object.isUndefined(found) || PeerMove.isNewer(t, found) ? t : found, undefined);
   }
 
   private static isNewer(version: string, than: string): boolean {
@@ -116,7 +132,7 @@ export class PeerMove {
     return ranges;
   }
 
-  private async newestAsync(name: string, ranges: readonly string[]): Promise<string | undefined> {
+  private async publishedAsync(name: string, ranges: readonly string[]): Promise<readonly string[] | undefined> {
     const parsed = ranges.map(t => VersionRange.parse(t));
     const holding = parsed.filter(t => !Object.isNull(t));
     if (holding.length !== parsed.length) {
@@ -132,10 +148,10 @@ export class PeerMove {
     const published = PeerMove.parseVersions(name, result.output);
     const versions = (Array.isArray(published) ? published : [published])
       .filter((t: unknown): t is string => Object.isString(t) && Resources.versionPattern.test(t) && holding.every(u => u.includes(t)));
-    const newest = versions.reduce<string | undefined>((found, t) => Object.isUndefined(found) || PeerMove.isNewer(t, found) ? t : found, undefined);
-    if (Object.isUndefined(newest))
-      this.report(Resources.formatPeerNoVersion(name, [...new Set(ranges)]));
-    return newest;
+    if (versions.length > 0)
+      return versions;
+    this.report(Resources.formatPeerNoVersion(name, [...new Set(ranges)]));
+    return undefined;
   }
 
   private async readInstalledContextAsync(): Promise<readonly string[]> {

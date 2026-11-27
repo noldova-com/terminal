@@ -816,6 +816,10 @@ export class Resources {
     return `The root's node_modules holds no readable manifest of ${packageName} after the move: ${file} is missing or not JSON.`;
   }
 
+  public static formatPeerNoCommonVersion(packageNames: readonly string[]): string {
+    return `npm view gives no version that ${packageNames.join(", ")} have all published inside the packages' peer ranges.`;
+  }
+
   public static formatPeerNoVersion(packageName: string, ranges: readonly string[]): string {
     return `npm view gives no published version of ${packageName} inside ${ranges.join(" and ")}.`;
   }
